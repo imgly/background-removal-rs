@@ -83,7 +83,7 @@ enum CliOutputFormat {
     Png,
     Jpeg,
     Webp,
-    Raw,
+    Rgba8,
 }
 
 impl From<CliOutputFormat> for OutputFormat {
@@ -92,7 +92,7 @@ impl From<CliOutputFormat> for OutputFormat {
             CliOutputFormat::Png => OutputFormat::Png,
             CliOutputFormat::Jpeg => OutputFormat::Jpeg,
             CliOutputFormat::Webp => OutputFormat::WebP,
-            CliOutputFormat::Raw => OutputFormat::Raw,
+            CliOutputFormat::Rgba8 => OutputFormat::Rgba8,
         }
     }
 }
@@ -471,7 +471,7 @@ fn generate_output_path(input_path: &Path, format: OutputFormat) -> PathBuf {
         OutputFormat::Png => "png",
         OutputFormat::Jpeg => "jpg",
         OutputFormat::WebP => "webp",
-        OutputFormat::Raw => "raw",
+        OutputFormat::Rgba8 => "rgba8",
     };
 
     dir.join(format!("{}_bg_removed.{}", stem.to_string_lossy(), extension))
@@ -518,6 +518,9 @@ mod tests {
         
         let jpeg_output = generate_output_path(input, OutputFormat::Jpeg);
         assert_eq!(jpeg_output, Path::new("/path/to/image_bg_removed.jpg"));
+        
+        let rgba8_output = generate_output_path(input, OutputFormat::Rgba8);
+        assert_eq!(rgba8_output, Path::new("/path/to/image_bg_removed.rgba8"));
     }
 
     #[test]
