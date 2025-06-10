@@ -8,7 +8,37 @@ use crate::{
 use ndarray::Array4;
 use ort::session::{Session, builder::GraphOptimizationLevel};
 use ort::{self, value::Value};
-use ort::execution_providers::{CoreMLExecutionProvider, CUDAExecutionProvider};
+use ort::execution_providers::{CoreMLExecutionProvider, CUDAExecutionProvider, ExecutionProvider as OrtExecutionProvider};
+
+/// Check availability of all execution providers
+pub fn check_provider_availability() -> Vec<(String, bool, String)> {
+    let mut providers = Vec::new();
+    
+    // CPU is always available
+    providers.push((
+        "CPU".to_string(),
+        true,
+        "Always available, uses CPU for inference".to_string()
+    ));
+    
+    // Check CUDA availability
+    let cuda_available = OrtExecutionProvider::is_available(&CUDAExecutionProvider::default()).unwrap_or(false);
+    providers.push((
+        "CUDA".to_string(),
+        cuda_available,
+        "NVIDIA GPU acceleration (requires CUDA toolkit and compatible GPU)".to_string()
+    ));
+    
+    // Check CoreML availability  
+    let coreml_available = OrtExecutionProvider::is_available(&CoreMLExecutionProvider::default()).unwrap_or(false);
+    providers.push((
+        "CoreML".to_string(),
+        coreml_available,
+        "Apple Silicon GPU acceleration (macOS only)".to_string()
+    ));
+    
+    providers
+}
 
 /// Trait for inference backends
 pub trait InferenceBackend {
@@ -54,30 +84,63 @@ impl OnnxBackend {
         let mut session_builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?;
 
-        // Configure execution providers based on user choice
+        // Configure execution providers with availability checking
         session_builder = match config.execution_provider {
             ExecutionProvider::Auto => {
-                // Auto-detect: try CUDA > CoreML > CPU
-                session_builder.with_execution_providers([
-                    CUDAExecutionProvider::default().build(),
-                    CoreMLExecutionProvider::default().build(),
-                ])?
+                // Auto-detect: try CUDA > CoreML > CPU with availability checking
+                let mut providers = Vec::new();
+                
+                // Check CUDA availability
+                let cuda_provider = CUDAExecutionProvider::default();
+                if OrtExecutionProvider::is_available(&cuda_provider).unwrap_or(false) {
+                    log::info!("CUDA execution provider is available");
+                    providers.push(cuda_provider.build());
+                } else {
+                    log::debug!("CUDA execution provider is not available");
+                }
+                
+                // Check CoreML availability  
+                let coreml_provider = CoreMLExecutionProvider::default();
+                if OrtExecutionProvider::is_available(&coreml_provider).unwrap_or(false) {
+                    log::info!("CoreML execution provider is available");
+                    providers.push(coreml_provider.build());
+                } else {
+                    log::debug!("CoreML execution provider is not available");
+                }
+                
+                if providers.is_empty() {
+                    log::info!("No hardware acceleration available, using CPU");
+                    session_builder
+                } else {
+                    session_builder.with_execution_providers(providers)?
+                }
             },
             ExecutionProvider::Cpu => {
                 // CPU only
+                log::info!("Using CPU execution provider");
                 session_builder
             },
             ExecutionProvider::Cuda => {
-                // CUDA only (will fall back to CPU if not available)
-                session_builder.with_execution_providers([
-                    CUDAExecutionProvider::default().build(),
-                ])?
+                // CUDA only with availability check
+                let cuda_provider = CUDAExecutionProvider::default();
+                if OrtExecutionProvider::is_available(&cuda_provider).unwrap_or(false) {
+                    log::info!("Using CUDA execution provider");
+                    session_builder.with_execution_providers([cuda_provider.build()])?
+                } else {
+                    log::warn!("CUDA execution provider requested but not available, falling back to CPU");
+                    session_builder
+                }
             },
             ExecutionProvider::CoreMl => {
-                // CoreML only (will fall back to CPU if not available)
-                session_builder.with_execution_providers([
-                    CoreMLExecutionProvider::default().build(),
-                ])?
+                // CoreML only with availability check
+                let coreml_provider = CoreMLExecutionProvider::default();
+                if OrtExecutionProvider::is_available(&coreml_provider).unwrap_or(false) {
+                    log::info!("Using CoreML execution provider");
+                    session_builder.with_execution_providers([coreml_provider.build()])?
+                } else {
+                    log::warn!("CoreML execution provider requested but not available, falling back to CPU");
+                    session_builder
+                }
             },
         };
 
@@ -97,13 +160,16 @@ impl OnnxBackend {
         };
 
         let session = session_builder
-            .with_intra_threads(intra_threads)?
-            .with_inter_threads(inter_threads)?
+            .with_parallel_execution(true)?           // Enable parallel execution
+            .with_intra_threads(intra_threads)?       // Threads within operations
+            .with_inter_threads(inter_threads)?       // Threads between operations
             .commit_from_memory(&model_data)?;
         
-        // Log configuration details
-        log::info!("ONNX Runtime session created with execution provider: {:?}", config.execution_provider);
-        log::info!("Threading: {} intra-op threads, {} inter-op threads", intra_threads, inter_threads);
+        // Log comprehensive configuration details
+        log::info!("ONNX Runtime session created successfully");
+        log::info!("Execution provider: {:?}", config.execution_provider);
+        log::info!("Threading: {} intra-op threads, {} inter-op threads, parallel execution enabled", intra_threads, inter_threads);
+        log::info!("Optimization level: Level3, Model precision: {:?}", config.model_precision);
         
         self.session = Some(session);
         self.precision = config.model_precision;

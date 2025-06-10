@@ -69,8 +69,8 @@ impl RemovalResult {
             OutputFormat::Png => self.save_png(path),
             OutputFormat::Jpeg => self.save_jpeg(path, quality),
             OutputFormat::WebP => self.save_webp(path, quality),
-            OutputFormat::Raw => {
-                // For raw format, save the raw RGBA bytes
+            OutputFormat::Rgba8 => {
+                // For RGBA8 format, save the raw RGBA bytes
                 let rgba_image = self.image.to_rgba8();
                 std::fs::write(path, rgba_image.as_raw())?;
                 Ok(())
@@ -81,6 +81,36 @@ impl RemovalResult {
     /// Get the image as raw RGBA bytes
     pub fn to_rgba_bytes(&self) -> Vec<u8> {
         self.image.to_rgba8().into_raw()
+    }
+
+    /// Get the image as encoded bytes in the specified format
+    pub fn to_bytes(&self, format: OutputFormat, quality: u8) -> Result<Vec<u8>> {
+        match format {
+            OutputFormat::Png => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                self.image.write_to(&mut cursor, image::ImageFormat::Png)?;
+                Ok(buffer)
+            }
+            OutputFormat::Jpeg => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                let rgb_image = self.image.to_rgb8();
+                let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
+                jpeg_encoder.encode_image(&rgb_image)?;
+                Ok(buffer)
+            }
+            OutputFormat::WebP => {
+                // For now, fall back to PNG for WebP until proper WebP encoding is implemented
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                self.image.write_to(&mut cursor, image::ImageFormat::Png)?;
+                Ok(buffer)
+            }
+            OutputFormat::Rgba8 => {
+                Ok(self.to_rgba_bytes())
+            }
+        }
     }
 
     /// Get image dimensions

@@ -151,6 +151,58 @@ impl ImageProcessor {
         ))
     }
 
+    /// Process a DynamicImage directly for background removal
+    pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
+        let _start_time = Instant::now();
+        let mut metadata = ProcessingMetadata::new("ISNet".to_string());
+        
+        let original_dimensions = image.dimensions();
+        
+        // Apply max dimension constraint if configured
+        let processed_image = if let Some(max_dim) = self.config.max_dimension {
+            let (width, height) = image.dimensions();
+            if width > max_dim || height > max_dim {
+                let scale = (max_dim as f32) / width.max(height) as f32;
+                let new_width = (width as f32 * scale) as u32;
+                let new_height = (height as f32 * scale) as u32;
+                
+                image.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
+            } else {
+                image
+            }
+        } else {
+            image
+        };
+
+        // Preprocess image
+        let preprocess_start = Instant::now();
+        let (processed_image, input_tensor) = self.preprocess_image(&processed_image)?;
+        let preprocessing_time = preprocess_start.elapsed().as_millis() as u64;
+
+        // Run inference
+        let inference_start = Instant::now();
+        let output_tensor = self.backend.infer(&input_tensor)?;
+        let inference_time = inference_start.elapsed().as_millis() as u64;
+
+        // Postprocess results
+        let postprocess_start = Instant::now();
+        let mask = self.tensor_to_mask(&output_tensor, processed_image.dimensions())?;
+        let result_image = self.apply_background_removal(&processed_image, &mask)?;
+        let postprocessing_time = postprocess_start.elapsed().as_millis() as u64;
+
+        // Set metadata
+        metadata.set_timings(inference_time, preprocessing_time, postprocessing_time);
+        metadata.input_format = self.detect_image_format(&processed_image);
+        metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
+
+        Ok(RemovalResult::new(
+            result_image,
+            mask,
+            original_dimensions,
+            metadata,
+        ))
+    }
+
     /// Load image from file path
     fn load_image<P: AsRef<Path>>(&self, path: P) -> Result<DynamicImage> {
         let image = image::open(path)?;
@@ -250,7 +302,7 @@ impl ImageProcessor {
 
         // Handle different output formats
         match self.config.output_format {
-            OutputFormat::Png | OutputFormat::Raw => {
+            OutputFormat::Png | OutputFormat::Rgba8 => {
                 // Keep alpha channel
                 Ok(DynamicImage::ImageRgba8(rgba_image))
             }

@@ -76,6 +76,40 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
     processor.remove_background(input_path).await
 }
 
+/// Process a DynamicImage directly for background removal
+///
+/// This allows processing images loaded from memory or other sources.
+/// 
+/// # Arguments
+/// 
+/// * `image` - The input image to process
+/// * `config` - Configuration for the removal operation
+///
+/// # Returns
+/// 
+/// A `RemovalResult` containing the processed image and metadata
+///
+/// # Examples
+/// 
+/// ```rust,no_run
+/// use bg_remove_core::{RemovalConfig, process_image};
+/// use image::DynamicImage;
+/// 
+/// # async fn example(img: DynamicImage) -> anyhow::Result<()> {
+/// let config = RemovalConfig::default();
+/// let result = process_image(img, &config)?;
+/// result.save_png("result.png")?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn process_image(
+    image: image::DynamicImage,
+    config: &RemovalConfig,
+) -> Result<RemovalResult> {
+    let mut processor = ImageProcessor::new(config)?;
+    processor.process_image(image)
+}
+
 /// Extract foreground segmentation mask from an image
 ///
 /// Returns only the segmentation mask without applying it to the image.

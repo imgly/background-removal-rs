@@ -47,8 +47,8 @@ pub enum OutputFormat {
     Jpeg,
     /// WebP with alpha channel transparency
     WebP,
-    /// Raw RGB/RGBA data
-    Raw,
+    /// Raw RGBA8 pixel data (4 bytes per pixel)
+    Rgba8,
 }
 
 impl Default for OutputFormat {
