@@ -12,10 +12,16 @@ rust-version.workspace = true
 description = "Core background removal library using ONNX Runtime and ISNet models"
 
 [features]
-default = ["isnet-fp16"]
-isnet-standard = []
-isnet-fp16 = []
-no-embedded-models = []
+# Default: FP16 model (balanced performance, ~90MB binary)
+default = ["fp16-model"]
+
+# Model precision selection (mutually exclusive)
+fp16-model = []           # Embed FP16 model (smaller, faster)
+fp32-model = []           # Embed FP32 model (higher precision, ~175MB binary)
+
+# Legacy compatibility
+isnet-fp16 = ["fp16-model"]
+isnet-standard = ["fp32-model"]
 
 [dependencies]
 # Core dependencies

@@ -53,9 +53,8 @@ strip = true
 opt-level = 1
 debug = true
 
-# Features for model embedding
+# Features for model embedding  
 [workspace.metadata.features]
-default = ["isnet-fp16"]
-isnet-standard = ["high-accuracy", "large-binary"]  
-isnet-fp16 = ["balanced-performance", "medium-binary"]
-no-embedded-models = ["external-models"]
+default = ["fp16-model"]
+fp16-model = ["balanced-performance", "90mb-binary"]
+fp32-model = ["high-accuracy", "175mb-binary"]

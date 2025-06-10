@@ -28,32 +28,72 @@ impl ModelProvider for EmbeddedModelProvider {
     fn load_model_data(&self, precision: ModelPrecision) -> Result<Vec<u8>> {
         match precision {
             ModelPrecision::Fp32 => {
-                // Load embedded FP32 ISNet model
-                Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec())
+                #[cfg(feature = "fp32-model")]
+                {
+                    // Load embedded FP32 ISNet model
+                    Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec())
+                }
+                #[cfg(not(feature = "fp32-model"))]
+                {
+                    Err(crate::error::BgRemovalError::model(
+                        "FP32 model not embedded. This binary was built with FP16 model. Build with --no-default-features --features fp32-model for FP32 support".to_string()
+                    ))
+                }
             }
             ModelPrecision::Fp16 => {
-                // Load embedded FP16 ISNet model  
-                Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
+                #[cfg(feature = "fp16-model")]
+                {
+                    // Load embedded FP16 ISNet model  
+                    Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
+                }
+                #[cfg(not(feature = "fp16-model"))]
+                {
+                    Err(crate::error::BgRemovalError::model(
+                        "FP16 model not embedded. This binary was built with FP32 model. Build with default features for FP16 support".to_string()
+                    ))
+                }
             }
         }
     }
 
     fn get_model_info(&self, precision: ModelPrecision) -> Result<ModelInfo> {
         match precision {
-            ModelPrecision::Fp32 => Ok(ModelInfo {
-                name: "ISNet-FP32".to_string(),
-                precision,
-                size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
-                input_shape: (1, 3, 1024, 1024),
-                output_shape: (1, 1, 1024, 1024),
-            }),
-            ModelPrecision::Fp16 => Ok(ModelInfo {
-                name: "ISNet-FP16".to_string(),
-                precision,
-                size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
-                input_shape: (1, 3, 1024, 1024),
-                output_shape: (1, 1, 1024, 1024),
-            }),
+            ModelPrecision::Fp32 => {
+                #[cfg(feature = "fp32-model")]
+                {
+                    Ok(ModelInfo {
+                        name: "ISNet-FP32".to_string(),
+                        precision,
+                        size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
+                        input_shape: (1, 3, 1024, 1024),
+                        output_shape: (1, 1, 1024, 1024),
+                    })
+                }
+                #[cfg(not(feature = "fp32-model"))]
+                {
+                    Err(crate::error::BgRemovalError::model(
+                        "FP32 model not embedded. This binary was built with FP16 model. Build with --no-default-features --features fp32-model for FP32 support".to_string()
+                    ))
+                }
+            }
+            ModelPrecision::Fp16 => {
+                #[cfg(feature = "fp16-model")]
+                {
+                    Ok(ModelInfo {
+                        name: "ISNet-FP16".to_string(),
+                        precision,
+                        size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
+                        input_shape: (1, 3, 1024, 1024),
+                        output_shape: (1, 1, 1024, 1024),
+                    })
+                }
+                #[cfg(not(feature = "fp16-model"))]
+                {
+                    Err(crate::error::BgRemovalError::model(
+                        "FP16 model not embedded. This binary was built with FP32 model. Build with default features for FP16 support".to_string()
+                    ))
+                }
+            }
         }
     }
 }

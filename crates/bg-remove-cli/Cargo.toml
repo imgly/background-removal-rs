@@ -16,10 +16,16 @@ name = "bg-remove"
 path = "src/main.rs"
 
 [features]
-default = ["isnet-fp16"]
-isnet-standard = ["bg-remove-core/isnet-standard"]
-isnet-fp16 = ["bg-remove-core/isnet-fp16"]
-no-embedded-models = ["bg-remove-core/no-embedded-models"]
+# Default: FP16 model (balanced performance, ~90MB binary)
+default = ["fp16-model"]
+
+# Model precision selection (mutually exclusive)
+fp16-model = ["bg-remove-core/fp16-model"]
+fp32-model = ["bg-remove-core/fp32-model"]
+
+# Legacy compatibility
+isnet-fp16 = ["fp16-model"]
+isnet-standard = ["fp32-model"]
 
 [dependencies]
 # Core library
