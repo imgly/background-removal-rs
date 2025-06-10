@@ -1,7 +1,7 @@
 //! Inference backend abstraction and ONNX Runtime implementation
 
 use crate::{
-    config::{ModelPrecision, RemovalConfig, ExecutionProvider},
+    config::{RemovalConfig, ExecutionProvider},
     error::Result,
     models::ModelManager,
 };
@@ -59,7 +59,6 @@ pub trait InferenceBackend {
 pub struct OnnxBackend {
     session: Option<Session>,
     model_manager: ModelManager,
-    precision: ModelPrecision,
     initialized: bool,
 }
 
@@ -69,7 +68,6 @@ impl OnnxBackend {
         Self {
             session: None,
             model_manager: ModelManager::with_embedded(),
-            precision: ModelPrecision::Fp16,
             initialized: false,
         }
     }
@@ -77,8 +75,8 @@ impl OnnxBackend {
 
     /// Load and initialize the ONNX model
     fn load_model(&mut self, config: &RemovalConfig) -> Result<()> {
-        // Load the model data
-        let model_data = self.model_manager.load_model(config.model_precision)?;
+        // Load the model data (uses embedded model based on compile-time feature)
+        let model_data = self.model_manager.load_model()?;
         
         // Create ONNX Runtime session with specified execution provider
         let mut session_builder = Session::builder()?
@@ -166,13 +164,13 @@ impl OnnxBackend {
             .commit_from_memory(&model_data)?;
         
         // Log comprehensive configuration details
+        let model_info = self.model_manager.get_info()?;
         log::info!("ONNX Runtime session created successfully");
         log::info!("Execution provider: {:?}", config.execution_provider);
         log::info!("Threading: {} intra-op threads, {} inter-op threads, parallel execution enabled", intra_threads, inter_threads);
-        log::info!("Optimization level: Level3, Model precision: {:?}", config.model_precision);
+        log::info!("Optimization level: Level3, Model: {} ({:?})", model_info.name, model_info.precision);
         
         self.session = Some(session);
-        self.precision = config.model_precision;
         self.initialized = true;
 
         Ok(())

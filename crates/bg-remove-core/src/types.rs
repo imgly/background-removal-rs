@@ -136,27 +136,23 @@ pub struct SegmentationMask {
     
     /// Mask dimensions (width, height)
     pub dimensions: (u32, u32),
-    
-    /// Confidence threshold used to generate this mask
-    pub threshold: f32,
 }
 
 impl SegmentationMask {
     /// Create a new segmentation mask
-    pub fn new(data: Vec<u8>, dimensions: (u32, u32), threshold: f32) -> Self {
+    pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
         Self {
             data,
             dimensions,
-            threshold,
         }
     }
 
     /// Create mask from a grayscale image
-    pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>, threshold: f32) -> Self {
+    pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
         let (width, height) = image.dimensions();
         let data = image.as_raw().clone();
         
-        Self::new(data, (width, height), threshold)
+        Self::new(data, (width, height))
     }
 
     /// Convert mask to a grayscale image
@@ -199,7 +195,7 @@ impl SegmentationMask {
             image::imageops::FilterType::Lanczos3,
         );
         
-        Ok(SegmentationMask::from_image(&resized, self.threshold))
+        Ok(SegmentationMask::from_image(&resized))
     }
 
     /// Get mask statistics
@@ -298,17 +294,16 @@ mod tests {
     #[test]
     fn test_segmentation_mask_creation() {
         let data = vec![255, 128, 0, 255];
-        let mask = SegmentationMask::new(data, (2, 2), 0.5);
+        let mask = SegmentationMask::new(data, (2, 2));
         
         assert_eq!(mask.dimensions, (2, 2));
-        assert_eq!(mask.threshold, 0.5);
         assert_eq!(mask.data.len(), 4);
     }
 
     #[test]
     fn test_mask_statistics() {
         let data = vec![255, 255, 0, 0]; // 2 foreground, 2 background
-        let mask = SegmentationMask::new(data, (2, 2), 0.5);
+        let mask = SegmentationMask::new(data, (2, 2));
         
         let stats = mask.statistics();
         assert_eq!(stats.total_pixels, 4);

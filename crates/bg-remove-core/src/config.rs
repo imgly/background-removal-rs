@@ -97,9 +97,6 @@ impl BackgroundColor {
 /// Configuration for background removal operations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovalConfig {
-    /// Model precision to use
-    pub model_precision: ModelPrecision,
-    
     /// Execution provider for ONNX Runtime
     pub execution_provider: ExecutionProvider,
     
@@ -124,15 +121,11 @@ pub struct RemovalConfig {
     
     /// Number of inter-op threads for inference (0 = auto)
     pub inter_threads: usize,
-    
-    /// Maximum input image dimension (will be resized if larger)
-    pub max_dimension: Option<u32>,
 }
 
 impl Default for RemovalConfig {
     fn default() -> Self {
         Self {
-            model_precision: ModelPrecision::default(),
             execution_provider: ExecutionProvider::default(),
             output_format: OutputFormat::default(),
             background_color: BackgroundColor::default(),
@@ -141,7 +134,6 @@ impl Default for RemovalConfig {
             debug: false,
             intra_threads: 0, // Auto-detect optimal intra-op threads
             inter_threads: 0, // Auto-detect optimal inter-op threads
-            max_dimension: Some(2048), // Reasonable default to prevent OOM
         }
     }
 }
@@ -166,15 +158,6 @@ impl RemovalConfig {
             ));
         }
 
-
-        if let Some(max_dim) = self.max_dimension {
-            if max_dim < 64 {
-                return Err(crate::error::BgRemovalError::invalid_config(
-                    "Maximum dimension must be at least 64 pixels"
-                ));
-            }
-        }
-
         Ok(())
     }
 }
@@ -186,12 +169,6 @@ pub struct RemovalConfigBuilder {
 }
 
 impl RemovalConfigBuilder {
-    /// Set model precision
-    pub fn model_precision(mut self, precision: ModelPrecision) -> Self {
-        self.config.model_precision = precision;
-        self
-    }
-
     /// Set execution provider
     pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
         self.config.execution_provider = provider;
@@ -248,12 +225,6 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set maximum dimension
-    pub fn max_dimension(mut self, max_dim: u32) -> Self {
-        self.config.max_dimension = Some(max_dim);
-        self
-    }
-
     /// Build the configuration
     pub fn build(self) -> crate::Result<RemovalConfig> {
         let config = self.config;
@@ -269,7 +240,6 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = RemovalConfig::default();
-        assert_eq!(config.model_precision, ModelPrecision::Fp16);
         assert_eq!(config.output_format, OutputFormat::Png);
         assert_eq!(config.jpeg_quality, 90);
         assert_eq!(config.webp_quality, 85);
@@ -279,7 +249,6 @@ mod tests {
     #[test]
     fn test_config_builder() {
         let config = RemovalConfig::builder()
-            .model_precision(ModelPrecision::Fp32)
             .output_format(OutputFormat::Jpeg)
             .background_color(BackgroundColor::black())
             .jpeg_quality(95)
@@ -287,7 +256,6 @@ mod tests {
             .build()
             .unwrap();
 
-        assert_eq!(config.model_precision, ModelPrecision::Fp32);
         assert_eq!(config.output_format, OutputFormat::Jpeg);
         assert_eq!(config.background_color, BackgroundColor::black());
         assert_eq!(config.jpeg_quality, 95);
@@ -303,11 +271,6 @@ mod tests {
         
         // Invalid JPEG quality should fail
         config.jpeg_quality = 150;
-        assert!(config.validate().is_err());
-        
-        // Invalid max dimension should fail
-        config.jpeg_quality = 90;
-        config.max_dimension = Some(32);
         assert!(config.validate().is_err());
     }
 

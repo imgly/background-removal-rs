@@ -14,26 +14,14 @@ use std::time::Instant;
 /// Processing options for fine-tuning behavior
 #[derive(Debug, Clone)]
 pub struct ProcessingOptions {
-    /// Confidence threshold for mask generation (0.0-1.0)
-    pub confidence_threshold: f32,
-    
-    /// Enable mask smoothing
-    pub smooth_mask: bool,
-    
-    /// Feather edges (blur radius in pixels)
-    pub feather_radius: u32,
-    
-    /// Apply post-processing filters
-    pub apply_filters: bool,
+    /// Padding color for aspect ratio preservation (RGB)
+    pub padding_color: [u8; 3],
 }
 
 impl Default for ProcessingOptions {
     fn default() -> Self {
         Self {
-            confidence_threshold: 0.5,
-            smooth_mask: true,
-            feather_radius: 2,
-            apply_filters: true,
+            padding_color: [0, 0, 0], // Black padding by default
         }
     }
 }
@@ -157,26 +145,10 @@ impl ImageProcessor {
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
         
         let original_dimensions = image.dimensions();
-        
-        // Apply max dimension constraint if configured
-        let processed_image = if let Some(max_dim) = self.config.max_dimension {
-            let (width, height) = image.dimensions();
-            if width > max_dim || height > max_dim {
-                let scale = (max_dim as f32) / width.max(height) as f32;
-                let new_width = (width as f32 * scale) as u32;
-                let new_height = (height as f32 * scale) as u32;
-                
-                image.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
-            } else {
-                image
-            }
-        } else {
-            image
-        };
 
         // Preprocess image
         let preprocess_start = Instant::now();
-        let (processed_image, input_tensor) = self.preprocess_image(&processed_image)?;
+        let (_preprocessed_image, input_tensor) = self.preprocess_image(&image)?;
         let preprocessing_time = preprocess_start.elapsed().as_millis() as u64;
 
         // Run inference
@@ -186,13 +158,13 @@ impl ImageProcessor {
 
         // Postprocess results
         let postprocess_start = Instant::now();
-        let mask = self.tensor_to_mask(&output_tensor, processed_image.dimensions())?;
-        let result_image = self.apply_background_removal(&processed_image, &mask)?;
+        let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
+        let result_image = self.apply_background_removal(&image, &mask)?;
         let postprocessing_time = postprocess_start.elapsed().as_millis() as u64;
 
         // Set metadata
         metadata.set_timings(inference_time, preprocessing_time, postprocessing_time);
-        metadata.input_format = self.detect_image_format(&processed_image);
+        metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
 
         Ok(RemovalResult::new(
@@ -206,54 +178,74 @@ impl ImageProcessor {
     /// Load image from file path
     fn load_image<P: AsRef<Path>>(&self, path: P) -> Result<DynamicImage> {
         let image = image::open(path)?;
-        
-        // Apply max dimension constraint if configured
-        if let Some(max_dim) = self.config.max_dimension {
-            let (width, height) = image.dimensions();
-            if width > max_dim || height > max_dim {
-                let scale = (max_dim as f32) / width.max(height) as f32;
-                let new_width = (width as f32 * scale) as u32;
-                let new_height = (height as f32 * scale) as u32;
-                
-                return Ok(image.resize(new_width, new_height, image::imageops::FilterType::Lanczos3));
-            }
-        }
-        
         Ok(image)
     }
 
-    /// Preprocess image for model inference
+    /// Preprocess image for model inference with aspect ratio preservation
     fn preprocess_image(&self, image: &DynamicImage) -> Result<(DynamicImage, Array4<f32>)> {
-        // Convert to RGB and resize to model input size (1024x1024 like JavaScript)
-        let rgb_image = image.to_rgb8();
-        
-        // ISNet expects 1024x1024 input (no aspect ratio preservation, like JavaScript)
         let target_size = 1024u32;
+        
+        // Convert to RGB
+        let rgb_image = image.to_rgb8();
+        let (orig_width, orig_height) = rgb_image.dimensions();
+        
+        // Calculate aspect ratio preserving dimensions
+        let scale = (target_size as f32).min(
+            (target_size as f32 / orig_width as f32).min(target_size as f32 / orig_height as f32)
+        );
+        
+        let new_width = (orig_width as f32 * scale) as u32;
+        let new_height = (orig_height as f32 * scale) as u32;
+        
+        // Resize image maintaining aspect ratio
         let resized = image::imageops::resize(
             &rgb_image,
-            target_size,
-            target_size,
-            image::imageops::FilterType::Triangle, // Bilinear-like
+            new_width,
+            new_height,
+            image::imageops::FilterType::Triangle,
         );
+        
+        // Create a 1024x1024 canvas with configurable padding color
+        let padding = self.options.padding_color;
+        let mut canvas = image::ImageBuffer::from_pixel(
+            target_size, 
+            target_size, 
+            image::Rgb([padding[0], padding[1], padding[2]])
+        );
+        
+        // Calculate centering offset
+        let offset_x = (target_size - new_width) / 2;
+        let offset_y = (target_size - new_height) / 2;
+        
+        // Copy resized image to center of canvas
+        for (x, y, pixel) in resized.enumerate_pixels() {
+            let canvas_x = x + offset_x;
+            let canvas_y = y + offset_y;
+            if canvas_x < target_size && canvas_y < target_size {
+                canvas.put_pixel(canvas_x, canvas_y, *pixel);
+            }
+        }
 
-        // Convert to tensor format (NCHW) with JavaScript-compatible normalization
+        // Convert to tensor format (NCHW) with normalization
         let mut tensor = Array4::<f32>::zeros((1, 3, target_size as usize, target_size as usize));
         
-        for (y, row) in resized.rows().enumerate() {
+        for (y, row) in canvas.rows().enumerate() {
             for (x, pixel) in row.enumerate() {
-                // JavaScript normalization: (pixel - mean) / std
-                // Mean: [128, 128, 128], Std: [256, 256, 256]
+                // Normalization: (pixel - mean) / std
+                // Mean: [128, 128, 128], Std: [256, 256, 256] 
                 tensor[[0, 0, y, x]] = (pixel[0] as f32 - 128.0) / 256.0; // R
                 tensor[[0, 1, y, x]] = (pixel[1] as f32 - 128.0) / 256.0; // G
                 tensor[[0, 2, y, x]] = (pixel[2] as f32 - 128.0) / 256.0; // B
             }
         }
 
-        Ok((image.clone(), tensor))
+        // Return the preprocessed image for debugging/metadata
+        let preprocessed_image = DynamicImage::ImageRgb8(canvas);
+        Ok((preprocessed_image, tensor))
     }
 
-    /// Convert model output tensor to segmentation mask
-    fn tensor_to_mask(&self, tensor: &Array4<f32>, target_size: (u32, u32)) -> Result<SegmentationMask> {
+    /// Convert model output tensor to segmentation mask with aspect ratio handling
+    fn tensor_to_mask(&self, tensor: &Array4<f32>, original_size: (u32, u32)) -> Result<SegmentationMask> {
         let (batch, channels, height, width) = tensor.dim();
         
         if batch != 1 || channels != 1 {
@@ -262,32 +254,43 @@ impl ImageProcessor {
             ));
         }
 
-        // Extract mask data - use tensor values directly as alpha channel
-        let mut mask_data = Vec::with_capacity(height * width);
-        for y in 0..height {
-            for x in 0..width {
-                let raw_value = tensor[[0, 0, y, x]];
-                // Convert float tensor value directly to u8 alpha
-                let pixel_value = (raw_value * 255.0).clamp(0.0, 255.0) as u8;
-                mask_data.push(pixel_value);
+        let model_size = 1024u32;
+        let (orig_width, orig_height) = original_size;
+        
+        // Calculate the scale and padding used during preprocessing
+        let scale = (model_size as f32).min(
+            (model_size as f32 / orig_width as f32).min(model_size as f32 / orig_height as f32)
+        );
+        
+        let scaled_width = (orig_width as f32 * scale) as u32;
+        let scaled_height = (orig_height as f32 * scale) as u32;
+        let offset_x = (model_size - scaled_width) / 2;
+        let offset_y = (model_size - scaled_height) / 2;
+
+        // Extract the relevant portion of the mask (crop out black padding)
+        let mut cropped_mask_data = Vec::with_capacity((scaled_width * scaled_height) as usize);
+        
+        for y in offset_y..(offset_y + scaled_height) {
+            for x in offset_x..(offset_x + scaled_width) {
+                if y < height as u32 && x < width as u32 {
+                    let raw_value = tensor[[0, 0, y as usize, x as usize]];
+                    let pixel_value = (raw_value * 255.0).clamp(0.0, 255.0) as u8;
+                    cropped_mask_data.push(pixel_value);
+                } else {
+                    cropped_mask_data.push(0u8); // Black padding areas
+                }
             }
         }
 
-        // Create initial mask
+        // Create mask from cropped data
         let mut mask = SegmentationMask::new(
-            mask_data,
-            (width as u32, height as u32),
-            self.options.confidence_threshold,
+            cropped_mask_data,
+            (scaled_width, scaled_height),
         );
 
-        // Resize to target dimensions if needed
-        if mask.dimensions != target_size {
-            mask = mask.resize(target_size.0, target_size.1)?;
-        }
-
-        // Apply post-processing
-        if self.options.smooth_mask {
-            mask = self.smooth_mask(mask)?;
+        // Resize mask back to original dimensions
+        if (scaled_width, scaled_height) != original_size {
+            mask = mask.resize(orig_width, orig_height)?;
         }
 
         Ok(mask)
@@ -342,18 +345,6 @@ impl ImageProcessor {
         Ok(rgb_image)
     }
 
-    /// Smooth mask edges using simple blur
-    fn smooth_mask(&self, mask: SegmentationMask) -> Result<SegmentationMask> {
-        if self.options.feather_radius == 0 {
-            return Ok(mask);
-        }
-
-        let mask_image = mask.to_image()?;
-        let blurred = image::imageops::blur(&mask_image, self.options.feather_radius as f32);
-        
-        Ok(SegmentationMask::from_image(&blurred, mask.threshold))
-    }
-
     /// Detect image format from dynamic image
     fn detect_image_format(&self, image: &DynamicImage) -> String {
         match image {
@@ -370,14 +361,11 @@ impl ImageProcessor {
 mod tests {
     use super::*;
     use crate::config::RemovalConfig;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_processing_options() {
         let options = ProcessingOptions::default();
-        assert_eq!(options.confidence_threshold, 0.5);
-        assert!(options.smooth_mask);
-        assert_eq!(options.feather_radius, 2);
+        assert_eq!(options.padding_color, [0, 0, 0]);
     }
 
     #[tokio::test]
@@ -398,7 +386,7 @@ mod tests {
         
         // Create a test image
         let test_image = DynamicImage::new_rgb8(100, 100);
-        let (processed, tensor) = processor.preprocess_image(&test_image).unwrap();
+        let (_processed, tensor) = processor.preprocess_image(&test_image).unwrap();
         
         // Check tensor shape matches backend requirements
         let expected_shape = processor.backend.input_shape();

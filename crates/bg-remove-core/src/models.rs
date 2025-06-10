@@ -14,86 +14,58 @@ pub struct ModelInfo {
 
 /// Model provider trait for loading models
 pub trait ModelProvider {
-    /// Load model data as bytes
-    fn load_model_data(&self, precision: ModelPrecision) -> Result<Vec<u8>>;
+    /// Load model data as bytes (uses embedded model based on compile-time feature)
+    fn load_model_data(&self) -> Result<Vec<u8>>;
     
-    /// Get model information
-    fn get_model_info(&self, precision: ModelPrecision) -> Result<ModelInfo>;
+    /// Get model information (uses embedded model based on compile-time feature)
+    fn get_model_info(&self) -> Result<ModelInfo>;
 }
 
 /// Embedded model provider (models compiled into binary)
 pub struct EmbeddedModelProvider;
 
 impl ModelProvider for EmbeddedModelProvider {
-    fn load_model_data(&self, precision: ModelPrecision) -> Result<Vec<u8>> {
-        match precision {
-            ModelPrecision::Fp32 => {
-                #[cfg(feature = "fp32-model")]
-                {
-                    // Load embedded FP32 ISNet model
-                    Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec())
-                }
-                #[cfg(not(feature = "fp32-model"))]
-                {
-                    Err(crate::error::BgRemovalError::model(
-                        "FP32 model not embedded. This binary was built with FP16 model. Build with --no-default-features --features fp32-model for FP32 support".to_string()
-                    ))
-                }
-            }
-            ModelPrecision::Fp16 => {
-                #[cfg(feature = "fp16-model")]
-                {
-                    // Load embedded FP16 ISNet model  
-                    Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
-                }
-                #[cfg(not(feature = "fp16-model"))]
-                {
-                    Err(crate::error::BgRemovalError::model(
-                        "FP16 model not embedded. This binary was built with FP32 model. Build with default features for FP16 support".to_string()
-                    ))
-                }
-            }
+    fn load_model_data(&self) -> Result<Vec<u8>> {
+        #[cfg(feature = "fp32-model")]
+        {
+            // Load embedded FP32 ISNet model
+            Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec())
+        }
+        #[cfg(feature = "fp16-model")]
+        {
+            // Load embedded FP16 ISNet model  
+            Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
+        }
+        #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
+        {
+            compile_error!("Either fp32-model or fp16-model feature must be enabled")
         }
     }
 
-    fn get_model_info(&self, precision: ModelPrecision) -> Result<ModelInfo> {
-        match precision {
-            ModelPrecision::Fp32 => {
-                #[cfg(feature = "fp32-model")]
-                {
-                    Ok(ModelInfo {
-                        name: "ISNet-FP32".to_string(),
-                        precision,
-                        size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
-                        input_shape: (1, 3, 1024, 1024),
-                        output_shape: (1, 1, 1024, 1024),
-                    })
-                }
-                #[cfg(not(feature = "fp32-model"))]
-                {
-                    Err(crate::error::BgRemovalError::model(
-                        "FP32 model not embedded. This binary was built with FP16 model. Build with --no-default-features --features fp32-model for FP32 support".to_string()
-                    ))
-                }
-            }
-            ModelPrecision::Fp16 => {
-                #[cfg(feature = "fp16-model")]
-                {
-                    Ok(ModelInfo {
-                        name: "ISNet-FP16".to_string(),
-                        precision,
-                        size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
-                        input_shape: (1, 3, 1024, 1024),
-                        output_shape: (1, 1, 1024, 1024),
-                    })
-                }
-                #[cfg(not(feature = "fp16-model"))]
-                {
-                    Err(crate::error::BgRemovalError::model(
-                        "FP16 model not embedded. This binary was built with FP32 model. Build with default features for FP16 support".to_string()
-                    ))
-                }
-            }
+    fn get_model_info(&self) -> Result<ModelInfo> {
+        #[cfg(feature = "fp32-model")]
+        {
+            Ok(ModelInfo {
+                name: "ISNet-FP32".to_string(),
+                precision: ModelPrecision::Fp32,
+                size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
+                input_shape: (1, 3, 1024, 1024),
+                output_shape: (1, 1, 1024, 1024),
+            })
+        }
+        #[cfg(feature = "fp16-model")]
+        {
+            Ok(ModelInfo {
+                name: "ISNet-FP16".to_string(),
+                precision: ModelPrecision::Fp16,
+                size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
+                input_shape: (1, 3, 1024, 1024),
+                output_shape: (1, 1, 1024, 1024),
+            })
+        }
+        #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
+        {
+            compile_error!("Either fp32-model or fp16-model feature must be enabled")
         }
     }
 }
@@ -113,14 +85,14 @@ impl ModelManager {
     }
 
 
-    /// Load model data for the specified precision
-    pub fn load_model(&self, precision: ModelPrecision) -> Result<Vec<u8>> {
-        self.provider.load_model_data(precision)
+    /// Load model data (uses embedded model based on compile-time feature)
+    pub fn load_model(&self) -> Result<Vec<u8>> {
+        self.provider.load_model_data()
     }
 
-    /// Get model information
-    pub fn get_info(&self, precision: ModelPrecision) -> Result<ModelInfo> {
-        self.provider.get_model_info(precision)
+    /// Get model information (uses embedded model based on compile-time feature)
+    pub fn get_info(&self) -> Result<ModelInfo> {
+        self.provider.get_model_info()
     }
 }
 
@@ -132,20 +104,33 @@ mod tests {
     fn test_embedded_model_provider() {
         let provider = EmbeddedModelProvider;
         
-        // Test model info retrieval
-        let info = provider.get_model_info(ModelPrecision::Fp16).unwrap();
-        assert_eq!(info.name, "ISNet-FP16");
-        assert_eq!(info.precision, ModelPrecision::Fp16);
+        // Test model info retrieval (uses compile-time embedded model)
+        let info = provider.get_model_info().unwrap();
         
-        let info = provider.get_model_info(ModelPrecision::Fp32).unwrap();
-        assert_eq!(info.name, "ISNet-FP32");
-        assert_eq!(info.precision, ModelPrecision::Fp32);
+        // The name and precision depend on which feature is enabled
+        #[cfg(feature = "fp16-model")]
+        {
+            assert_eq!(info.name, "ISNet-FP16");
+            assert_eq!(info.precision, ModelPrecision::Fp16);
+        }
+        
+        #[cfg(feature = "fp32-model")]
+        {
+            assert_eq!(info.name, "ISNet-FP32");
+            assert_eq!(info.precision, ModelPrecision::Fp32);
+        }
     }
 
     #[test]
     fn test_model_manager() {
         let manager = ModelManager::with_embedded();
-        let info = manager.get_info(ModelPrecision::Fp16).unwrap();
+        let info = manager.get_info().unwrap();
+        
+        // Verify the model is correctly loaded based on feature flags
+        #[cfg(feature = "fp16-model")]
         assert_eq!(info.precision, ModelPrecision::Fp16);
+        
+        #[cfg(feature = "fp32-model")]
+        assert_eq!(info.precision, ModelPrecision::Fp32);
     }
 }

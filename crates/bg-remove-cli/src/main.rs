@@ -3,7 +3,7 @@
 //! Command-line interface for removing backgrounds from images using ISNet models.
 
 use anyhow::{Context, Result};
-use bg_remove_core::{RemovalConfig, OutputFormat, ModelPrecision, ExecutionProvider};
+use bg_remove_core::{RemovalConfig, OutputFormat, ExecutionProvider};
 use bg_remove_core::config::BackgroundColor;
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -28,10 +28,6 @@ struct Cli {
     /// Output format
     #[arg(short, long, value_enum, default_value_t = CliOutputFormat::Png)]
     format: CliOutputFormat,
-
-    /// Model precision
-    #[arg(short, long, value_enum, default_value_t = CliModelPrecision::Fp16)]
-    precision: CliModelPrecision,
 
     /// Execution provider for ONNX Runtime
     #[arg(short, long, value_enum, default_value_t = CliExecutionProvider::Auto)]
@@ -102,21 +98,6 @@ impl From<CliOutputFormat> for OutputFormat {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum CliModelPrecision {
-    Fp32,
-    Fp16,
-}
-
-impl From<CliModelPrecision> for ModelPrecision {
-    fn from(cli_precision: CliModelPrecision) -> Self {
-        match cli_precision {
-            CliModelPrecision::Fp32 => ModelPrecision::Fp32,
-            CliModelPrecision::Fp16 => ModelPrecision::Fp16,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum CliExecutionProvider {
     /// Auto-detect best available provider (CUDA > CoreML > CPU)
     Auto,
@@ -162,7 +143,6 @@ async fn main() -> Result<()> {
 
     // Build configuration
     let config = RemovalConfig::builder()
-        .model_precision(cli.precision.into())
         .execution_provider(cli.execution_provider.into())
         .output_format(cli.format.into())
         .background_color(background_color)
