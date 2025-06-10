@@ -121,8 +121,11 @@ pub struct RemovalConfig {
     /// Custom model path (overrides embedded models)
     pub model_path: Option<std::path::PathBuf>,
     
-    /// Number of threads for inference (0 = auto)
-    pub num_threads: usize,
+    /// Number of intra-op threads for inference (0 = auto)
+    pub intra_threads: usize,
+    
+    /// Number of inter-op threads for inference (0 = auto)
+    pub inter_threads: usize,
     
     /// Maximum input image dimension (will be resized if larger)
     pub max_dimension: Option<u32>,
@@ -139,7 +142,8 @@ impl Default for RemovalConfig {
             webp_quality: 85,
             debug: false,
             model_path: None,
-            num_threads: 0, // Auto-detect
+            intra_threads: 0, // Auto-detect optimal intra-op threads
+            inter_threads: 0, // Auto-detect optimal inter-op threads
             max_dimension: Some(2048), // Reasonable default to prevent OOM
         }
     }
@@ -240,9 +244,22 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set number of threads
+    /// Set number of intra-op threads
+    pub fn intra_threads(mut self, threads: usize) -> Self {
+        self.config.intra_threads = threads;
+        self
+    }
+    
+    /// Set number of inter-op threads
+    pub fn inter_threads(mut self, threads: usize) -> Self {
+        self.config.inter_threads = threads;
+        self
+    }
+    
+    /// Set both intra and inter threads (convenience method)
     pub fn num_threads(mut self, threads: usize) -> Self {
-        self.config.num_threads = threads;
+        self.config.intra_threads = threads;
+        self.config.inter_threads = if threads > 0 { (threads / 2).max(1) } else { 0 };
         self
     }
 

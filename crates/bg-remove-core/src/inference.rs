@@ -90,12 +90,29 @@ impl OnnxBackend {
             },
         };
 
+        // Calculate optimal threading if auto-detect (0)
+        let intra_threads = if config.intra_threads > 0 { 
+            config.intra_threads 
+        } else { 
+            // Optimal intra-op threads: Use all physical cores for compute-intensive operations
+            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8)
+        };
+        
+        let inter_threads = if config.inter_threads > 0 { 
+            config.inter_threads 
+        } else { 
+            // Optimal inter-op threads: Use fewer threads for coordination (typically 1-4)
+            (std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8) / 4).max(1)
+        };
+
         let session = session_builder
-            .with_intra_threads(if config.num_threads > 0 { config.num_threads } else { 4 })?
+            .with_intra_threads(intra_threads)?
+            .with_inter_threads(inter_threads)?
             .commit_from_memory(&model_data)?;
         
-        // Log which execution provider is being used
+        // Log configuration details
         log::info!("ONNX Runtime session created with execution provider: {:?}", config.execution_provider);
+        log::info!("Threading: {} intra-op threads, {} inter-op threads", intra_threads, inter_threads);
         
         self.session = Some(session);
         self.precision = config.model_precision;

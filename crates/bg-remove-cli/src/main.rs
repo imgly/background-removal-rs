@@ -48,7 +48,15 @@ struct Cli {
     #[arg(long, default_value = "#ffffff")]
     background_color: String,
 
-    /// Number of threads (0 = auto)
+    /// Number of intra-op threads (0 = auto, optimal for compute)
+    #[arg(long, default_value_t = 0)]
+    intra_threads: usize,
+
+    /// Number of inter-op threads (0 = auto, optimal for coordination)  
+    #[arg(long, default_value_t = 0)]
+    inter_threads: usize,
+
+    /// Number of threads - sets both intra and inter optimally (0 = auto)
     #[arg(short, long, default_value_t = 0)]
     threads: usize,
 
@@ -150,6 +158,8 @@ async fn main() -> Result<()> {
         .webp_quality(cli.webp_quality)
         .debug(cli.debug)
         .num_threads(cli.threads)
+        .intra_threads(if cli.intra_threads > 0 { cli.intra_threads } else { 0 })
+        .inter_threads(if cli.inter_threads > 0 { cli.inter_threads } else { 0 })
         .build()
         .context("Invalid configuration")?;
 
