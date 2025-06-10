@@ -10,19 +10,20 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{info, warn, error};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use std::io::{self, Read, Write};
 
 /// Background removal CLI tool
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(name = "bg-remove")]
 struct Cli {
-    /// Input image file or directory
+    /// Input image file or directory (use "-" for stdin)
     #[arg(value_name = "INPUT")]
-    input: PathBuf,
+    input: String,
 
-    /// Output file or directory
+    /// Output file or directory (use "-" for stdout)
     #[arg(short, long, value_name = "OUTPUT")]
-    output: Option<PathBuf>,
+    output: Option<String>,
 
     /// Output format
     #[arg(short, long, value_enum, default_value_t = CliOutputFormat::Png)]
@@ -142,7 +143,7 @@ async fn main() -> Result<()> {
     init_logging(cli.verbose);
 
     info!("Starting background removal CLI");
-    info!("Input: {}", cli.input.display());
+    info!("Input: {}", cli.input);
     
     // Parse background color
     let background_color = parse_color(&cli.background_color)
@@ -166,12 +167,18 @@ async fn main() -> Result<()> {
 
     // Process input
     let start_time = Instant::now();
-    let processed_count = if cli.input.is_file() {
-        process_single_file(&cli.input, &cli.output, &config).await?
-    } else if cli.input.is_dir() {
-        process_directory(&cli, &config).await?
+    let processed_count = if cli.input == "-" {
+        // Read from stdin
+        process_stdin(&cli.output, &config).await?
     } else {
-        return Err(anyhow::anyhow!("Input path does not exist or is not accessible"));
+        let input_path = PathBuf::from(&cli.input);
+        if input_path.is_file() {
+            process_single_file(&input_path, &cli.output, &config).await?
+        } else if input_path.is_dir() {
+            process_directory(&cli, &config).await?
+        } else {
+            return Err(anyhow::anyhow!("Input path does not exist or is not accessible"));
+        }
     };
 
     let total_time = start_time.elapsed();
@@ -189,6 +196,28 @@ fn init_logging(verbose: bool) {
     )
     .format_timestamp_secs()
     .init();
+}
+
+/// Read image data from stdin
+fn read_stdin() -> Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    io::stdin().read_to_end(&mut buffer)
+        .context("Failed to read image data from stdin")?;
+    
+    if buffer.is_empty() {
+        return Err(anyhow::anyhow!("No data received from stdin"));
+    }
+    
+    Ok(buffer)
+}
+
+/// Write image data to stdout
+fn write_stdout(data: &[u8]) -> Result<()> {
+    io::stdout().write_all(data)
+        .context("Failed to write image data to stdout")?;
+    io::stdout().flush()
+        .context("Failed to flush stdout")?;
+    Ok(())
 }
 
 /// Parse hex color string to BackgroundColor
@@ -209,44 +238,103 @@ fn parse_color(color_str: &str) -> Result<BackgroundColor> {
     Ok(BackgroundColor::new(r, g, b))
 }
 
+/// Process image from stdin
+async fn process_stdin(
+    output_target: &Option<String>,
+    config: &RemovalConfig,
+) -> Result<usize> {
+    info!("Reading image from stdin");
+    
+    let image_data = read_stdin()?;
+    let start_time = Instant::now();
+    
+    // Load image from bytes
+    let image = image::load_from_memory(&image_data)
+        .context("Failed to decode image from stdin")?;
+    
+    // Process image through bg-remove-core
+    let result = bg_remove_core::process_image(image, config)
+        .context("Failed to remove background")?;
+    
+    let processing_time = start_time.elapsed();
+    info!("Processed stdin image in {:.2}s", processing_time.as_secs_f64());
+    
+    // Handle output
+    match output_target {
+        Some(target) if target == "-" => {
+            // Output to stdout
+            let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
+            write_stdout(&output_data)?;
+            info!("Image written to stdout");
+        }
+        Some(target) => {
+            // Output to file
+            let output_path = PathBuf::from(target);
+            result.save(&output_path, config.output_format, config.jpeg_quality)
+                .context("Failed to save result")?;
+            info!("Image saved to: {}", output_path.display());
+        }
+        None => {
+            // Default: output to stdout for stdin input
+            let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
+            write_stdout(&output_data)?;
+            info!("Image written to stdout");
+        }
+    }
+    
+    Ok(1)
+}
+
 /// Process a single image file
 async fn process_single_file(
     input_path: &Path,
-    output_path: &Option<PathBuf>,
+    output_path: &Option<String>,
     config: &RemovalConfig,
 ) -> Result<usize> {
-    let output = match output_path {
-        Some(path) => path.clone(),
-        None => generate_output_path(input_path, config.output_format),
-    };
-
-    info!("Processing: {} -> {}", input_path.display(), output.display());
-
     let start_time = Instant::now();
     let result = bg_remove_core::remove_background(input_path, config).await
         .context("Failed to remove background")?;
 
-    // Save result
-    result.save(&output, config.output_format, config.jpeg_quality)
-        .context("Failed to save result")?;
-
     let processing_time = start_time.elapsed();
-    info!("Completed in {:.2}s", processing_time.as_secs_f64());
+    
+    // Handle output
+    match output_path {
+        Some(target) if target == "-" => {
+            // Output to stdout
+            let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
+            write_stdout(&output_data)?;
+            info!("Processed {} and wrote to stdout in {:.2}s", input_path.display(), processing_time.as_secs_f64());
+        }
+        Some(target) => {
+            // Output to specific file
+            let output_path = PathBuf::from(target);
+            result.save(&output_path, config.output_format, config.jpeg_quality)
+                .context("Failed to save result")?;
+            info!("Processed: {} -> {} in {:.2}s", input_path.display(), output_path.display(), processing_time.as_secs_f64());
+        }
+        None => {
+            // Generate default output filename
+            let output_path = generate_output_path(input_path, config.output_format);
+            result.save(&output_path, config.output_format, config.jpeg_quality)
+                .context("Failed to save result")?;
+            info!("Processed: {} -> {} in {:.2}s", input_path.display(), output_path.display(), processing_time.as_secs_f64());
+        }
+    }
 
     Ok(1)
 }
 
 /// Process all images in a directory
 async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
-    let input_dir = &cli.input;
-    let output_dir = cli.output.as_ref().unwrap_or(input_dir);
+    let input_dir = PathBuf::from(&cli.input);
+    let output_dir = cli.output.as_ref().map(PathBuf::from).unwrap_or_else(|| input_dir.clone());
 
     // Create output directory if it doesn't exist
-    std::fs::create_dir_all(output_dir)
+    std::fs::create_dir_all(&output_dir)
         .context("Failed to create output directory")?;
 
     // Find image files
-    let image_files = find_image_files(input_dir, cli.recursive, cli.pattern.as_deref())?;
+    let image_files = find_image_files(&input_dir, cli.recursive, cli.pattern.as_deref())?;
     
     if image_files.is_empty() {
         warn!("No image files found in directory");
@@ -268,7 +356,7 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
     let mut failed_count = 0;
 
     for input_file in image_files {
-        let relative_path = input_file.strip_prefix(input_dir)
+        let relative_path = input_file.strip_prefix(&input_dir)
             .unwrap_or(&input_file);
         let output_file = output_dir.join(relative_path);
         
