@@ -9,10 +9,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("============================================");
     
     let test_images = [
-        ("Portrait Simple", "../../tests/assets/input/portraits/portrait_single_simple_bg.jpg"),
-        ("Portrait Multiple", "../../tests/assets/input/portraits/portrait_multiple_people.jpg"),
-        ("Product White BG", "../../tests/assets/input/products/product_clothing_white_bg.jpg"),
-        ("Complex Group", "../../tests/assets/input/complex/complex_group_photo.jpg"),
+        ("Portrait Simple", "tests/assets/input/portraits/portrait_single_simple_bg.jpg"),
+        ("Portrait Multiple", "tests/assets/input/portraits/portrait_multiple_people.jpg"),
+        ("Product White BG", "tests/assets/input/products/product_clothing_white_bg.jpg"),
+        ("Complex Group", "tests/assets/input/complex/complex_group_photo.jpg"),
     ];
     
     let config = RemovalConfig::builder()

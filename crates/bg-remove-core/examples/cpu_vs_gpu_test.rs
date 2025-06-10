@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ CPU vs GPU ONNX Runtime Performance Test");
     println!("==========================================");
     
-    let test_image = "../../tests/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let test_image = "tests/assets/input/portraits/portrait_single_simple_bg.jpg";
     
     if !std::path::Path::new(test_image).exists() {
         println!("❌ Test image not found: {}", test_image);

@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================================");
     
     // Load JavaScript benchmark data
-    let js_benchmark_path = "../../tests/assets/expected/benchmarks/javascript_baseline.json";
+    let js_benchmark_path = "tests/assets/expected/benchmarks/javascript_baseline.json";
     if !Path::new(js_benchmark_path).exists() {
         println!("❌ JavaScript benchmark file not found: {}", js_benchmark_path);
         return Ok(());
@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue; // Skip failed JS tests
             }
             
-            let input_path = format!("../../tests/assets/input/{}/{}", category_name, image_name);
+            let input_path = format!("tests/assets/input/{}/{}", category_name, image_name);
             
             if !Path::new(&input_path).exists() {
                 println!("   ⏭️  Skipping {}: Input file not found", image_name);
