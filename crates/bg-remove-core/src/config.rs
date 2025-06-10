@@ -2,14 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Model precision options
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelPrecision {
-    /// Full precision (FP32) - highest accuracy, larger binary size (~180-200MB)
-    Fp32,
-    /// Half precision (FP16) - balanced performance, medium binary size (~95-110MB)
-    Fp16,
-}
 
 /// Execution provider options for ONNX Runtime
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,12 +16,6 @@ pub enum ExecutionProvider {
     CoreMl,
 }
 
-impl Default for ModelPrecision {
-    fn default() -> Self {
-        // Default to FP16 for balanced performance
-        Self::Fp16
-    }
-}
 
 impl Default for ExecutionProvider {
     fn default() -> Self {

@@ -1,7 +1,6 @@
 //! Quantitative mask comparison with JavaScript reference
 
 use bg_remove_core::{RemovalConfig, remove_background};
-use bg_remove_core::config::ModelPrecision;
 use std::path::Path;
 use image::{DynamicImage, GrayImage};
 
@@ -118,7 +117,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     
     let config = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
         .debug(false)
         .build()?;
     

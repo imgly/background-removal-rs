@@ -1,7 +1,7 @@
 //! Diagnose and fix transparency issues
 
 use bg_remove_core::{RemovalConfig, remove_background};
-use bg_remove_core::config::{ModelPrecision, OutputFormat};
+use bg_remove_core::config::OutputFormat;
 use std::path::Path;
 use image::{RgbaImage, DynamicImage};
 
@@ -19,7 +19,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
         .output_format(OutputFormat::Png)
         .debug(false)
         .build()?;
@@ -65,7 +64,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let binary_mask = bg_remove_core::types::SegmentationMask::new(
         binary_mask_data,
         result.mask.dimensions,
-        0.5, // threshold
     );
     
     // Apply binary mask to create pure transparency

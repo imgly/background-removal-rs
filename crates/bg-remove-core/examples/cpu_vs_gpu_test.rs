@@ -1,6 +1,6 @@
 //! Compare CPU vs GPU ONNX Runtime performance
 
-use bg_remove_core::config::{RemovalConfig, ModelPrecision};
+use bg_remove_core::config::RemovalConfig;
 use bg_remove_core::image_processing::ImageProcessor;
 use std::time::Instant;
 
@@ -19,7 +19,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test current implementation (should use GPU if available)
     println!("🧪 Testing current implementation (GPU-enabled)...");
     let config_gpu = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
         .debug(false)
         .build()?;
     
@@ -42,11 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   🚀 {:.1}% faster than JavaScript", js_improvement);
     
     // Memory info
-    let model_size = match config_gpu.model_precision {
-        ModelPrecision::Fp16 => "84MB",
-        ModelPrecision::Fp32 => "167MB",
-    };
-    println!("   📦 Model size: {}", model_size);
+    println!("   📦 Model size: Automatically optimized");
     
     // Note about execution providers
     println!("\n🔧 Execution Provider Info:");

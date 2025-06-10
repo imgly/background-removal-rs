@@ -1,0 +1,157 @@
+{
+  "total_tests": 11,
+  "passed_tests": 0,
+  "failed_tests": 11,
+  "success_rate": 0.0,
+  "average_pixel_accuracy": NaN,
+  "average_edge_accuracy": NaN,
+  "average_processing_time": NaN,
+  "average_memory_usage": NaN,
+  "categories": {
+    "portraits": {
+      "passed": 0,
+      "failed": 4,
+      "average_accuracy": NaN,
+      "tests": [
+        {
+          "test_id": "portrait_001",
+          "test_name": "Single Person Simple Background",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for portrait_single_simple_bg.jpg"
+        },
+        {
+          "test_id": "portrait_002",
+          "test_name": "Single Person Complex Background",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for portrait_single_complex_bg.jpg"
+        },
+        {
+          "test_id": "portrait_003",
+          "test_name": "Multiple People",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for portrait_multiple_people.jpg"
+        },
+        {
+          "test_id": "portrait_004",
+          "test_name": "Fine Hair Details",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for portrait_fine_hair_details.jpg"
+        }
+      ]
+    },
+    "products": {
+      "passed": 0,
+      "failed": 2,
+      "average_accuracy": NaN,
+      "tests": [
+        {
+          "test_id": "product_001",
+          "test_name": "Clothing White Background",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for product_clothing_white_bg.jpg"
+        },
+        {
+          "test_id": "product_002",
+          "test_name": "Electronics Gradient Background",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for product_electronics_gradient.jpg"
+        }
+      ]
+    },
+    "complex": {
+      "passed": 0,
+      "failed": 1,
+      "average_accuracy": NaN,
+      "tests": [
+        {
+          "test_id": "complex_001",
+          "test_name": "Group Photo",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for complex_group_photo.jpg"
+        }
+      ]
+    },
+    "edge_cases": {
+      "passed": 0,
+      "failed": 2,
+      "average_accuracy": NaN,
+      "tests": [
+        {
+          "test_id": "edge_001",
+          "test_name": "Very Small Resolution",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for edge_very_small.jpg"
+        },
+        {
+          "test_id": "edge_002",
+          "test_name": "Very Large Resolution",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for edge_very_large.jpg"
+        }
+      ]
+    },
+    "raw_formats": {
+      "passed": 0,
+      "failed": 2,
+      "average_accuracy": NaN,
+      "tests": [
+        {
+          "test_id": "raw_001",
+          "test_name": "RGB24 Portrait BT.709",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for raw_rgb24_portrait_bt709.raw"
+        },
+        {
+          "test_id": "raw_002",
+          "test_name": "YUV420P Portrait BT.601",
+          "pixel_accuracy": 0.0,
+          "edge_accuracy": 0.0,
+          "structural_similarity": 0.0,
+          "processing_time_ms": 0.0,
+          "passed": false,
+          "error_message": "No Rust outputs found for raw_yuv420_portrait_bt601.raw"
+        }
+      ]
+    }
+  }
+}

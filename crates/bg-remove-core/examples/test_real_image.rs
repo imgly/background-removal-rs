@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📁 Input: {}", input_path);
     println!("📁 Output: {}", output_path);
-    println!("⚙️  Model: {:?}", config.model_precision);
+    println!("⚙️  Model: Auto-optimized precision");
 
     // Process the image
     let start = std::time::Instant::now();

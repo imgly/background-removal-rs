@@ -1,7 +1,6 @@
 //! Fix alpha channel application to match JavaScript version
 
 use bg_remove_core::{RemovalConfig, remove_background};
-use bg_remove_core::config::ModelPrecision;
 use std::path::Path;
 use image::{DynamicImage, RgbaImage};
 
@@ -19,7 +18,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
         .debug(false)
         .build()?;
 

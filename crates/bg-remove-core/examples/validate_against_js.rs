@@ -1,7 +1,6 @@
 //! Validate Rust outputs against JavaScript reference results
 
 use bg_remove_core::{RemovalConfig, remove_background, segment_foreground};
-use bg_remove_core::config::ModelPrecision;
 use std::path::Path;
 use std::time::Instant;
 use serde_json;
@@ -74,7 +73,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         js_data.results.edge_cases.avg_processing_time_ms);
 
     let config = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
         .debug(false) // Use real ONNX with GPU
         .build()?;
 

@@ -1,13 +1,13 @@
-//! Compare FP32 vs FP16 model performance
+//! Performance benchmark with different execution providers
 
 use bg_remove_core::{RemovalConfig, remove_background};
-use bg_remove_core::config::ModelPrecision;
+use bg_remove_core::config::ExecutionProvider;
 use std::time::Instant;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎯 Model Precision Performance Comparison");
-    println!("=========================================");
+    println!("🎯 Execution Provider Performance Comparison");
+    println!("==============================================");
     
     let test_image = "tests/assets/input/portraits/portrait_single_simple_bg.jpg";
     
@@ -16,56 +16,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    // Test FP16 (default)
-    println!("🧪 Testing FP16 model...");
-    let config_fp16 = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp16)
-        .debug(false)
-        .build()?;
+    let providers = [
+        ("Auto (Default)", ExecutionProvider::Auto),
+        ("CPU Only", ExecutionProvider::Cpu),
+        ("CoreML (Apple)", ExecutionProvider::CoreMl),
+    ];
     
-    let start = Instant::now();
-    let result_fp16 = remove_background(test_image, &config_fp16).await?;
-    let fp16_time = start.elapsed().as_secs_f64();
-    let fp16_stats = result_fp16.mask.statistics();
+    let mut results = Vec::new();
     
-    println!("   ⏱️  Time: {:.2}s", fp16_time);
-    println!("   📊 Foreground: {:.1}%", fp16_stats.foreground_ratio * 100.0);
-    
-    // Test FP32 (higher precision)
-    println!("\n🧪 Testing FP32 model...");
-    let config_fp32 = RemovalConfig::builder()
-        .model_precision(ModelPrecision::Fp32)
-        .debug(false)
-        .build()?;
-    
-    let start = Instant::now();
-    let result_fp32 = remove_background(test_image, &config_fp32).await?;
-    let fp32_time = start.elapsed().as_secs_f64();
-    let fp32_stats = result_fp32.mask.statistics();
-    
-    println!("   ⏱️  Time: {:.2}s", fp32_time);
-    println!("   📊 Foreground: {:.1}%", fp32_stats.foreground_ratio * 100.0);
-    
-    // Save outputs for comparison
-    result_fp16.save_png("output_fp16.png")?;
-    result_fp32.save_png("output_fp32.png")?;
-    
-    // Comparison
-    println!("\n🏆 Comparison:");
-    println!("   FP16: {:.2}s ({:.0}MB model)", fp16_time, 84.0);
-    println!("   FP32: {:.2}s ({:.0}MB model)", fp32_time, 167.0);
-    
-    let speed_diff = ((fp32_time - fp16_time) / fp16_time) * 100.0;
-    if speed_diff > 0.0 {
-        println!("   📈 FP32 is {:.1}% slower than FP16", speed_diff);
-    } else {
-        println!("   📈 FP32 is {:.1}% faster than FP16", -speed_diff);
+    for (name, provider) in &providers {
+        println!("🧪 Testing {} execution provider...", name);
+        let config = RemovalConfig::builder()
+            .execution_provider(*provider)
+            .debug(false)
+            .build()?;
+        
+        let start = Instant::now();
+        match remove_background(test_image, &config).await {
+            Ok(result) => {
+                let elapsed_time = start.elapsed().as_secs_f64();
+                let stats = result.mask.statistics();
+                
+                println!("   ⏱️  Time: {:.2}s", elapsed_time);
+                println!("   📊 Foreground: {:.1}%", stats.foreground_ratio * 100.0);
+                
+                // Save output
+                let output_name = format!("output_{}.png", name.to_lowercase().replace(" ", "_").replace("(", "").replace(")", ""));
+                result.save_png(&output_name)?;
+                
+                results.push((name, elapsed_time, stats.foreground_ratio));
+            }
+            Err(e) => {
+                println!("   ❌ Error: {}", e);
+            }
+        }
+        println!();
     }
     
-    let quality_diff = ((fp32_stats.foreground_ratio - fp16_stats.foreground_ratio) / fp16_stats.foreground_ratio) * 100.0;
-    println!("   🎯 Segmentation difference: {:.1}%", quality_diff.abs());
+    // Comparison
+    if results.len() > 1 {
+        println!("🏆 Performance Comparison:");
+        results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        
+        for (rank, (name, time, fg_ratio)) in results.iter().enumerate() {
+            let medal = match rank {
+                0 => "🥇",
+                1 => "🥈",
+                2 => "🥉",
+                _ => "  ",
+            };
+            println!("   {} {}: {:.2}s ({:.1}% foreground)", medal, name, time, fg_ratio * 100.0);
+        }
+    }
     
-    println!("\n💾 Outputs saved: output_fp16.png, output_fp32.png");
+    println!("\n📝 Note: Model precision is now automatically optimized.");
+    println!("💾 Outputs saved with provider-specific names.");
     
     Ok(())
 }

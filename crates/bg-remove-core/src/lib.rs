@@ -37,7 +37,7 @@ pub mod models;
 pub mod types;
 
 // Public API exports
-pub use config::{RemovalConfig, OutputFormat, ModelPrecision, ExecutionProvider};
+pub use config::{RemovalConfig, OutputFormat, ExecutionProvider};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::{InferenceBackend, OnnxBackend};

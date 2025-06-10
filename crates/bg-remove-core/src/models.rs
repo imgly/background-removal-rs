@@ -1,12 +1,12 @@
 //! Model management and embedding system
 
-use crate::{config::ModelPrecision, error::Result};
+use crate::error::Result;
 
 /// Model information and metadata
 #[derive(Debug, Clone)]
 pub struct ModelInfo {
     pub name: String,
-    pub precision: ModelPrecision,
+    pub precision: String,
     pub size_bytes: usize,
     pub input_shape: (usize, usize, usize, usize), // NCHW format
     pub output_shape: (usize, usize, usize, usize),
@@ -47,7 +47,7 @@ impl ModelProvider for EmbeddedModelProvider {
         {
             Ok(ModelInfo {
                 name: "ISNet-FP32".to_string(),
-                precision: ModelPrecision::Fp32,
+                precision: "fp32".to_string(),
                 size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
                 input_shape: (1, 3, 1024, 1024),
                 output_shape: (1, 1, 1024, 1024),
@@ -57,7 +57,7 @@ impl ModelProvider for EmbeddedModelProvider {
         {
             Ok(ModelInfo {
                 name: "ISNet-FP16".to_string(),
-                precision: ModelPrecision::Fp16,
+                precision: "fp16".to_string(),
                 size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
                 input_shape: (1, 3, 1024, 1024),
                 output_shape: (1, 1, 1024, 1024),
@@ -111,13 +111,13 @@ mod tests {
         #[cfg(feature = "fp16-model")]
         {
             assert_eq!(info.name, "ISNet-FP16");
-            assert_eq!(info.precision, ModelPrecision::Fp16);
+            assert_eq!(info.precision, "fp16");
         }
         
         #[cfg(feature = "fp32-model")]
         {
             assert_eq!(info.name, "ISNet-FP32");
-            assert_eq!(info.precision, ModelPrecision::Fp32);
+            assert_eq!(info.precision, "fp32");
         }
     }
 
@@ -128,9 +128,9 @@ mod tests {
         
         // Verify the model is correctly loaded based on feature flags
         #[cfg(feature = "fp16-model")]
-        assert_eq!(info.precision, ModelPrecision::Fp16);
+        assert_eq!(info.precision, "fp16");
         
         #[cfg(feature = "fp32-model")]
-        assert_eq!(info.precision, ModelPrecision::Fp32);
+        assert_eq!(info.precision, "fp32");
     }
 }
