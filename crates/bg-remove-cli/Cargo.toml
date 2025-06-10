@@ -1,0 +1,47 @@
+[package]
+name = "bg-remove-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "Command-line interface for background removal using ISNet models"
+
+[[bin]]
+name = "bg-remove"
+path = "src/main.rs"
+
+[features]
+default = ["isnet-fp16"]
+isnet-standard = ["bg-remove-core/isnet-standard"]
+isnet-fp16 = ["bg-remove-core/isnet-fp16"]
+no-embedded-models = ["bg-remove-core/no-embedded-models"]
+
+[dependencies]
+# Core library
+bg-remove-core = { path = "../bg-remove-core" }
+
+# CLI dependencies
+clap = { workspace = true }
+indicatif = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+
+# Core dependencies
+anyhow = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# File system operations
+glob = "0.3"
+walkdir = "2.0"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+assert_cmd = "2.0"
+predicates = "3.0"

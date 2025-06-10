@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Test outputs
+*_bg_removed.*
+*test_output*
+*debug_*
+provider_test_*.png
+output_*.png
+gpu_test_*.png
+alpha_fix_*.png
+transparency_*.png
+validation_output/
+final_*.png
+improved_*.png
+rust_*.png
+timed_*.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

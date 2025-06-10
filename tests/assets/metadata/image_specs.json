@@ -1,0 +1,506 @@
+{
+  "portraits": [
+    {
+      "filename": "portrait_single_simple_bg.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Professional headshot with clean background",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "simple",
+      "edge_complexity": "clean",
+      "lighting": "natural",
+      "expected_difficulty": "easy"
+    },
+    {
+      "filename": "portrait_fine_hair_details.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Portrait with fine hair details",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "very_fine",
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "portrait_outdoor_natural.jpg",
+      "resolution": [
+        800,
+        1164
+      ],
+      "format": "JPEG",
+      "description": "Outdoor portrait with natural lighting",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1552058544-f2b08422138a?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "natural",
+      "edge_complexity": "clean",
+      "lighting": "outdoor_natural",
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "portrait_side_profile.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Side profile portrait",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "clean",
+      "lighting": "side_lit",
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "portrait_studio_lighting.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Studio portrait with professional lighting",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "clean",
+      "lighting": "studio_professional",
+      "expected_difficulty": "easy"
+    },
+    {
+      "filename": "portrait_multiple_people.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Multiple people in frame",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "multiple_people",
+      "background_complexity": "moderate",
+      "edge_complexity": "clean",
+      "lighting": "natural",
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "portrait_partial_figure.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Partial figure portrait",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "partial_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "clean",
+      "lighting": "natural",
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "portrait_low_contrast.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Low contrast portrait",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "low_contrast",
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "portrait_action_motion.jpg",
+      "resolution": [
+        800,
+        1000
+      ],
+      "format": "JPEG",
+      "description": "Portrait with motion/action",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80",
+      "downloaded": true,
+      "subject_type": "single_person",
+      "background_complexity": "moderate",
+      "edge_complexity": "motion_blur",
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    }
+  ],
+  "products": [
+    {
+      "filename": "product_clothing_white_bg.jpg",
+      "resolution": [
+        800,
+        800
+      ],
+      "format": "JPEG",
+      "description": "Clothing item on white background",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80",
+      "downloaded": true,
+      "product_type": "clothing",
+      "material": "fabric",
+      "background_type": "white",
+      "transparency": false,
+      "expected_difficulty": "easy"
+    },
+    {
+      "filename": "product_electronics_gradient.jpg",
+      "resolution": [
+        800,
+        800
+      ],
+      "format": "JPEG",
+      "description": "Electronic device with gradient background",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80",
+      "downloaded": true,
+      "product_type": "electronics",
+      "material": "various",
+      "background_type": "gradient",
+      "transparency": false,
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "product_furniture_textured.jpg",
+      "resolution": [
+        800,
+        706
+      ],
+      "format": "JPEG",
+      "description": "Furniture with textured background",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80",
+      "downloaded": true,
+      "product_type": "furniture",
+      "material": "various",
+      "background_type": "textured",
+      "transparency": false,
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "product_accessories_glass.jpg",
+      "resolution": [
+        800,
+        581
+      ],
+      "format": "JPEG",
+      "description": "Watch or accessory with reflective surfaces",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
+      "downloaded": true,
+      "product_type": "accessories",
+      "material": "glass_metal",
+      "background_type": "neutral",
+      "transparency": true,
+      "expected_difficulty": "very_hard"
+    },
+    {
+      "filename": "product_multiple_items.jpg",
+      "resolution": [
+        800,
+        534
+      ],
+      "format": "JPEG",
+      "description": "Multiple products together",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=80",
+      "downloaded": true,
+      "product_type": "mixed",
+      "material": "various",
+      "background_type": "neutral",
+      "transparency": false,
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "product_irregular_shape.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Product with complex irregular shape",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+      "downloaded": true,
+      "product_type": "mixed",
+      "material": "various",
+      "background_type": "neutral",
+      "transparency": false,
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "product_shadow_handling.jpg",
+      "resolution": [
+        800,
+        488
+      ],
+      "format": "JPEG",
+      "description": "Product with strong shadows",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=800&q=80",
+      "downloaded": true,
+      "product_type": "mixed",
+      "material": "various",
+      "background_type": "neutral",
+      "transparency": false,
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "product_clothing_transparent.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Clothing with transparent elements",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+      "downloaded": true,
+      "product_type": "clothing",
+      "material": "transparent_fabric",
+      "background_type": "neutral",
+      "transparency": true,
+      "expected_difficulty": "very_hard"
+    }
+  ],
+  "complex": [
+    {
+      "filename": "complex_group_photo.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Group of people in complex scene",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&q=80",
+      "downloaded": true,
+      "subjects": "multiple_people",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "complex_pet_with_person.jpg",
+      "resolution": [
+        800,
+        1199
+      ],
+      "format": "JPEG",
+      "description": "Person with pet",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=800&q=80",
+      "downloaded": true,
+      "subjects": "person_and_pet",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "complex_overlapping_objects.jpg",
+      "resolution": [
+        800,
+        600
+      ],
+      "format": "JPEG",
+      "description": "Multiple overlapping objects",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80",
+      "downloaded": true,
+      "subjects": "multiple_objects",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "complex_fine_details.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Scene with intricate fine details",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&q=80",
+      "downloaded": true,
+      "subjects": "person_and_objects",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "complex_mixed_lighting.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Scene with mixed lighting sources",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",
+      "downloaded": true,
+      "subjects": "person_and_objects",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "mixed_sources",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "complex_transparent_elements.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Scene with glass and transparent objects",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",
+      "downloaded": true,
+      "subjects": "transparent_objects",
+      "background_complexity": "complex",
+      "occlusion": true,
+      "lighting": "natural",
+      "expected_difficulty": "hard"
+    }
+  ],
+  "edge_cases": [
+    {
+      "filename": "edge_very_small.jpg",
+      "resolution": [
+        64,
+        96
+      ],
+      "format": "JPEG",
+      "description": "Very small resolution test image",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1508921912186-1d1a45ebb3c1?w=64&q=30",
+      "downloaded": true,
+      "challenge_type": "resolution",
+      "quality": "normal",
+      "expected_difficulty": "very_hard"
+    },
+    {
+      "filename": "edge_very_large.jpg",
+      "resolution": [
+        2048,
+        1365
+      ],
+      "format": "JPEG",
+      "description": "Very large resolution test image",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2048&q=100",
+      "downloaded": true,
+      "challenge_type": "resolution",
+      "quality": "normal",
+      "expected_difficulty": "very_hard"
+    },
+    {
+      "filename": "edge_high_noise.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "High noise/low quality image",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1519336056116-bc0f1771dec8?w=800&q=20",
+      "downloaded": true,
+      "challenge_type": "quality",
+      "quality": "poor",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "edge_high_contrast.jpg",
+      "resolution": [
+        800,
+        800
+      ],
+      "format": "JPEG",
+      "description": "High contrast image",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1494548162494-384bba4ab999?w=800&q=80",
+      "downloaded": true,
+      "challenge_type": "contrast",
+      "quality": "normal",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "edge_similar_colors.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Subject with similar background colors",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80",
+      "downloaded": true,
+      "challenge_type": "contrast",
+      "quality": "normal",
+      "expected_difficulty": "hard"
+    },
+    {
+      "filename": "edge_minimal_subject.jpg",
+      "resolution": [
+        800,
+        1200
+      ],
+      "format": "JPEG",
+      "description": "Very small subject in large frame",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=800&q=80",
+      "downloaded": true,
+      "challenge_type": "size",
+      "quality": "normal",
+      "expected_difficulty": "medium"
+    },
+    {
+      "filename": "edge_corrupted_data.jpg",
+      "resolution": [
+        800,
+        533
+      ],
+      "format": "JPEG",
+      "description": "Heavily compressed/low quality image",
+      "source": "Unsplash - Free License",
+      "url": "https://images.unsplash.com/photo-1519904981063-b0cf448d479e?w=800&q=10",
+      "downloaded": true,
+      "challenge_type": "quality",
+      "quality": "poor",
+      "expected_difficulty": "medium"
+    }
+  ]
+}

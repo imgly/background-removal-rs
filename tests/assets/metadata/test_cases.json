@@ -1,0 +1,272 @@
+{
+  "test_suite_version": "1.0",
+  "description": "Test case definitions for background removal validation",
+  "categories": {
+    "portraits": {
+      "description": "Human subject detection and hair edge handling",
+      "target_accuracy": 0.95,
+      "edge_accuracy_threshold": 0.90,
+      "performance_baseline_ms": 1250,
+      "test_cases": [
+        {
+          "id": "portrait_001",
+          "name": "Single Person Simple Background",
+          "input_file": "portrait_single_simple_bg.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.98,
+            "edge_accuracy_min": 0.95,
+            "processing_time_max_ms": 1000
+          },
+          "expected_outputs": {
+            "png_alpha": "portrait_single_simple_bg_alpha.png",
+            "jpeg_white_bg": "portrait_single_simple_bg_white.jpg",
+            "webp_alpha": "portrait_single_simple_bg_alpha.webp",
+            "mask_only": "portrait_single_simple_bg_mask.png"
+          }
+        },
+        {
+          "id": "portrait_002", 
+          "name": "Single Person Complex Background",
+          "input_file": "portrait_single_complex_bg.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.92,
+            "edge_accuracy_min": 0.85,
+            "processing_time_max_ms": 1500
+          },
+          "expected_outputs": {
+            "png_alpha": "portrait_single_complex_bg_alpha.png",
+            "jpeg_white_bg": "portrait_single_complex_bg_white.jpg",
+            "webp_alpha": "portrait_single_complex_bg_alpha.webp",
+            "mask_only": "portrait_single_complex_bg_mask.png"
+          }
+        },
+        {
+          "id": "portrait_003",
+          "name": "Multiple People",
+          "input_file": "portrait_multiple_people.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.88,
+            "edge_accuracy_min": 0.80,
+            "processing_time_max_ms": 2000
+          },
+          "expected_outputs": {
+            "png_alpha": "portrait_multiple_people_alpha.png",
+            "jpeg_white_bg": "portrait_multiple_people_white.jpg",
+            "webp_alpha": "portrait_multiple_people_alpha.webp",
+            "mask_only": "portrait_multiple_people_mask.png"
+          }
+        },
+        {
+          "id": "portrait_004",
+          "name": "Fine Hair Details",
+          "input_file": "portrait_fine_hair_details.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.85,
+            "edge_accuracy_min": 0.75,
+            "processing_time_max_ms": 1800
+          },
+          "expected_outputs": {
+            "png_alpha": "portrait_fine_hair_details_alpha.png",
+            "jpeg_white_bg": "portrait_fine_hair_details_white.jpg",
+            "webp_alpha": "portrait_fine_hair_details_alpha.webp",
+            "mask_only": "portrait_fine_hair_details_mask.png"
+          }
+        }
+      ]
+    },
+    "products": {
+      "description": "Clean product extraction for e-commerce use cases",
+      "target_accuracy": 0.97,
+      "edge_accuracy_threshold": 0.95,
+      "performance_baseline_ms": 950,
+      "test_cases": [
+        {
+          "id": "product_001",
+          "name": "Clothing White Background",
+          "input_file": "product_clothing_white_bg.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.98,
+            "edge_accuracy_min": 0.96,
+            "processing_time_max_ms": 800
+          },
+          "expected_outputs": {
+            "png_alpha": "product_clothing_white_bg_alpha.png",
+            "jpeg_white_bg": "product_clothing_white_bg_white.jpg",
+            "webp_alpha": "product_clothing_white_bg_alpha.webp",
+            "mask_only": "product_clothing_white_bg_mask.png"
+          }
+        },
+        {
+          "id": "product_002",
+          "name": "Electronics Gradient Background",
+          "input_file": "product_electronics_gradient.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.95,
+            "edge_accuracy_min": 0.92,
+            "processing_time_max_ms": 1000
+          },
+          "expected_outputs": {
+            "png_alpha": "product_electronics_gradient_alpha.png",
+            "jpeg_white_bg": "product_electronics_gradient_white.jpg",
+            "webp_alpha": "product_electronics_gradient_alpha.webp",
+            "mask_only": "product_electronics_gradient_mask.png"
+          }
+        }
+      ]
+    },
+    "complex": {
+      "description": "Intricate compositions and multiple elements",
+      "target_accuracy": 0.85,
+      "edge_accuracy_threshold": 0.80,
+      "performance_baseline_ms": 1800,
+      "test_cases": [
+        {
+          "id": "complex_001",
+          "name": "Group Photo",
+          "input_file": "complex_group_photo.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.82,
+            "edge_accuracy_min": 0.75,
+            "processing_time_max_ms": 2500
+          },
+          "expected_outputs": {
+            "png_alpha": "complex_group_photo_alpha.png",
+            "jpeg_white_bg": "complex_group_photo_white.jpg",
+            "webp_alpha": "complex_group_photo_alpha.webp",
+            "mask_only": "complex_group_photo_mask.png"
+          }
+        }
+      ]
+    },
+    "edge_cases": {
+      "description": "Robustness and error handling validation",
+      "target_accuracy": 0.70,
+      "edge_accuracy_threshold": 0.65,
+      "performance_baseline_ms": 2000,
+      "test_cases": [
+        {
+          "id": "edge_001",
+          "name": "Very Small Resolution",
+          "input_file": "edge_very_small.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.75,
+            "edge_accuracy_min": 0.70,
+            "processing_time_max_ms": 500
+          },
+          "expected_outputs": {
+            "png_alpha": "edge_very_small_alpha.png",
+            "jpeg_white_bg": "edge_very_small_white.jpg",
+            "mask_only": "edge_very_small_mask.png"
+          }
+        },
+        {
+          "id": "edge_002",
+          "name": "Very Large Resolution",
+          "input_file": "edge_very_large.jpg",
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.80,
+            "edge_accuracy_min": 0.75,
+            "processing_time_max_ms": 5000
+          },
+          "expected_outputs": {
+            "png_alpha": "edge_very_large_alpha.png",
+            "jpeg_white_bg": "edge_very_large_white.jpg",
+            "mask_only": "edge_very_large_mask.png"
+          }
+        }
+      ]
+    },
+    "raw_formats": {
+      "description": "Raw image format support and color space handling",
+      "target_accuracy": 0.90,
+      "edge_accuracy_threshold": 0.85,
+      "performance_baseline_ms": 1500,
+      "test_cases": [
+        {
+          "id": "raw_001",
+          "name": "RGB24 Portrait BT.709",
+          "input_file": "raw_rgb24_portrait_bt709.raw",
+          "input_metadata": {
+            "width": 1920,
+            "height": 1080,
+            "pixel_format": "RGB24",
+            "color_space": "BT.709",
+            "stride": 5760
+          },
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.90,
+            "edge_accuracy_min": 0.85,
+            "processing_time_max_ms": 1800
+          },
+          "expected_outputs": {
+            "rgba32_raw": "raw_rgb24_portrait_bt709_alpha.rgba",
+            "png_alpha": "raw_rgb24_portrait_bt709_alpha.png",
+            "mask_only": "raw_rgb24_portrait_bt709_mask.raw"
+          }
+        },
+        {
+          "id": "raw_002",
+          "name": "YUV420P Portrait BT.601",
+          "input_file": "raw_yuv420_portrait_bt601.raw",
+          "input_metadata": {
+            "width": 1920,
+            "height": 1080,
+            "pixel_format": "YUV420P",
+            "color_space": "BT.601",
+            "stride": 1920
+          },
+          "validation_criteria": {
+            "pixel_accuracy_min": 0.88,
+            "edge_accuracy_min": 0.80,
+            "processing_time_max_ms": 2200
+          },
+          "expected_outputs": {
+            "rgb24_raw": "raw_yuv420_portrait_bt601_alpha.rgb",
+            "png_alpha": "raw_yuv420_portrait_bt601_alpha.png",
+            "mask_only": "raw_yuv420_portrait_bt601_mask.raw"
+          }
+        }
+      ]
+    }
+  },
+  "global_validation_rules": {
+    "output_format_requirements": {
+      "png_alpha": {
+        "format": "PNG",
+        "channels": 4,
+        "alpha_channel_required": true,
+        "bit_depth": 8
+      },
+      "jpeg_white_bg": {
+        "format": "JPEG",
+        "channels": 3,
+        "background_color": [255, 255, 255],
+        "quality_min": 85
+      },
+      "webp_alpha": {
+        "format": "WebP",
+        "channels": 4,
+        "alpha_channel_required": true,
+        "quality_min": 80
+      },
+      "mask_only": {
+        "format": "PNG",
+        "channels": 1,
+        "bit_depth": 8,
+        "value_range": [0, 255]
+      }
+    },
+    "performance_requirements": {
+      "memory_usage_max_mb": 500,
+      "cpu_usage_max_percent": 95,
+      "concurrent_processing_supported": true,
+      "timeout_seconds": 30
+    },
+    "accuracy_requirements": {
+      "pixel_tolerance": 5,
+      "edge_detection_kernel_size": 3,
+      "structural_similarity_min": 0.85,
+      "mean_squared_error_max": 100
+    }
+  }
+}

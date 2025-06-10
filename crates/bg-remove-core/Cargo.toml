@@ -1,0 +1,45 @@
+[package]
+name = "bg-remove-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "Core background removal library using ONNX Runtime and ISNet models"
+
+[features]
+default = ["isnet-fp16"]
+isnet-standard = []
+isnet-fp16 = []
+no-embedded-models = []
+
+[dependencies]
+# Core dependencies
+ort = { workspace = true }
+image = { workspace = true }
+ndarray = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, optional = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+log = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+
+[build-dependencies]
+# For embedding model files during build (placeholder for now)
+# std-fs = "0.1"
