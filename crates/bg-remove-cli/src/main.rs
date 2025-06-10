@@ -18,8 +18,8 @@ use std::io::{self, Read, Write};
 #[command(name = "bg-remove")]
 struct Cli {
     /// Input image file or directory (use "-" for stdin)
-    #[arg(value_name = "INPUT")]
-    input: String,
+    #[arg(value_name = "INPUT", required_unless_present = "show_providers")]
+    input: Option<String>,
 
     /// Output file or directory (use "-" for stdout)
     #[arg(short, long, value_name = "OUTPUT")]
@@ -76,6 +76,10 @@ struct Cli {
     /// Pattern for batch processing (e.g., "*.jpg")
     #[arg(long)]
     pattern: Option<String>,
+
+    /// Show execution provider diagnostics and exit
+    #[arg(long)]
+    show_providers: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -142,8 +146,15 @@ async fn main() -> Result<()> {
     // Initialize logging
     init_logging(cli.verbose);
 
+    // Handle provider diagnostics flag
+    if cli.show_providers {
+        return show_provider_diagnostics();
+    }
+
+    let input = cli.input.as_ref().ok_or_else(|| anyhow::anyhow!("Input is required"))?;
+    
     info!("Starting background removal CLI");
-    info!("Input: {}", cli.input);
+    info!("Input: {}", input);
     
     // Parse background color
     let background_color = parse_color(&cli.background_color)
@@ -167,11 +178,11 @@ async fn main() -> Result<()> {
 
     // Process input
     let start_time = Instant::now();
-    let processed_count = if cli.input == "-" {
+    let processed_count = if input == "-" {
         // Read from stdin
         process_stdin(&cli.output, &config).await?
     } else {
-        let input_path = PathBuf::from(&cli.input);
+        let input_path = PathBuf::from(input);
         if input_path.is_file() {
             process_single_file(&input_path, &cli.output, &config).await?
         } else if input_path.is_dir() {
@@ -217,6 +228,35 @@ fn write_stdout(data: &[u8]) -> Result<()> {
         .context("Failed to write image data to stdout")?;
     io::stdout().flush()
         .context("Failed to flush stdout")?;
+    Ok(())
+}
+
+/// Display execution provider diagnostics
+fn show_provider_diagnostics() -> Result<()> {
+    use bg_remove_core::inference::check_provider_availability;
+    
+    println!("🔍 ONNX Runtime Execution Provider Diagnostics");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    
+    // System information
+    let cpu_count = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+    println!("💻 System: {} CPU cores detected", cpu_count);
+    
+    // Check provider availability
+    let providers = check_provider_availability();
+    
+    for (name, available, description) in providers {
+        let status = if available { "✅ Available" } else { "❌ Not Available" };
+        println!("🚀 {}: {} - {}", name, status, description);
+    }
+    
+    println!("\n💡 Tips:");
+    println!("  • Use --execution-provider auto for best performance");
+    println!("  • GPU acceleration requires compatible hardware/drivers");
+    println!("  • CPU provider is always available as fallback");
+    
     Ok(())
 }
 
@@ -326,7 +366,8 @@ async fn process_single_file(
 
 /// Process all images in a directory
 async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
-    let input_dir = PathBuf::from(&cli.input);
+    let input = cli.input.as_ref().ok_or_else(|| anyhow::anyhow!("Input directory required"))?;
+    let input_dir = PathBuf::from(input);
     let output_dir = cli.output.as_ref().map(PathBuf::from).unwrap_or_else(|| input_dir.clone());
 
     // Create output directory if it doesn't exist
