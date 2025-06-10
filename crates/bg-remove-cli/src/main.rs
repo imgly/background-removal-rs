@@ -48,17 +48,9 @@ struct Cli {
     #[arg(long, default_value = "#ffffff")]
     background_color: String,
 
-    /// Custom model path
-    #[arg(long)]
-    model_path: Option<PathBuf>,
-
     /// Number of threads (0 = auto)
     #[arg(short, long, default_value_t = 0)]
     threads: usize,
-
-    /// Maximum image dimension
-    #[arg(long)]
-    max_dimension: Option<u32>,
 
     /// Enable debug mode
     #[arg(short, long)]
@@ -158,13 +150,9 @@ async fn main() -> Result<()> {
         .webp_quality(cli.webp_quality)
         .debug(cli.debug)
         .num_threads(cli.threads)
-        .max_dimension(cli.max_dimension.unwrap_or(2048))
         .build()
         .context("Invalid configuration")?;
 
-    if let Some(ref model_path) = cli.model_path {
-        info!("Using custom model: {}", model_path.display());
-    }
 
     // Process input
     let start_time = Instant::now();
