@@ -44,15 +44,6 @@ impl OnnxBackend {
         }
     }
 
-    /// Create ONNX backend with external model
-    pub fn with_external_model<P: Into<std::path::PathBuf>>(path: P) -> Self {
-        Self {
-            session: None,
-            model_manager: ModelManager::with_external(path),
-            precision: ModelPrecision::Fp16,
-            initialized: false,
-        }
-    }
 
     /// Load and initialize the ONNX model
     fn load_model(&mut self, config: &RemovalConfig) -> Result<()> {
@@ -134,10 +125,6 @@ impl InferenceBackend for OnnxBackend {
             return Ok(());
         }
 
-        // If external model is specified, use that
-        if let Some(ref model_path) = config.model_path {
-            self.model_manager = ModelManager::with_external(model_path.clone());
-        }
 
         self.load_model(config)?;
         Ok(())

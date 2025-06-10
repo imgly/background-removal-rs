@@ -1,7 +1,6 @@
 //! Model management and embedding system
 
 use crate::{config::ModelPrecision, error::Result};
-use std::path::PathBuf;
 
 /// Model information and metadata
 #[derive(Debug, Clone)]
@@ -59,34 +58,6 @@ impl ModelProvider for EmbeddedModelProvider {
     }
 }
 
-/// External model provider (models loaded from filesystem)
-pub struct ExternalModelProvider {
-    pub model_path: PathBuf,
-}
-
-impl ModelProvider for ExternalModelProvider {
-    fn load_model_data(&self, _precision: ModelPrecision) -> Result<Vec<u8>> {
-        std::fs::read(&self.model_path)
-            .map_err(|e| crate::error::BgRemovalError::model(
-                format!("Failed to load model from {}: {}", self.model_path.display(), e)
-            ))
-    }
-
-    fn get_model_info(&self, precision: ModelPrecision) -> Result<ModelInfo> {
-        let metadata = std::fs::metadata(&self.model_path)
-            .map_err(|e| crate::error::BgRemovalError::model(
-                format!("Failed to get model metadata: {}", e)
-            ))?;
-
-        Ok(ModelInfo {
-            name: format!("External-{:?}", precision),
-            precision,
-            size_bytes: metadata.len() as usize,
-            input_shape: (1, 3, 1024, 1024), // Default shape
-            output_shape: (1, 1, 1024, 1024),
-        })
-    }
-}
 
 /// Model manager for handling different model sources
 pub struct ModelManager {
@@ -101,14 +72,6 @@ impl ModelManager {
         }
     }
 
-    /// Create a new model manager with external model
-    pub fn with_external<P: Into<PathBuf>>(path: P) -> Self {
-        Self {
-            provider: Box::new(ExternalModelProvider {
-                model_path: path.into(),
-            }),
-        }
-    }
 
     /// Load model data for the specified precision
     pub fn load_model(&self, precision: ModelPrecision) -> Result<Vec<u8>> {

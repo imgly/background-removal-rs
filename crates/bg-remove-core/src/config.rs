@@ -118,8 +118,6 @@ pub struct RemovalConfig {
     /// Enable debug mode (additional logging and validation)
     pub debug: bool,
     
-    /// Custom model path (overrides embedded models)
-    pub model_path: Option<std::path::PathBuf>,
     
     /// Number of intra-op threads for inference (0 = auto)
     pub intra_threads: usize,
@@ -141,7 +139,6 @@ impl Default for RemovalConfig {
             jpeg_quality: 90,
             webp_quality: 85,
             debug: false,
-            model_path: None,
             intra_threads: 0, // Auto-detect optimal intra-op threads
             inter_threads: 0, // Auto-detect optimal inter-op threads
             max_dimension: Some(2048), // Reasonable default to prevent OOM
@@ -169,13 +166,6 @@ impl RemovalConfig {
             ));
         }
 
-        if let Some(path) = &self.model_path {
-            if !path.exists() {
-                return Err(crate::error::BgRemovalError::invalid_config(
-                    format!("Model path does not exist: {}", path.display())
-                ));
-            }
-        }
 
         if let Some(max_dim) = self.max_dimension {
             if max_dim < 64 {
@@ -238,11 +228,6 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set custom model path
-    pub fn model_path<P: Into<std::path::PathBuf>>(mut self, path: P) -> Self {
-        self.config.model_path = Some(path.into());
-        self
-    }
 
     /// Set number of intra-op threads
     pub fn intra_threads(mut self, threads: usize) -> Self {
