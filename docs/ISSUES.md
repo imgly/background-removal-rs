@@ -21,7 +21,7 @@ If an issue needs further information we can create an issue markdown for this p
 ## Open Issues
 
 - [x] Not sure if core-ml is used without feature flag 📅 2025-06-11 13:31
-- [ ] the tests seem to reference wrong files
+- [x] the tests seem to reference wrong files 📅 2025-06-11 13:46
 - [x] Benchmarks skip all 📅 2025-06-11 13:45
 - [x] Image is not resized to the original size 📅 2025-06-11 13:31
 - [ ] Default build seems FP16
@@ -34,4 +34,5 @@ If an issue needs further information we can create an issue markdown for this p
 - [ ] iOS Platform Build
 - [ ] Android Platform Build
 - [ ] NodeJS Platform build 
+- [x] Integration tests should use standard Rust patterns instead of separate testing crate binaries 📅 2025-06-11 14:00
 - [ ] Output timings for "load", "decode", "inference", "encode" seperately

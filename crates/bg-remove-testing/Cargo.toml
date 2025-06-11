@@ -45,6 +45,9 @@ criterion = { version = "0.5", optional = true }
 [features]
 default = []
 benchmarking = ["criterion"]
+expensive-tests = []
+regression-tests = []
 
 [dev-dependencies]
 criterion = "0.5"
+futures = "0.3"
