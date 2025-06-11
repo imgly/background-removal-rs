@@ -1,0 +1,65 @@
+#!/bin/bash
+# Convenience script for accessing development tools
+#
+# This script provides quick access to development scripts in the bin/ directory
+
+set -e
+
+# Colors for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+show_help() {
+    echo -e "${BLUE}🛠️  bg-remove-rs Development Scripts${NC}"
+    echo ""
+    echo "Available commands:"
+    echo ""
+    echo -e "  ${GREEN}lint${NC}     - Run zero-warning policy checks"
+    echo "             ./scripts lint [--fix|--format]"
+    echo ""
+    echo -e "  ${GREEN}format${NC}   - Code formatting operations"
+    echo "             ./scripts format [format|check|fix|diff|config]"
+    echo ""
+    echo -e "  ${GREEN}setup-hooks${NC} - Install pre-commit hooks"
+    echo "             ./scripts setup-hooks"
+    echo ""
+    echo "Examples:"
+    echo "  ./scripts lint --fix       # Run all checks and auto-fix issues"
+    echo "  ./scripts format check     # Check formatting without changes"
+    echo "  ./scripts setup-hooks      # Install pre-commit validation"
+    echo ""
+    echo "For detailed help on individual scripts:"
+    echo "  ./bin/lint.sh --help"
+    echo "  ./bin/format.sh --help"
+}
+
+case "${1:-help}" in
+    lint)
+        shift
+        exec ./bin/lint.sh "$@"
+        ;;
+    format)
+        shift
+        exec ./bin/format.sh "$@"
+        ;;
+    setup-hooks)
+        echo -e "${BLUE}🪝 Installing pre-commit hooks...${NC}"
+        cp bin/pre-commit-hook.sh .git/hooks/pre-commit
+        chmod +x .git/hooks/pre-commit
+        echo -e "${GREEN}✅ Pre-commit hook installed${NC}"
+        echo ""
+        echo "Optional: Enable automatic formatting"
+        echo "  export PRE_COMMIT_AUTO_FORMAT=true"
+        echo "  export PRE_COMMIT_AUTO_FIX=true"
+        ;;
+    help|-h|--help)
+        show_help
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac

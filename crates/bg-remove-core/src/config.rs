@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-
 /// Execution provider options for ONNX Runtime
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionProvider {
@@ -15,7 +14,6 @@ pub enum ExecutionProvider {
     /// Apple Silicon GPU acceleration (Metal Performance Shaders)
     CoreMl,
 }
-
 
 impl Default for ExecutionProvider {
     fn default() -> Self {
@@ -54,7 +52,11 @@ pub struct BackgroundColor {
 impl Default for BackgroundColor {
     fn default() -> Self {
         // Default to white background
-        Self { r: 255, g: 255, b: 255 }
+        Self {
+            r: 255,
+            g: 255,
+            b: 255,
+        }
     }
 }
 
@@ -85,26 +87,25 @@ impl BackgroundColor {
 pub struct RemovalConfig {
     /// Execution provider for ONNX Runtime
     pub execution_provider: ExecutionProvider,
-    
+
     /// Output format
     pub output_format: OutputFormat,
-    
+
     /// Background color for non-transparent formats
     pub background_color: BackgroundColor,
-    
+
     /// JPEG quality (0-100, only used for JPEG output)
     pub jpeg_quality: u8,
-    
+
     /// WebP quality (0-100, only used for WebP output)
     pub webp_quality: u8,
-    
+
     /// Enable debug mode (additional logging and validation)
     pub debug: bool,
-    
-    
+
     /// Number of intra-op threads for inference (0 = auto)
     pub intra_threads: usize,
-    
+
     /// Number of inter-op threads for inference (0 = auto)
     pub inter_threads: usize,
 }
@@ -134,13 +135,13 @@ impl RemovalConfig {
     pub fn validate(&self) -> crate::Result<()> {
         if self.jpeg_quality > 100 {
             return Err(crate::error::BgRemovalError::invalid_config(
-                "JPEG quality must be between 0-100"
+                "JPEG quality must be between 0-100",
             ));
         }
 
         if self.webp_quality > 100 {
             return Err(crate::error::BgRemovalError::invalid_config(
-                "WebP quality must be between 0-100"
+                "WebP quality must be between 0-100",
             ));
         }
 
@@ -191,19 +192,18 @@ impl RemovalConfigBuilder {
         self
     }
 
-
     /// Set number of intra-op threads
     pub fn intra_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self
     }
-    
+
     /// Set number of inter-op threads
     pub fn inter_threads(mut self, threads: usize) -> Self {
         self.config.inter_threads = threads;
         self
     }
-    
+
     /// Set both intra and inter threads (convenience method)
     pub fn num_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
@@ -251,10 +251,10 @@ mod tests {
     #[test]
     fn test_config_validation() {
         let mut config = RemovalConfig::default();
-        
+
         // Valid config should pass
         assert!(config.validate().is_ok());
-        
+
         // Invalid JPEG quality should fail
         config.jpeg_quality = 150;
         assert!(config.validate().is_err());
@@ -262,7 +262,10 @@ mod tests {
 
     #[test]
     fn test_background_colors() {
-        assert_eq!(BackgroundColor::white(), BackgroundColor::new(255, 255, 255));
+        assert_eq!(
+            BackgroundColor::white(),
+            BackgroundColor::new(255, 255, 255)
+        );
         assert_eq!(BackgroundColor::black(), BackgroundColor::new(0, 0, 0));
     }
 }

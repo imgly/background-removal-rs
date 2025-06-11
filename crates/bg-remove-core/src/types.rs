@@ -1,27 +1,27 @@
 //! Core types for background removal operations
 
-use crate::{error::Result, config::OutputFormat};
-use image::{DynamicImage, ImageBuffer, Rgba, GenericImageView};
+use crate::{config::OutputFormat, error::Result};
+use chrono::Utc;
+use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use log::info;
-use chrono::Utc;
 
 /// Result of a background removal operation
 #[derive(Debug, Clone)]
 pub struct RemovalResult {
     /// The processed image with background removed
     pub image: DynamicImage,
-    
+
     /// The segmentation mask used for removal
     pub mask: SegmentationMask,
-    
+
     /// Original image dimensions
     pub original_dimensions: (u32, u32),
-    
+
     /// Processing metadata
     pub metadata: ProcessingMetadata,
-    
+
     /// Original input path (for logging purposes)
     pub input_path: Option<String>,
 }
@@ -42,7 +42,7 @@ impl RemovalResult {
             input_path: None,
         }
     }
-    
+
     /// Create a new removal result with input path
     pub fn with_input_path(
         image: DynamicImage,
@@ -65,7 +65,7 @@ impl RemovalResult {
         self.image.save_with_format(path, image::ImageFormat::Png)?;
         Ok(())
     }
-    
+
     /// Save the result as PNG with alpha channel and return encoding time
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
         let encode_start = std::time::Instant::now();
@@ -104,7 +104,7 @@ impl RemovalResult {
                 let rgba_image = self.image.to_rgba8();
                 std::fs::write(path, rgba_image.as_raw())?;
                 Ok(())
-            }
+            },
         }
     }
 
@@ -121,25 +121,24 @@ impl RemovalResult {
                 let mut cursor = std::io::Cursor::new(&mut buffer);
                 self.image.write_to(&mut cursor, image::ImageFormat::Png)?;
                 Ok(buffer)
-            }
+            },
             OutputFormat::Jpeg => {
                 let mut buffer = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut buffer);
                 let rgb_image = self.image.to_rgb8();
-                let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
+                let mut jpeg_encoder =
+                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
                 jpeg_encoder.encode_image(&rgb_image)?;
                 Ok(buffer)
-            }
+            },
             OutputFormat::WebP => {
                 // For now, fall back to PNG for WebP until proper WebP encoding is implemented
                 let mut buffer = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut buffer);
                 self.image.write_to(&mut cursor, image::ImageFormat::Png)?;
                 Ok(buffer)
-            }
-            OutputFormat::Rgba8 => {
-                Ok(self.to_rgba_bytes())
-            }
+            },
+            OutputFormat::Rgba8 => Ok(self.to_rgba_bytes()),
         }
     }
 
@@ -152,34 +151,42 @@ impl RemovalResult {
     pub fn timings(&self) -> &ProcessingTimings {
         &self.metadata.timings
     }
-    
+
     /// Save and measure encoding time (updates internal timing)
-    pub fn save_with_timing<P: AsRef<Path>>(&mut self, path: P, format: image::ImageFormat) -> Result<()> {
+    pub fn save_with_timing<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        format: image::ImageFormat,
+    ) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(&path, format)?;
         let encode_ms = encode_start.elapsed().as_millis() as u64;
-        
+
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
-        
+
         // Log encoding completion first
-        info!("[{}Z INFO bg_remove] Image Encoding completed in {}ms", 
-              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
-              encode_ms);
-              
-        // Then log final completion with total processing time 
+        info!(
+            "[{}Z INFO bg_remove] Image Encoding completed in {}ms",
+            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+            encode_ms
+        );
+
+        // Then log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
         let input_path = self.input_path.as_deref().unwrap_or("input");
-        info!("[{}Z INFO bg_remove] Processed: {} -> {} in {:.2}s", 
-              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
-              input_path,
-              path_str,
-              total_time_s);
-        
+        info!(
+            "[{}Z INFO bg_remove] Processed: {} -> {} in {:.2}s",
+            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+            input_path,
+            path_str,
+            total_time_s
+        );
+
         Ok(())
     }
-    
+
     /// Save as PNG and measure encoding time
     pub fn save_png_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.save_with_timing(path, image::ImageFormat::Png)
@@ -189,7 +196,7 @@ impl RemovalResult {
     pub fn timing_summary(&self) -> String {
         let t = &self.metadata.timings;
         let breakdown = t.breakdown_percentages();
-        
+
         let mut summary = format!(
             "Total: {}ms | Decode: {}ms ({:.1}%) | Preprocess: {}ms ({:.1}%) | Inference: {}ms ({:.1}%) | Postprocess: {}ms ({:.1}%)",
             t.total_ms,
@@ -198,18 +205,24 @@ impl RemovalResult {
             t.inference_ms, breakdown.inference_pct,
             t.postprocessing_ms, breakdown.postprocessing_pct
         );
-        
+
         // Add encode timing if present
         if let Some(encode_ms) = t.image_encode_ms {
-            summary.push_str(&format!(" | Encode: {}ms ({:.1}%)", encode_ms, breakdown.encode_pct));
+            summary.push_str(&format!(
+                " | Encode: {}ms ({:.1}%)",
+                encode_ms, breakdown.encode_pct
+            ));
         }
-        
+
         // Add other/overhead if significant (>1% or >5ms)
         let other_ms = t.other_overhead_ms();
         if other_ms > 5 || breakdown.other_pct > 1.0 {
-            summary.push_str(&format!(" | Other: {}ms ({:.1}%)", other_ms, breakdown.other_pct));
+            summary.push_str(&format!(
+                " | Other: {}ms ({:.1}%)",
+                other_ms, breakdown.other_pct
+            ));
         }
-        
+
         summary
     }
 
@@ -218,7 +231,7 @@ impl RemovalResult {
         // This would need proper WebP encoding implementation
         // For now, return an error indicating it's not implemented
         Err(crate::error::BgRemovalError::processing(
-            "WebP encoding not yet implemented"
+            "WebP encoding not yet implemented",
         ))
     }
 }
@@ -228,7 +241,7 @@ impl RemovalResult {
 pub struct SegmentationMask {
     /// Mask data as grayscale values (0-255)
     pub data: Vec<u8>,
-    
+
     /// Mask dimensions (width, height)
     pub dimensions: (u32, u32),
 }
@@ -236,27 +249,23 @@ pub struct SegmentationMask {
 impl SegmentationMask {
     /// Create a new segmentation mask
     pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
-        Self {
-            data,
-            dimensions,
-        }
+        Self { data, dimensions }
     }
 
     /// Create mask from a grayscale image
     pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
         let (width, height) = image.dimensions();
         let data = image.as_raw().clone();
-        
+
         Self::new(data, (width, height))
     }
 
     /// Convert mask to a grayscale image
     pub fn to_image(&self) -> Result<ImageBuffer<image::Luma<u8>, Vec<u8>>> {
         let (width, height) = self.dimensions;
-        ImageBuffer::from_raw(width, height, self.data.clone())
-            .ok_or_else(|| crate::error::BgRemovalError::processing(
-                "Failed to create image from mask data"
-            ))
+        ImageBuffer::from_raw(width, height, self.data.clone()).ok_or_else(|| {
+            crate::error::BgRemovalError::processing("Failed to create image from mask data")
+        })
     }
 
     /// Apply the mask to an RGBA image
@@ -266,7 +275,7 @@ impl SegmentationMask {
 
         if img_width != mask_width || img_height != mask_height {
             return Err(crate::error::BgRemovalError::processing(
-                "Image and mask dimensions do not match"
+                "Image and mask dimensions do not match",
             ));
         }
 
@@ -289,7 +298,7 @@ impl SegmentationMask {
             new_height,
             image::imageops::FilterType::Lanczos3,
         );
-        
+
         Ok(SegmentationMask::from_image(&resized))
     }
 
@@ -298,7 +307,7 @@ impl SegmentationMask {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;
         let background_pixels = total_pixels - foreground_pixels;
-        
+
         MaskStatistics {
             total_pixels: total_pixels as usize,
             foreground_pixels: foreground_pixels as usize,
@@ -331,22 +340,22 @@ pub struct MaskStatistics {
 pub struct ProcessingTimings {
     /// Model loading time (first call only)
     pub model_load_ms: u64,
-    
+
     /// Image loading and decoding from file
     pub image_decode_ms: u64,
-    
+
     /// Image preprocessing (resize, normalize, tensor conversion)
     pub preprocessing_ms: u64,
-    
+
     /// ONNX Runtime inference execution
     pub inference_ms: u64,
-    
+
     /// Postprocessing (mask generation, alpha application)
     pub postprocessing_ms: u64,
-    
+
     /// Final image encoding (if saving to file)
     pub image_encode_ms: Option<u64>,
-    
+
     /// Total end-to-end processing time
     pub total_ms: u64,
 }
@@ -363,7 +372,7 @@ impl ProcessingTimings {
             total_ms: 0,
         }
     }
-    
+
     /// Calculate efficiency metrics
     pub fn inference_ratio(&self) -> f64 {
         if self.total_ms == 0 {
@@ -372,24 +381,27 @@ impl ProcessingTimings {
             self.inference_ms as f64 / self.total_ms as f64
         }
     }
-    
+
     /// Get breakdown percentages
     pub fn breakdown_percentages(&self) -> TimingBreakdown {
         if self.total_ms == 0 {
             return TimingBreakdown::default();
         }
-        
+
         let total = self.total_ms as f64;
-        let measured_time = self.model_load_ms + self.image_decode_ms + 
-                           self.preprocessing_ms + self.inference_ms + 
-                           self.postprocessing_ms + self.image_encode_ms.unwrap_or(0);
-        
+        let measured_time = self.model_load_ms
+            + self.image_decode_ms
+            + self.preprocessing_ms
+            + self.inference_ms
+            + self.postprocessing_ms
+            + self.image_encode_ms.unwrap_or(0);
+
         let other_ms = if self.total_ms > measured_time {
             self.total_ms - measured_time
         } else {
             0
         };
-        
+
         TimingBreakdown {
             model_load_pct: (self.model_load_ms as f64 / total) * 100.0,
             decode_pct: (self.image_decode_ms as f64 / total) * 100.0,
@@ -400,13 +412,16 @@ impl ProcessingTimings {
             other_pct: (other_ms as f64 / total) * 100.0,
         }
     }
-    
+
     /// Get the "other" overhead time (unaccounted time)
     pub fn other_overhead_ms(&self) -> u64 {
-        let measured_time = self.model_load_ms + self.image_decode_ms + 
-                           self.preprocessing_ms + self.inference_ms + 
-                           self.postprocessing_ms + self.image_encode_ms.unwrap_or(0);
-        
+        let measured_time = self.model_load_ms
+            + self.image_decode_ms
+            + self.preprocessing_ms
+            + self.inference_ms
+            + self.postprocessing_ms
+            + self.image_encode_ms.unwrap_or(0);
+
         if self.total_ms > measured_time {
             self.total_ms - measured_time
         } else {
@@ -452,35 +467,35 @@ impl Default for TimingBreakdown {
 pub struct ProcessingMetadata {
     /// Detailed timing breakdown
     pub timings: ProcessingTimings,
-    
+
     /// Model used for inference
     pub model_name: String,
-    
+
     /// Model precision used
     pub model_precision: String,
-    
+
     /// Input image format
     pub input_format: String,
-    
+
     /// Output image format
     pub output_format: String,
-    
+
     /// Memory usage peak (bytes)
     pub peak_memory_bytes: u64,
-    
+
     // Legacy timing fields for backward compatibility
     /// Time taken for inference (milliseconds) - DEPRECATED: use timings.inference_ms
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference_time_ms: Option<u64>,
-    
+
     /// Time taken for preprocessing (milliseconds) - DEPRECATED: use timings.preprocessing_ms
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preprocessing_time_ms: Option<u64>,
-    
+
     /// Time taken for postprocessing (milliseconds) - DEPRECATED: use timings.postprocessing_ms
     #[serde(skip_serializing_if = "Option::is_none")]
     pub postprocessing_time_ms: Option<u64>,
-    
+
     /// Total processing time (milliseconds) - DEPRECATED: use timings.total_ms
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_time_ms: Option<u64>,
@@ -511,7 +526,7 @@ impl ProcessingMetadata {
         self.preprocessing_time_ms = Some(timings.preprocessing_ms);
         self.postprocessing_time_ms = Some(timings.postprocessing_ms);
         self.total_time_ms = Some(timings.total_ms);
-        
+
         // Update detailed timings (move after using fields)
         self.timings = timings;
     }
@@ -541,7 +556,7 @@ mod tests {
     fn test_segmentation_mask_creation() {
         let data = vec![255, 128, 0, 255];
         let mask = SegmentationMask::new(data, (2, 2));
-        
+
         assert_eq!(mask.dimensions, (2, 2));
         assert_eq!(mask.data.len(), 4);
     }
@@ -550,7 +565,7 @@ mod tests {
     fn test_mask_statistics() {
         let data = vec![255, 255, 0, 0]; // 2 foreground, 2 background
         let mask = SegmentationMask::new(data, (2, 2));
-        
+
         let stats = mask.statistics();
         assert_eq!(stats.total_pixels, 4);
         assert_eq!(stats.foreground_pixels, 2);
@@ -562,7 +577,7 @@ mod tests {
     #[test]
     fn test_processing_metadata() {
         let mut metadata = ProcessingMetadata::new("isnet".to_string());
-        
+
         // Use new detailed timing method instead of deprecated set_timings
         let timings = ProcessingTimings {
             model_load_ms: 0,
@@ -574,7 +589,7 @@ mod tests {
             total_ms: 175,
         };
         metadata.set_detailed_timings(timings);
-        
+
         assert_eq!(metadata.inference_time_ms, Some(100));
         assert_eq!(metadata.preprocessing_time_ms, Some(50));
         assert_eq!(metadata.postprocessing_time_ms, Some(25));

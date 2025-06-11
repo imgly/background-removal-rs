@@ -16,7 +16,7 @@ pub struct ModelInfo {
 pub trait ModelProvider {
     /// Load model data as bytes (uses embedded model based on compile-time feature)
     fn load_model_data(&self) -> Result<Vec<u8>>;
-    
+
     /// Get model information (uses embedded model based on compile-time feature)
     fn get_model_info(&self) -> Result<ModelInfo>;
 }
@@ -72,7 +72,6 @@ impl ModelProvider for EmbeddedModelProvider {
     }
 }
 
-
 /// Model manager for handling different model sources
 pub struct ModelManager {
     provider: Box<dyn ModelProvider>,
@@ -85,7 +84,6 @@ impl ModelManager {
             provider: Box::new(EmbeddedModelProvider),
         }
     }
-
 
     /// Load model data (uses embedded model based on compile-time feature)
     pub fn load_model(&self) -> Result<Vec<u8>> {
@@ -105,17 +103,17 @@ mod tests {
     #[test]
     fn test_embedded_model_provider() {
         let provider = EmbeddedModelProvider;
-        
+
         // Test model info retrieval (uses compile-time embedded model)
         let info = provider.get_model_info().unwrap();
-        
+
         // FP32 takes precedence when both features are enabled
         #[cfg(feature = "fp32-model")]
         {
             assert_eq!(info.name, "ISNet-FP32");
             assert_eq!(info.precision, "fp32");
         }
-        
+
         // FP16 only when FP32 is not enabled
         #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         {
@@ -128,11 +126,11 @@ mod tests {
     fn test_model_manager() {
         let manager = ModelManager::with_embedded();
         let info = manager.get_info().unwrap();
-        
+
         // Verify the model is correctly loaded based on feature precedence
         #[cfg(feature = "fp32-model")]
         assert_eq!(info.precision, "fp32");
-        
+
         #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         assert_eq!(info.precision, "fp16");
     }

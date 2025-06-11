@@ -1,21 +1,21 @@
 //! Testing utilities and tools for the background removal library
-//! 
+//!
 //! This crate provides comprehensive testing infrastructure including:
 //! - Real image fixtures and loading utilities
 //! - Image comparison and accuracy metrics
 //! - HTML report generation with visual comparisons
 //! - Performance benchmarking tools
 
-pub mod fixtures;
 pub mod comparison;
+pub mod fixtures;
 pub mod report;
 
-pub use fixtures::*;
 pub use comparison::*;
+pub use fixtures::*;
 pub use report::*;
 
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Test case definition for real image testing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +52,7 @@ pub struct ValidationThresholds {
 impl Default for ValidationThresholds {
     fn default() -> Self {
         Self {
-            pixel_accuracy: 0.30,  // Lower threshold since we're using visual quality score
+            pixel_accuracy: 0.30, // Lower threshold since we're using visual quality score
             ssim: 0.50,           // More forgiving SSIM threshold
             edge_accuracy: 0.60,  // More reasonable edge accuracy
             processing_time_ms: 5000,
@@ -126,17 +126,21 @@ impl TestSession {
     fn update_summary(&mut self) {
         let total = self.results.len();
         let passed = self.results.iter().filter(|r| r.passed).count();
-        
+
         let avg_accuracy = if total > 0 {
-            self.results.iter()
+            self.results
+                .iter()
                 .map(|r| r.metrics.pixel_accuracy)
-                .sum::<f64>() / total as f64
+                .sum::<f64>()
+                / total as f64
         } else {
             0.0
         };
 
         let avg_time = if total > 0 {
-            let total_ms: u64 = self.results.iter()
+            let total_ms: u64 = self
+                .results
+                .iter()
                 .map(|r| r.processing_time.as_millis() as u64)
                 .sum();
             std::time::Duration::from_millis(total_ms / total as u64)
@@ -144,7 +148,9 @@ impl TestSession {
             std::time::Duration::from_millis(0)
         };
 
-        let mut categories: Vec<String> = self.results.iter()
+        let mut categories: Vec<String> = self
+            .results
+            .iter()
             .map(|r| r.test_case.category.clone())
             .collect();
         categories.sort();
@@ -166,22 +172,22 @@ impl TestSession {
 pub enum TestingError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Image processing error: {0}")]
     Image(#[from] image::ImageError),
-    
+
     #[error("JSON parsing error: {0}")]
     Json(#[from] serde_json::Error),
-    
+
     #[error("Background removal error: {0}")]
     BackgroundRemoval(#[from] bg_remove_core::BgRemovalError),
-    
+
     #[error("Test case not found: {0}")]
     TestCaseNotFound(String),
-    
+
     #[error("Reference image not found: {0}")]
     ReferenceImageNotFound(String),
-    
+
     #[error("Invalid test configuration: {0}")]
     InvalidConfiguration(String),
 }

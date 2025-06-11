@@ -1,10 +1,10 @@
 //! Performance integration tests for background removal
-//! 
+//!
 //! These tests validate that background removal performance meets acceptable thresholds
 //! and that different execution providers work correctly.
 
-use bg_remove_core::{remove_background, RemovalConfig};
 use bg_remove_core::config::ExecutionProvider;
+use bg_remove_core::{remove_background, RemovalConfig};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -17,7 +17,7 @@ async fn test_performance_threshold_basic() {
         .expect("Failed to create config");
 
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping performance test: test file not found");
         return;
@@ -28,7 +28,7 @@ async fn test_performance_threshold_basic() {
     let duration = start.elapsed();
 
     assert!(result.is_ok(), "Background removal should succeed");
-    
+
     // Performance threshold: should complete within 10 seconds for integration test
     assert!(
         duration < Duration::from_secs(10),
@@ -47,7 +47,7 @@ async fn test_execution_provider_performance() {
     ];
 
     let input_path = "assets/input/portraits/portrait_action_motion.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping execution provider performance test: test file not found");
         return;
@@ -67,7 +67,7 @@ async fn test_execution_provider_performance() {
         let duration = start.elapsed();
 
         assert!(result.is_ok(), "{} provider should succeed", name);
-        
+
         // Each provider should complete within reasonable time
         assert!(
             duration < Duration::from_secs(15),
@@ -81,7 +81,10 @@ async fn test_execution_provider_performance() {
     }
 
     // Verify we tested multiple providers
-    assert!(results.len() >= 2, "Should test at least 2 execution providers");
+    assert!(
+        results.len() >= 2,
+        "Should test at least 2 execution providers"
+    );
 }
 
 #[tokio::test]
@@ -92,7 +95,7 @@ async fn test_memory_usage_basic() {
         .expect("Failed to create config");
 
     let input_path = "assets/input/products/product_clothing_white_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping memory test: test file not found");
         return;
@@ -102,9 +105,13 @@ async fn test_memory_usage_basic() {
     for i in 0..3 {
         let result = remove_background(input_path, &config).await;
         assert!(result.is_ok(), "Run {} should succeed", i + 1);
-        
+
         let result = result.unwrap();
-        assert!(!result.mask.data.is_empty(), "Run {} should produce valid mask", i + 1);
+        assert!(
+            !result.mask.data.is_empty(),
+            "Run {} should produce valid mask",
+            i + 1
+        );
     }
 
     println!("✅ Memory test passed: 3 consecutive runs completed");
@@ -134,10 +141,10 @@ async fn test_concurrent_processing() {
     }
 
     let start = Instant::now();
-    
+
     // Process images sequentially (due to Send constraints)
     let mut results = Vec::new();
-    
+
     for &path in &existing_images {
         let result = remove_background(path, &config).await;
         results.push(result);
@@ -149,8 +156,11 @@ async fn test_concurrent_processing() {
         assert!(result.is_ok(), "Sequential task {} should succeed", i);
     }
 
-    println!("✅ Sequential test passed: {} images processed in {}ms", 
-             existing_images.len(), duration.as_millis());
+    println!(
+        "✅ Sequential test passed: {} images processed in {}ms",
+        existing_images.len(),
+        duration.as_millis()
+    );
 }
 
 #[tokio::test]
@@ -163,8 +173,14 @@ async fn test_performance_regression() {
         .expect("Failed to create config");
 
     let test_images = vec![
-        ("portrait", "assets/input/portraits/portrait_single_simple_bg.jpg"),
-        ("product", "assets/input/products/product_clothing_white_bg.jpg"),
+        (
+            "portrait",
+            "assets/input/portraits/portrait_single_simple_bg.jpg",
+        ),
+        (
+            "product",
+            "assets/input/products/product_clothing_white_bg.jpg",
+        ),
         ("complex", "assets/input/complex/complex_group_photo.jpg"),
     ];
 
@@ -177,7 +193,7 @@ async fn test_performance_regression() {
         }
 
         let mut durations = Vec::new();
-        
+
         // Run multiple times to get stable measurements
         for _ in 0..3 {
             let start = Instant::now();
@@ -202,15 +218,26 @@ async fn test_performance_regression() {
             };
 
             if avg_duration <= max_expected {
-                println!("✅ {} performance: {}ms (within {}ms threshold)", 
-                         category, avg_duration.as_millis(), max_expected.as_millis());
+                println!(
+                    "✅ {} performance: {}ms (within {}ms threshold)",
+                    category,
+                    avg_duration.as_millis(),
+                    max_expected.as_millis()
+                );
             } else {
                 all_passed = false;
-                println!("❌ {} performance regression: {}ms (exceeds {}ms threshold)", 
-                         category, avg_duration.as_millis(), max_expected.as_millis());
+                println!(
+                    "❌ {} performance regression: {}ms (exceeds {}ms threshold)",
+                    category,
+                    avg_duration.as_millis(),
+                    max_expected.as_millis()
+                );
             }
         }
     }
 
-    assert!(all_passed, "Performance regression test should pass all categories");
+    assert!(
+        all_passed,
+        "Performance regression test should pass all categories"
+    );
 }

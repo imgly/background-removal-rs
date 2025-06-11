@@ -1,7 +1,7 @@
 //! Demonstrate manual execution provider selection
 
-use bg_remove_core::{RemovalConfig, remove_background};
 use bg_remove_core::config::ExecutionProvider;
+use bg_remove_core::{remove_background, RemovalConfig};
 use std::path::Path;
 use std::time::Instant;
 
@@ -9,9 +9,9 @@ use std::time::Instant;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎯 Execution Provider Choice Demo");
     println!("=================================");
-    
+
     let test_image = "crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
-    
+
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {}", test_image);
         return Ok(());
@@ -26,23 +26,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (name, provider) in &providers {
         println!("\n🔧 Testing {} execution provider...", name);
-        
+
         let config = RemovalConfig::builder()
             .execution_provider(*provider)
             .debug(false)
             .build()?;
 
         let start_time = Instant::now();
-        
+
         match remove_background(test_image, &config).await {
             Ok(result) => {
                 let duration = start_time.elapsed();
-                
+
                 println!("   ✅ Success!");
                 println!("   ⏱️  Processing time: {}ms", duration.as_millis());
-                println!("   📊 Foreground ratio: {:.1}%", 
-                    result.mask.statistics().foreground_ratio * 100.0);
-                
+                println!(
+                    "   📊 Foreground ratio: {:.1}%",
+                    result.mask.statistics().foreground_ratio * 100.0
+                );
+
                 // Save output with provider name
                 let provider_name = format!("{:?}", provider).to_lowercase();
                 let output_path = format!("provider_test_{}.png", provider_name);
@@ -58,12 +60,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ExecutionProvider::CoreMl => {
                         println!("   💡 CoreML may not be available on this system");
                     },
-                    _ => {}
+                    _ => {},
                 }
-            }
+            },
         }
     }
-    
+
     println!("\n📋 Summary:");
     println!("   • Auto: Tries CUDA → CoreML → CPU (recommended)");
     println!("   • CPU: Forces CPU execution (slower but always works)");

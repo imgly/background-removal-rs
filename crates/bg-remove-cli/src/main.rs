@@ -3,14 +3,14 @@
 //! Command-line interface for removing backgrounds from images using ISNet models.
 
 use anyhow::{Context, Result};
-use bg_remove_core::{RemovalConfig, OutputFormat, ExecutionProvider};
 use bg_remove_core::config::BackgroundColor;
+use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{info, warn, error};
+use log::{error, info, warn};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use std::io::{self, Read, Write};
 
 /// Background removal CLI tool
 #[derive(Parser)]
@@ -132,14 +132,17 @@ async fn main() -> Result<()> {
         return show_provider_diagnostics();
     }
 
-    let input = cli.input.as_ref().ok_or_else(|| anyhow::anyhow!("Input is required"))?;
-    
+    let input = cli
+        .input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Input is required"))?;
+
     info!("Starting background removal CLI");
     info!("Input: {}", input);
-    
+
     // Parse background color
-    let background_color = parse_color(&cli.background_color)
-        .context("Invalid background color format")?;
+    let background_color =
+        parse_color(&cli.background_color).context("Invalid background color format")?;
 
     // Build configuration
     let config = RemovalConfig::builder()
@@ -150,11 +153,18 @@ async fn main() -> Result<()> {
         .webp_quality(cli.webp_quality)
         .debug(cli.debug)
         .num_threads(cli.threads)
-        .intra_threads(if cli.intra_threads > 0 { cli.intra_threads } else { 0 })
-        .inter_threads(if cli.inter_threads > 0 { cli.inter_threads } else { 0 })
+        .intra_threads(if cli.intra_threads > 0 {
+            cli.intra_threads
+        } else {
+            0
+        })
+        .inter_threads(if cli.inter_threads > 0 {
+            cli.inter_threads
+        } else {
+            0
+        })
         .build()
         .context("Invalid configuration")?;
-
 
     // Process input
     let start_time = Instant::now();
@@ -168,12 +178,18 @@ async fn main() -> Result<()> {
         } else if input_path.is_dir() {
             process_directory(&cli, &config).await?
         } else {
-            return Err(anyhow::anyhow!("Input path does not exist or is not accessible"));
+            return Err(anyhow::anyhow!(
+                "Input path does not exist or is not accessible"
+            ));
         }
     };
 
     let total_time = start_time.elapsed();
-    info!("Processed {} image(s) in {:.2}s", processed_count, total_time.as_secs_f64());
+    info!(
+        "Processed {} image(s) in {:.2}s",
+        processed_count,
+        total_time.as_secs_f64()
+    );
 
     Ok(())
 }
@@ -181,104 +197,104 @@ async fn main() -> Result<()> {
 /// Initialize logging based on verbosity level
 fn init_logging(verbose: bool) {
     let log_level = if verbose { "debug" } else { "info" };
-    
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(log_level)
-    )
-    .format_timestamp_secs()
-    .init();
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
+        .format_timestamp_secs()
+        .init();
 }
 
 /// Read image data from stdin
 fn read_stdin() -> Result<Vec<u8>> {
     let mut buffer = Vec::new();
-    io::stdin().read_to_end(&mut buffer)
+    io::stdin()
+        .read_to_end(&mut buffer)
         .context("Failed to read image data from stdin")?;
-    
+
     if buffer.is_empty() {
         return Err(anyhow::anyhow!("No data received from stdin"));
     }
-    
+
     Ok(buffer)
 }
 
 /// Write image data to stdout
 fn write_stdout(data: &[u8]) -> Result<()> {
-    io::stdout().write_all(data)
+    io::stdout()
+        .write_all(data)
         .context("Failed to write image data to stdout")?;
-    io::stdout().flush()
-        .context("Failed to flush stdout")?;
+    io::stdout().flush().context("Failed to flush stdout")?;
     Ok(())
 }
 
 /// Display execution provider diagnostics
 fn show_provider_diagnostics() -> Result<()> {
     use bg_remove_core::inference::check_provider_availability;
-    
+
     println!("🔍 ONNX Runtime Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    
+
     // System information
     let cpu_count = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1);
     println!("💻 System: {} CPU cores detected", cpu_count);
-    
+
     // Check provider availability
     let providers = check_provider_availability();
-    
+
     for (name, available, description) in providers {
-        let status = if available { "✅ Available" } else { "❌ Not Available" };
+        let status = if available {
+            "✅ Available"
+        } else {
+            "❌ Not Available"
+        };
         println!("🚀 {}: {} - {}", name, status, description);
     }
-    
+
     println!("\n💡 Tips:");
     println!("  • Use --execution-provider auto for best performance");
     println!("  • GPU acceleration requires compatible hardware/drivers");
     println!("  • CPU provider is always available as fallback");
-    
+
     Ok(())
 }
 
 /// Parse hex color string to BackgroundColor
 fn parse_color(color_str: &str) -> Result<BackgroundColor> {
     let hex = color_str.trim_start_matches('#');
-    
+
     if hex.len() != 6 {
         return Err(anyhow::anyhow!("Color must be in #RRGGBB format"));
     }
 
-    let r = u8::from_str_radix(&hex[0..2], 16)
-        .context("Invalid red component")?;
-    let g = u8::from_str_radix(&hex[2..4], 16)
-        .context("Invalid green component")?;
-    let b = u8::from_str_radix(&hex[4..6], 16)
-        .context("Invalid blue component")?;
+    let r = u8::from_str_radix(&hex[0..2], 16).context("Invalid red component")?;
+    let g = u8::from_str_radix(&hex[2..4], 16).context("Invalid green component")?;
+    let b = u8::from_str_radix(&hex[4..6], 16).context("Invalid blue component")?;
 
     Ok(BackgroundColor::new(r, g, b))
 }
 
 /// Process image from stdin
-async fn process_stdin(
-    output_target: &Option<String>,
-    config: &RemovalConfig,
-) -> Result<usize> {
+async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig) -> Result<usize> {
     info!("Reading image from stdin");
-    
+
     let image_data = read_stdin()?;
     let start_time = Instant::now();
-    
+
     // Load image from bytes
-    let image = image::load_from_memory(&image_data)
-        .context("Failed to decode image from stdin")?;
-    
+    let image =
+        image::load_from_memory(&image_data).context("Failed to decode image from stdin")?;
+
     // Process image through bg-remove-core
-    let result = bg_remove_core::process_image(image, config)
-        .context("Failed to remove background")?;
-    
+    let result =
+        bg_remove_core::process_image(image, config).context("Failed to remove background")?;
+
     let processing_time = start_time.elapsed();
-    info!("Processed stdin image in {:.2}s", processing_time.as_secs_f64());
-    
+    info!(
+        "Processed stdin image in {:.2}s",
+        processing_time.as_secs_f64()
+    );
+
     // Handle output
     match output_target {
         Some(target) if target == "-" => {
@@ -286,22 +302,23 @@ async fn process_stdin(
             let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
             write_stdout(&output_data)?;
             info!("Image written to stdout");
-        }
+        },
         Some(target) => {
             // Output to file
             let output_path = PathBuf::from(target);
-            result.save(&output_path, config.output_format, config.jpeg_quality)
+            result
+                .save(&output_path, config.output_format, config.jpeg_quality)
                 .context("Failed to save result")?;
             info!("Image saved to: {}", output_path.display());
-        }
+        },
         None => {
             // Default: output to stdout for stdin input
             let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
             write_stdout(&output_data)?;
             info!("Image written to stdout");
-        }
+        },
     }
-    
+
     Ok(1)
 }
 
@@ -312,45 +329,56 @@ async fn process_single_file(
     config: &RemovalConfig,
 ) -> Result<usize> {
     let start_time = Instant::now();
-    let mut result = bg_remove_core::remove_background(input_path, config).await
+    let mut result = bg_remove_core::remove_background(input_path, config)
+        .await
         .context("Failed to remove background")?;
 
     let processing_time = start_time.elapsed();
-    
+
     // Handle output
     match output_path {
         Some(target) if target == "-" => {
             // Output to stdout
             let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
             write_stdout(&output_data)?;
-            info!("Processed {} and wrote to stdout in {:.2}s", input_path.display(), processing_time.as_secs_f64());
-        }
+            info!(
+                "Processed {} and wrote to stdout in {:.2}s",
+                input_path.display(),
+                processing_time.as_secs_f64()
+            );
+        },
         Some(target) => {
             // Output to specific file - use timed save for detailed logging
             let output_path = PathBuf::from(target);
             match config.output_format {
                 bg_remove_core::OutputFormat::Png => {
-                    result.save_png_timed(&output_path).context("Failed to save result")?;
-                }
-                _ => {
-                    result.save(&output_path, config.output_format, config.jpeg_quality)
+                    result
+                        .save_png_timed(&output_path)
                         .context("Failed to save result")?;
-                }
+                },
+                _ => {
+                    result
+                        .save(&output_path, config.output_format, config.jpeg_quality)
+                        .context("Failed to save result")?;
+                },
             }
-        }
+        },
         None => {
             // Generate default output filename - use timed save for detailed logging
             let output_path = generate_output_path(input_path, config.output_format);
             match config.output_format {
                 bg_remove_core::OutputFormat::Png => {
-                    result.save_png_timed(&output_path).context("Failed to save result")?;
-                }
-                _ => {
-                    result.save(&output_path, config.output_format, config.jpeg_quality)
+                    result
+                        .save_png_timed(&output_path)
                         .context("Failed to save result")?;
-                }
+                },
+                _ => {
+                    result
+                        .save(&output_path, config.output_format, config.jpeg_quality)
+                        .context("Failed to save result")?;
+                },
             }
-        }
+        },
     }
 
     Ok(1)
@@ -358,17 +386,23 @@ async fn process_single_file(
 
 /// Process all images in a directory
 async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
-    let input = cli.input.as_ref().ok_or_else(|| anyhow::anyhow!("Input directory required"))?;
+    let input = cli
+        .input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Input directory required"))?;
     let input_dir = PathBuf::from(input);
-    let output_dir = cli.output.as_ref().map(PathBuf::from).unwrap_or_else(|| input_dir.clone());
+    let output_dir = cli
+        .output
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| input_dir.clone());
 
     // Create output directory if it doesn't exist
-    std::fs::create_dir_all(&output_dir)
-        .context("Failed to create output directory")?;
+    std::fs::create_dir_all(&output_dir).context("Failed to create output directory")?;
 
     // Find image files
     let image_files = find_image_files(&input_dir, cli.recursive, cli.pattern.as_deref())?;
-    
+
     if image_files.is_empty() {
         warn!("No image files found in directory");
         return Ok(0);
@@ -389,10 +423,9 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
     let mut failed_count = 0;
 
     for input_file in image_files {
-        let relative_path = input_file.strip_prefix(&input_dir)
-            .unwrap_or(&input_file);
+        let relative_path = input_file.strip_prefix(&input_dir).unwrap_or(&input_file);
         let output_file = output_dir.join(relative_path);
-        
+
         // Ensure output directory exists
         if let Some(parent) = output_file.parent() {
             std::fs::create_dir_all(parent)?;
@@ -406,31 +439,27 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
         match bg_remove_core::remove_background(&input_file, config).await {
             Ok(mut result) => {
                 let save_result = match config.output_format {
-                    bg_remove_core::OutputFormat::Png => {
-                        result.save_png_timed(&output_file)
-                    }
-                    _ => {
-                        result.save(&output_file, config.output_format, config.jpeg_quality)
-                    }
+                    bg_remove_core::OutputFormat::Png => result.save_png_timed(&output_file),
+                    _ => result.save(&output_file, config.output_format, config.jpeg_quality),
                 };
-                
+
                 match save_result {
                     Ok(_) => {
                         processed_count += 1;
                         if cli.verbose {
                             info!("Processed: {}", input_file.display());
                         }
-                    }
+                    },
                     Err(e) => {
                         error!("Failed to save {}: {}", output_file.display(), e);
                         failed_count += 1;
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 error!("Failed to process {}: {}", input_file.display(), e);
                 failed_count += 1;
-            }
+            },
         }
 
         progress.inc(1);
@@ -445,11 +474,7 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
 }
 
 /// Find image files in directory
-fn find_image_files(
-    dir: &Path,
-    recursive: bool,
-    pattern: Option<&str>,
-) -> Result<Vec<PathBuf>> {
+fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     let image_extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"];
 
@@ -458,8 +483,7 @@ fn find_image_files(
             let entry = entry?;
             if entry.file_type().is_file() {
                 let path = entry.path();
-                if is_image_file(path, &image_extensions) &&
-                   matches_pattern(path, pattern) {
+                if is_image_file(path, &image_extensions) && matches_pattern(path, pattern) {
                     files.push(path.to_path_buf());
                 }
             }
@@ -469,8 +493,7 @@ fn find_image_files(
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 let path = entry.path();
-                if is_image_file(&path, &image_extensions) &&
-                   matches_pattern(&path, pattern) {
+                if is_image_file(&path, &image_extensions) && matches_pattern(&path, pattern) {
                     files.push(path);
                 }
             }
@@ -499,7 +522,7 @@ fn matches_pattern(path: &Path, pattern: Option<&str>) -> bool {
             } else {
                 false
             }
-        }
+        },
         None => true,
     }
 }
@@ -508,7 +531,7 @@ fn matches_pattern(path: &Path, pattern: Option<&str>) -> bool {
 fn generate_output_path(input_path: &Path, format: OutputFormat) -> PathBuf {
     let stem = input_path.file_stem().unwrap_or_default();
     let dir = input_path.parent().unwrap_or(Path::new("."));
-    
+
     let extension = match format {
         OutputFormat::Png => "png",
         OutputFormat::Jpeg => "jpg",
@@ -516,7 +539,11 @@ fn generate_output_path(input_path: &Path, format: OutputFormat) -> PathBuf {
         OutputFormat::Rgba8 => "rgba8",
     };
 
-    dir.join(format!("{}_bg_removed.{}", stem.to_string_lossy(), extension))
+    dir.join(format!(
+        "{}_bg_removed.{}",
+        stem.to_string_lossy(),
+        extension
+    ))
 }
 
 #[cfg(test)]
@@ -554,13 +581,13 @@ mod tests {
     #[test]
     fn test_generate_output_path() {
         let input = Path::new("/path/to/image.jpg");
-        
+
         let png_output = generate_output_path(input, OutputFormat::Png);
         assert_eq!(png_output, Path::new("/path/to/image_bg_removed.png"));
-        
+
         let jpeg_output = generate_output_path(input, OutputFormat::Jpeg);
         assert_eq!(jpeg_output, Path::new("/path/to/image_bg_removed.jpg"));
-        
+
         let rgba8_output = generate_output_path(input, OutputFormat::Rgba8);
         assert_eq!(rgba8_output, Path::new("/path/to/image_bg_removed.rgba8"));
     }
@@ -568,7 +595,7 @@ mod tests {
     #[test]
     fn test_is_image_file() {
         let extensions = ["jpg", "jpeg", "png", "webp"];
-        
+
         assert!(is_image_file(Path::new("test.jpg"), &extensions));
         assert!(is_image_file(Path::new("test.PNG"), &extensions));
         assert!(!is_image_file(Path::new("test.txt"), &extensions));

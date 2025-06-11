@@ -1,10 +1,10 @@
 //! Compatibility integration tests
-//! 
+//!
 //! These tests validate compatibility across different configurations,
 //! execution providers, and edge cases.
 
+use bg_remove_core::config::{BackgroundColor, ExecutionProvider};
 use bg_remove_core::{remove_background, RemovalConfig};
-use bg_remove_core::config::{ExecutionProvider, BackgroundColor};
 use image::GenericImageView;
 use std::path::Path;
 
@@ -17,7 +17,7 @@ async fn test_execution_provider_compatibility() {
     ];
 
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping execution provider compatibility test: test file not found");
         return;
@@ -34,14 +34,18 @@ async fn test_execution_provider_compatibility() {
 
         match remove_background(input_path, &config).await {
             Ok(result) => {
-                assert!(!result.mask.data.is_empty(), "{} should produce non-empty mask", name);
+                assert!(
+                    !result.mask.data.is_empty(),
+                    "{} should produce non-empty mask",
+                    name
+                );
                 successful_providers.push(name);
                 println!("✅ {} provider: compatible", name);
-            }
+            },
             Err(e) => {
                 println!("⚠️  {} provider: incompatible - {}", name, e);
                 // Some providers might not be available on all systems
-            }
+            },
         }
     }
 
@@ -50,9 +54,12 @@ async fn test_execution_provider_compatibility() {
         successful_providers.contains(&"CPU") || successful_providers.contains(&"Auto"),
         "At least CPU or Auto provider should be available"
     );
-    
-    println!("✅ Execution provider compatibility: {}/{} providers working", 
-             successful_providers.len(), 3);
+
+    println!(
+        "✅ Execution provider compatibility: {}/{} providers working",
+        successful_providers.len(),
+        3
+    );
 }
 
 #[tokio::test]
@@ -64,7 +71,7 @@ async fn test_background_color_options() {
     ];
 
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping background color test: test file not found");
         return;
@@ -81,11 +88,19 @@ async fn test_background_color_options() {
         assert!(result.is_ok(), "Should work with {} background", name);
 
         let result = result.unwrap();
-        
+
         // Verify output properties
-        assert!(!result.mask.data.is_empty(), "{} background should produce mask", name);
-        assert!(result.image.width() > 0, "{} background should produce valid image", name);
-        
+        assert!(
+            !result.mask.data.is_empty(),
+            "{} background should produce mask",
+            name
+        );
+        assert!(
+            result.image.width() > 0,
+            "{} background should produce valid image",
+            name
+        );
+
         println!("✅ {} background: compatible", name);
     }
 }
@@ -93,7 +108,7 @@ async fn test_background_color_options() {
 #[tokio::test]
 async fn test_debug_mode_compatibility() {
     let input_path = "assets/input/products/product_clothing_white_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping debug mode test: test file not found");
         return;
@@ -133,7 +148,7 @@ async fn test_debug_mode_compatibility() {
 #[tokio::test]
 async fn test_configuration_builder_compatibility() {
     let input_path = "assets/input/portraits/portrait_action_motion.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping configuration builder test: test file not found");
         return;
@@ -164,7 +179,7 @@ async fn test_configuration_builder_compatibility() {
 #[tokio::test]
 async fn test_concurrent_different_configs() {
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping concurrent config test: test file not found");
         return;
@@ -190,7 +205,7 @@ async fn test_concurrent_different_configs() {
 
     // Process with different configs sequentially (due to Send constraints)
     let mut results = Vec::new();
-    
+
     for (i, config) in configs.into_iter().enumerate() {
         let result = remove_background(input_path, &config).await;
         results.push((i, result));
@@ -199,9 +214,12 @@ async fn test_concurrent_different_configs() {
     // All configurations should work
     for (config_idx, task_result) in results {
         let bg_result = task_result.expect("Background removal should succeed");
-        
-        assert!(!bg_result.mask.data.is_empty(), 
-                "Config {} should produce non-empty mask", config_idx);
+
+        assert!(
+            !bg_result.mask.data.is_empty(),
+            "Config {} should produce non-empty mask",
+            config_idx
+        );
     }
 
     println!("✅ Concurrent different configs: all configs work simultaneously");
@@ -220,14 +238,18 @@ async fn test_error_handling_compatibility() {
 
     // Test with invalid file (if we have one)
     let invalid_paths = vec![
-        "assets/README.md", // Text file instead of image
+        "assets/README.md",       // Text file instead of image
         "assets/test_cases.json", // JSON file instead of image
     ];
 
     for invalid_path in invalid_paths {
         if Path::new(invalid_path).exists() {
             let result = remove_background(invalid_path, &config).await;
-            assert!(result.is_err(), "Should return error for invalid image file: {}", invalid_path);
+            assert!(
+                result.is_err(),
+                "Should return error for invalid image file: {}",
+                invalid_path
+            );
             println!("✅ Error handling: correctly rejected {}", invalid_path);
         }
     }
@@ -263,6 +285,9 @@ async fn test_cross_platform_paths() {
     }
 
     assert!(successful_paths > 0, "At least one path format should work");
-    println!("✅ Cross-platform paths: {}/{} path formats work", 
-             successful_paths, path_variants.len());
+    println!(
+        "✅ Cross-platform paths: {}/{} path formats work",
+        successful_paths,
+        path_variants.len()
+    );
 }

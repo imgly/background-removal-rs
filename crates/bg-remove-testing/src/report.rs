@@ -1,8 +1,8 @@
 //! HTML report generation with image comparison tables
 
-use crate::{TestSession, TestResult, TestingError, Result};
-use std::path::{Path, PathBuf};
+use crate::{Result, TestResult, TestSession, TestingError};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 /// HTML report generator for test results
 pub struct ReportGenerator {
@@ -14,11 +14,11 @@ impl ReportGenerator {
     /// Create a new report generator
     pub fn new<P: AsRef<Path>>(output_dir: P) -> Result<Self> {
         let output_dir = output_dir.as_ref().to_path_buf();
-        
+
         // Create output directory if it doesn't exist
         std::fs::create_dir_all(&output_dir)?;
         std::fs::create_dir_all(output_dir.join("images"))?;
-        
+
         Ok(Self {
             output_dir,
             template_dir: None,
@@ -341,9 +341,10 @@ impl ReportGenerator {
     /// Generate the main image comparison table
     fn generate_image_comparison_table(&self, session: &TestSession) -> Result<String> {
         let mut html = String::new();
-        
+
         // Group results by category
-        let mut categories: std::collections::BTreeMap<String, Vec<&TestResult>> = std::collections::BTreeMap::new();
+        let mut categories: std::collections::BTreeMap<String, Vec<&TestResult>> =
+            std::collections::BTreeMap::new();
         for result in &session.results {
             categories
                 .entry(result.test_case.category.clone())
@@ -379,7 +380,9 @@ impl ReportGenerator {
                 html.push_str(&self.generate_test_row(result)?);
             }
 
-            html.push_str("                </tbody>\n            </table>\n        </div>\n    </div>");
+            html.push_str(
+                "                </tbody>\n            </table>\n        </div>\n    </div>",
+            );
         }
 
         Ok(html)
@@ -387,23 +390,35 @@ impl ReportGenerator {
 
     /// Generate a single test result row
     fn generate_test_row(&self, result: &TestResult) -> Result<String> {
-        let status_class = if result.passed { "status-passed" } else { "status-failed" };
-        let status_text = if result.passed { "✅ PASSED" } else { "❌ FAILED" };
+        let status_class = if result.passed {
+            "status-passed"
+        } else {
+            "status-failed"
+        };
+        let status_text = if result.passed {
+            "✅ PASSED"
+        } else {
+            "❌ FAILED"
+        };
 
         // Resolve full paths for input and expected images
         let assets_dir = Path::new("crates/bg-remove-testing/assets");
         let input_path = assets_dir.join("input").join(&result.test_case.input_file);
-        let expected_path = assets_dir.join("expected").join(&result.test_case.expected_output_file);
-        
+        let expected_path = assets_dir
+            .join("expected")
+            .join(&result.test_case.expected_output_file);
+
         // Copy images to output directory and get relative paths
-        let original_image_path = self.copy_image_to_output(&input_path.to_string_lossy(), "original")?;
-        let expected_image_path = self.copy_image_to_output(&expected_path.to_string_lossy(), "expected")?;
+        let original_image_path =
+            self.copy_image_to_output(&input_path.to_string_lossy(), "original")?;
+        let expected_image_path =
+            self.copy_image_to_output(&expected_path.to_string_lossy(), "expected")?;
         let current_image_path = if let Some(ref output_path) = result.output_path {
             self.copy_image_to_output(&output_path.to_string_lossy(), "current")?
         } else {
             "images/placeholder.png".to_string()
         };
-        
+
         // Generate diff heatmap
         let diff_heatmap_path = if let Some(ref output_path) = result.output_path {
             if expected_path.exists() && output_path.exists() {
@@ -463,26 +478,27 @@ impl ReportGenerator {
     /// Copy image to output directory and return relative path
     fn copy_image_to_output(&self, source_path: &str, prefix: &str) -> Result<String> {
         let source = Path::new(source_path);
-        let filename = source.file_name()
+        let filename = source
+            .file_name()
             .ok_or_else(|| TestingError::InvalidConfiguration("Invalid source path".to_string()))?;
-        
+
         let output_filename = format!("{}_{}", prefix, filename.to_string_lossy());
         let output_path = self.output_dir.join("images").join(&output_filename);
-        
+
         if source.exists() {
             std::fs::copy(source, &output_path)?;
         } else {
             // Create a placeholder if source doesn't exist
             self.create_placeholder_image(&output_path)?;
         }
-        
+
         Ok(format!("images/{}", output_filename))
     }
 
     /// Create a placeholder image for missing files
     fn create_placeholder_image(&self, output_path: &Path) -> Result<()> {
-        use image::{RgbaImage, Rgba};
-        
+        use image::{Rgba, RgbaImage};
+
         let placeholder = RgbaImage::from_fn(150, 150, |x, y| {
             if (x + y) % 20 < 10 {
                 Rgba([200, 200, 200, 255])
@@ -490,19 +506,24 @@ impl ReportGenerator {
                 Rgba([220, 220, 220, 255])
             }
         });
-        
+
         placeholder.save(output_path)?;
         Ok(())
     }
 
     /// Generate a diff heatmap image showing differences between expected and current output
-    fn generate_diff_heatmap(&self, expected_path: &Path, current_path: &Path, test_id: &str) -> Result<String> {
+    fn generate_diff_heatmap(
+        &self,
+        expected_path: &Path,
+        current_path: &Path,
+        test_id: &str,
+    ) -> Result<String> {
         use image::GenericImageView;
-        
+
         // Load images
         let expected = image::open(expected_path)?;
         let current = image::open(current_path)?;
-        
+
         // Ensure images have the same dimensions
         let (width, height) = expected.dimensions();
         let current_resized = if current.dimensions() != (width, height) {
@@ -510,15 +531,16 @@ impl ReportGenerator {
         } else {
             current
         };
-        
+
         // Generate heatmap using the existing diff generation logic from ImageComparison
-        let diff_image = crate::ImageComparison::generate_enhanced_diff_heatmap(&current_resized, &expected)?;
-        
+        let diff_image =
+            crate::ImageComparison::generate_enhanced_diff_heatmap(&current_resized, &expected)?;
+
         // Save the heatmap
         let heatmap_filename = format!("heatmap_{}.png", test_id);
         let heatmap_path = self.output_dir.join("images").join(&heatmap_filename);
         diff_image.save(&heatmap_path)?;
-        
+
         Ok(format!("images/{}", heatmap_filename))
     }
 
@@ -529,7 +551,7 @@ impl ReportGenerator {
         let edge_class = self.get_metric_class(metrics.edge_accuracy, 0.85, 0.7);
 
         let visual_class = self.get_metric_class(metrics.visual_quality_score, 0.8, 0.6);
-        
+
         format!(
             r#"Visual: <span class="{}">{:.1}%</span><br>
 SSIM: <span class="{}">{:.3}</span><br>
@@ -549,7 +571,12 @@ MSE: {:.2}"#,
     }
 
     /// Get CSS class based on metric thresholds
-    fn get_metric_class(&self, value: f64, good_threshold: f64, warning_threshold: f64) -> &'static str {
+    fn get_metric_class(
+        &self,
+        value: f64,
+        good_threshold: f64,
+        warning_threshold: f64,
+    ) -> &'static str {
         if value >= good_threshold {
             "metric-good"
         } else if value >= warning_threshold {
@@ -562,13 +589,14 @@ MSE: {:.2}"#,
     /// Generate detailed metrics section
     fn generate_metrics_section(&self, session: &TestSession) -> String {
         // Calculate category-wise statistics
-        let mut category_stats: std::collections::BTreeMap<String, CategoryStats> = std::collections::BTreeMap::new();
-        
+        let mut category_stats: std::collections::BTreeMap<String, CategoryStats> =
+            std::collections::BTreeMap::new();
+
         for result in &session.results {
             let stats = category_stats
                 .entry(result.test_case.category.clone())
                 .or_insert_with(CategoryStats::default);
-            
+
             stats.total += 1;
             if result.passed {
                 stats.passed += 1;
@@ -594,7 +622,7 @@ MSE: {:.2}"#,
                     <th>Avg Time</th>
                 </tr>
             </thead>
-            <tbody>"#
+            <tbody>"#,
         );
 
         for (category, stats) in category_stats {
@@ -659,7 +687,8 @@ MSE: {:.2}"#,
         });
     </script>
 </body>
-</html>"#.to_string()
+</html>"#
+            .to_string()
     }
 }
 

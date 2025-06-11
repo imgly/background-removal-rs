@@ -43,8 +43,18 @@ jobs:
     - name: Run tests
       run: cargo test --workspace
 
-    - name: Check code formatting
+    - name: Check code formatting (rustfmt)
       run: cargo fmt --all -- --check
+
+    - name: Validate formatting configuration
+      run: |
+        echo "Checking rustfmt.toml configuration..."
+        if [ -f "rustfmt.toml" ]; then
+          echo "✅ rustfmt.toml found"
+          rustfmt --print-config current_dir || true
+        else
+          echo "⚠️ No rustfmt.toml configuration file"
+        fi
 
     - name: Run Clippy (zero warnings)
       run: cargo clippy --workspace --all-targets -- -D warnings
@@ -142,3 +152,82 @@ jobs:
         echo '```' >> $GITHUB_STEP_SUMMARY
         cat pr-bench.txt | tail -20 >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
+
+  formatting:
+    name: Code Formatting Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+
+    - name: Validate rustfmt configuration
+      run: |
+        echo "Validating rustfmt.toml..."
+        if [ -f "rustfmt.toml" ]; then
+          echo "✅ Configuration file exists"
+          rustfmt --print-config current_dir
+        else
+          echo "❌ No rustfmt.toml found"
+          exit 1
+        fi
+
+    - name: Check formatting (strict)
+      run: cargo fmt --all -- --check
+
+    - name: Generate formatting diff (if failed)
+      if: failure()
+      run: |
+        echo "## Formatting Issues Found" >> $GITHUB_STEP_SUMMARY
+        echo "The following files need formatting:" >> $GITHUB_STEP_SUMMARY
+        echo '```diff' >> $GITHUB_STEP_SUMMARY
+        cargo fmt --all -- --check --verbose 2>&1 || true >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Run \`cargo fmt --all\` to fix formatting issues." >> $GITHUB_STEP_SUMMARY
+
+  auto-format-pr:
+    name: Auto-format Pull Request
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: ${{ github.head_ref }}
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+
+    - name: Run formatter
+      run: cargo fmt --all
+
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Commit and push changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "style: auto-format code with rustfmt
+
+🤖 Automated formatting by GitHub Actions"
+        git push

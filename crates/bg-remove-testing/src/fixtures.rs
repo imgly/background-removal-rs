@@ -1,9 +1,9 @@
 //! Real image fixtures and loading utilities
 
-use crate::{TestCase, TestingError, Result};
+use crate::{Result, TestCase, TestingError};
 use image::DynamicImage;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 /// Manager for real test image assets
@@ -16,15 +16,16 @@ impl TestFixtures {
     /// Create a new TestFixtures instance
     pub fn new<P: AsRef<Path>>(assets_dir: P) -> Result<Self> {
         let assets_dir = assets_dir.as_ref().to_path_buf();
-        
+
         if !assets_dir.exists() {
-            return Err(TestingError::InvalidConfiguration(
-                format!("Assets directory does not exist: {}", assets_dir.display())
-            ));
+            return Err(TestingError::InvalidConfiguration(format!(
+                "Assets directory does not exist: {}",
+                assets_dir.display()
+            )));
         }
 
         let test_cases = Self::load_test_cases(&assets_dir)?;
-        
+
         Ok(Self {
             assets_dir,
             test_cases,
@@ -34,7 +35,7 @@ impl TestFixtures {
     /// Load test case definitions from JSON metadata
     fn load_test_cases(assets_dir: &Path) -> Result<Vec<TestCase>> {
         let test_cases_file = assets_dir.join("test_cases.json");
-        
+
         if test_cases_file.exists() {
             let content = std::fs::read_to_string(&test_cases_file)?;
             let test_cases: Vec<TestCase> = serde_json::from_str(&content)?;
@@ -53,7 +54,7 @@ impl TestFixtures {
 
         if !input_dir.exists() || !expected_dir.exists() {
             return Err(TestingError::InvalidConfiguration(
-                "Missing input/ or expected/ directories in assets".to_string()
+                "Missing input/ or expected/ directories in assets".to_string(),
             ));
         }
 
@@ -76,14 +77,15 @@ impl TestFixtures {
                 .filter(|e| e.file_type().is_file())
             {
                 let input_file = image_entry.file_name().to_string_lossy().to_string();
-                
+
                 if !Self::is_image_file(&input_file) {
                     continue;
                 }
 
                 // Look for corresponding expected output
-                let expected_file = Self::find_expected_output(&expected_dir, &category_name, &input_file)?;
-                
+                let expected_file =
+                    Self::find_expected_output(&expected_dir, &category_name, &input_file)?;
+
                 let test_case = TestCase {
                     id: format!("{}_{}", category_name, Self::get_file_stem(&input_file)),
                     category: category_name.clone(),
@@ -103,25 +105,30 @@ impl TestFixtures {
     }
 
     /// Find the corresponding expected output file
-    fn find_expected_output(expected_dir: &Path, category: &str, input_file: &str) -> Result<String> {
+    fn find_expected_output(
+        expected_dir: &Path,
+        category: &str,
+        input_file: &str,
+    ) -> Result<String> {
         let stem = Self::get_file_stem(input_file);
         let category_dir = expected_dir.join(category);
-        
+
         // Try different possible output formats
         let possible_extensions = ["png", "jpg", "jpeg"];
-        
+
         for ext in &possible_extensions {
             let expected_file = format!("{}.{}", stem, ext);
             let expected_path = category_dir.join(&expected_file);
-            
+
             if expected_path.exists() {
                 return Ok(format!("{}/{}", category, expected_file));
             }
         }
-        
-        Err(TestingError::ReferenceImageNotFound(
-            format!("No expected output found for {} in category {}", input_file, category)
-        ))
+
+        Err(TestingError::ReferenceImageNotFound(format!(
+            "No expected output found for {} in category {}",
+            input_file, category
+        )))
     }
 
     /// Check if file is a supported image format
@@ -183,7 +190,10 @@ impl TestFixtures {
 
     /// Load the expected output image
     pub fn load_expected_image(&self, test_case: &TestCase) -> Result<DynamicImage> {
-        let image_path = self.assets_dir.join("expected").join(&test_case.expected_output_file);
+        let image_path = self
+            .assets_dir
+            .join("expected")
+            .join(&test_case.expected_output_file);
         let image = image::open(&image_path)?;
         Ok(image)
     }
@@ -195,12 +205,15 @@ impl TestFixtures {
 
     /// Get expected output image path
     pub fn get_expected_path(&self, test_case: &TestCase) -> PathBuf {
-        self.assets_dir.join("expected").join(&test_case.expected_output_file)
+        self.assets_dir
+            .join("expected")
+            .join(&test_case.expected_output_file)
     }
 
     /// Get all available categories
     pub fn get_categories(&self) -> Vec<String> {
-        let mut categories: Vec<String> = self.test_cases
+        let mut categories: Vec<String> = self
+            .test_cases
             .iter()
             .map(|tc| tc.category.clone())
             .collect();
@@ -239,7 +252,9 @@ impl TestFixtures {
 
             if expected_path.exists() {
                 if let Err(e) = image::open(&expected_path) {
-                    report.invalid_expected_files.push((expected_path, e.to_string()));
+                    report
+                        .invalid_expected_files
+                        .push((expected_path, e.to_string()));
                 }
             }
         }

@@ -1,0 +1,33 @@
+# Rust formatting configuration for bg-remove-rs (Stable features only)
+# This file configures rustfmt for consistent code formatting across the workspace
+
+# Edition
+edition = "2021"
+
+# Line length
+max_width = 100
+
+# Function parameters layout
+fn_params_layout = "Tall"
+
+# Match block trailing comma
+match_block_trailing_comma = true
+
+# Chain width for method calls
+chain_width = 60
+
+# Single line if-else maximum width
+single_line_if_else_max_width = 50
+
+# Use field init shorthand (e.g., Point { x, y } instead of Point { x: x, y: y })
+use_field_init_shorthand = true
+
+# Use try shorthand (? operator)
+use_try_shorthand = true
+
+# Tab settings
+hard_tabs = false
+tab_spaces = 4
+
+# Line ending style
+newline_style = "Unix"

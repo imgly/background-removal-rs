@@ -76,7 +76,7 @@ mod tests {
     fn test_error_creation() {
         let err = BgRemovalError::invalid_config("test config error");
         assert!(matches!(err, BgRemovalError::InvalidConfig(_)));
-        
+
         let err = BgRemovalError::unsupported_format("TIFF");
         assert!(matches!(err, BgRemovalError::UnsupportedFormat(_)));
     }

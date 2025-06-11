@@ -59,8 +59,8 @@ large_types_passed_by_value = "warn"
 ```
 
 **Tooling Created:**
-- `lint.sh` - Comprehensive linting script
-- `.pre-commit-hook.sh` - Pre-commit validation
+- `bin/lint.sh` - Comprehensive linting script
+- `bin/pre-commit-hook.sh` - Pre-commit validation
 - Both scripts are executable and ready for use
 
 ### ✅ Phase 3: CI/CD Integration (COMPLETED)
@@ -121,10 +121,10 @@ Due to the large number of quality issues revealed by strict linting, we recomme
 cargo check --workspace --all-targets
 
 # Full lint check with new rules (will show many issues)
-./lint.sh
+./bin/lint.sh
 
 # Pre-commit validation
-./.pre-commit-hook.sh
+./bin/pre-commit-hook.sh
 ```
 
 ## Next Steps

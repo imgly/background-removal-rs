@@ -1,5 +1,5 @@
 //! Accuracy integration tests for background removal
-//! 
+//!
 //! These tests validate that the background removal maintains acceptable accuracy
 //! across different image categories and complexity levels.
 
@@ -24,14 +24,23 @@ async fn test_portrait_accuracy_basic() {
     }
 
     let result = remove_background(input_path, &config).await;
-    assert!(result.is_ok(), "Background removal should succeed for simple portrait");
+    assert!(
+        result.is_ok(),
+        "Background removal should succeed for simple portrait"
+    );
 
     let result = result.unwrap();
-    
+
     // Basic sanity checks
     assert!(!result.mask.data.is_empty(), "Mask should not be empty");
-    assert!(result.image.width() > 0, "Output image should have valid dimensions");
-    assert!(result.image.height() > 0, "Output image should have valid dimensions");
+    assert!(
+        result.image.width() > 0,
+        "Output image should have valid dimensions"
+    );
+    assert!(
+        result.image.height() > 0,
+        "Output image should have valid dimensions"
+    );
 }
 
 #[tokio::test]
@@ -42,7 +51,7 @@ async fn test_product_accuracy_basic() {
         .expect("Failed to create config");
 
     let input_path = "assets/input/products/product_clothing_white_bg.jpg";
-    
+
     // Skip if test file doesn't exist
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping product accuracy test: test file not found");
@@ -50,13 +59,19 @@ async fn test_product_accuracy_basic() {
     }
 
     let result = remove_background(input_path, &config).await;
-    assert!(result.is_ok(), "Background removal should succeed for product image");
+    assert!(
+        result.is_ok(),
+        "Background removal should succeed for product image"
+    );
 
     let result = result.unwrap();
-    
+
     // Basic sanity checks
     assert!(!result.mask.data.is_empty(), "Mask should not be empty");
-    assert!(result.image.width() > 0, "Output image should have valid dimensions");
+    assert!(
+        result.image.width() > 0,
+        "Output image should have valid dimensions"
+    );
 }
 
 #[tokio::test]
@@ -69,7 +84,7 @@ async fn test_different_execution_providers() {
     ];
 
     let input_path = "assets/input/portraits/portrait_action_motion.jpg";
-    
+
     if !Path::new(input_path).exists() {
         println!("⏭️  Skipping execution provider test: test file not found");
         return;
@@ -84,15 +99,15 @@ async fn test_different_execution_providers() {
 
         let result = remove_background(input_path, &config).await;
         assert!(
-            result.is_ok(), 
-            "Background removal should succeed with {} provider", 
+            result.is_ok(),
+            "Background removal should succeed with {} provider",
             name
         );
 
         let result = result.unwrap();
         assert!(
-            !result.mask.data.is_empty(), 
-            "{} provider should produce non-empty mask", 
+            !result.mask.data.is_empty(),
+            "{} provider should produce non-empty mask",
             name
         );
     }
@@ -125,7 +140,11 @@ async fn test_comprehensive_accuracy_suite() {
         total += 1;
 
         let result = remove_background(input_path, &config).await;
-        assert!(result.is_ok(), "Background removal should succeed for {}", input_path);
+        assert!(
+            result.is_ok(),
+            "Background removal should succeed for {}",
+            input_path
+        );
 
         // For integration test, just verify basic functionality
         let result = result.unwrap();
@@ -134,17 +153,25 @@ async fn test_comprehensive_accuracy_suite() {
         }
     }
 
-    let pass_rate = if total > 0 { passed as f64 / total as f64 } else { 0.0 };
+    let pass_rate = if total > 0 {
+        passed as f64 / total as f64
+    } else {
+        0.0
+    };
     assert!(
-        pass_rate >= 0.8, 
-        "Pass rate should be at least 80%, got {:.1}% ({}/{})", 
-        pass_rate * 100.0, 
-        passed, 
+        pass_rate >= 0.8,
+        "Pass rate should be at least 80%, got {:.1}% ({}/{})",
+        pass_rate * 100.0,
+        passed,
         total
     );
 
-    println!("✅ Comprehensive accuracy test passed: {}/{} tests ({}%)", 
-             passed, total, (pass_rate * 100.0) as u32);
+    println!(
+        "✅ Comprehensive accuracy test passed: {}/{} tests ({}%)",
+        passed,
+        total,
+        (pass_rate * 100.0) as u32
+    );
 }
 
 #[tokio::test]
@@ -166,17 +193,20 @@ async fn test_edge_cases_basic() {
         }
 
         let result = remove_background(input_path, &config).await;
-        
+
         // Edge cases might fail, but shouldn't panic
         match result {
             Ok(result) => {
-                assert!(!result.mask.data.is_empty(), "Edge case should produce some mask data");
+                assert!(
+                    !result.mask.data.is_empty(),
+                    "Edge case should produce some mask data"
+                );
                 println!("✅ Edge case passed: {}", input_path);
-            }
+            },
             Err(e) => {
                 println!("⚠️  Edge case failed gracefully: {} - {}", input_path, e);
                 // This is acceptable for edge cases
-            }
+            },
         }
     }
 }
