@@ -28,13 +28,13 @@ impl ModelProvider for EmbeddedModelProvider {
     fn load_model_data(&self) -> Result<Vec<u8>> {
         #[cfg(feature = "fp32-model")]
         {
-            // Load embedded FP32 ISNet model
-            Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec())
+            // Load embedded FP32 ISNet model (takes precedence when both features enabled)
+            return Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec());
         }
-        #[cfg(feature = "fp16-model")]
+        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         {
-            // Load embedded FP16 ISNet model  
-            Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
+            // Load embedded FP16 ISNet model (only when FP32 not enabled)
+            return Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec());
         }
         #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
         {
@@ -45,23 +45,25 @@ impl ModelProvider for EmbeddedModelProvider {
     fn get_model_info(&self) -> Result<ModelInfo> {
         #[cfg(feature = "fp32-model")]
         {
-            Ok(ModelInfo {
+            // FP32 model info (takes precedence when both features enabled)
+            return Ok(ModelInfo {
                 name: "ISNet-FP32".to_string(),
                 precision: "fp32".to_string(),
                 size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
                 input_shape: (1, 3, 1024, 1024),
                 output_shape: (1, 1, 1024, 1024),
-            })
+            });
         }
-        #[cfg(feature = "fp16-model")]
+        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         {
-            Ok(ModelInfo {
+            // FP16 model info (only when FP32 not enabled)
+            return Ok(ModelInfo {
                 name: "ISNet-FP16".to_string(),
                 precision: "fp16".to_string(),
                 size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
                 input_shape: (1, 3, 1024, 1024),
                 output_shape: (1, 1, 1024, 1024),
-            })
+            });
         }
         #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
         {
@@ -107,17 +109,18 @@ mod tests {
         // Test model info retrieval (uses compile-time embedded model)
         let info = provider.get_model_info().unwrap();
         
-        // The name and precision depend on which feature is enabled
-        #[cfg(feature = "fp16-model")]
-        {
-            assert_eq!(info.name, "ISNet-FP16");
-            assert_eq!(info.precision, "fp16");
-        }
-        
+        // FP32 takes precedence when both features are enabled
         #[cfg(feature = "fp32-model")]
         {
             assert_eq!(info.name, "ISNet-FP32");
             assert_eq!(info.precision, "fp32");
+        }
+        
+        // FP16 only when FP32 is not enabled
+        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
+        {
+            assert_eq!(info.name, "ISNet-FP16");
+            assert_eq!(info.precision, "fp16");
         }
     }
 
@@ -126,11 +129,11 @@ mod tests {
         let manager = ModelManager::with_embedded();
         let info = manager.get_info().unwrap();
         
-        // Verify the model is correctly loaded based on feature flags
-        #[cfg(feature = "fp16-model")]
-        assert_eq!(info.precision, "fp16");
-        
+        // Verify the model is correctly loaded based on feature precedence
         #[cfg(feature = "fp32-model")]
         assert_eq!(info.precision, "fp32");
+        
+        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
+        assert_eq!(info.precision, "fp16");
     }
 }
