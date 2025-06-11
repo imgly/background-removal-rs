@@ -4,6 +4,8 @@ use crate::{error::Result, config::OutputFormat};
 use image::{DynamicImage, ImageBuffer, Rgba, GenericImageView};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use log::info;
+use chrono::Utc;
 
 /// Result of a background removal operation
 #[derive(Debug, Clone)]
@@ -19,6 +21,9 @@ pub struct RemovalResult {
     
     /// Processing metadata
     pub metadata: ProcessingMetadata,
+    
+    /// Original input path (for logging purposes)
+    pub input_path: Option<String>,
 }
 
 impl RemovalResult {
@@ -34,6 +39,24 @@ impl RemovalResult {
             mask,
             original_dimensions,
             metadata,
+            input_path: None,
+        }
+    }
+    
+    /// Create a new removal result with input path
+    pub fn with_input_path(
+        image: DynamicImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        metadata: ProcessingMetadata,
+        input_path: String,
+    ) -> Self {
+        Self {
+            image,
+            mask,
+            original_dimensions,
+            metadata,
+            input_path: Some(input_path),
         }
     }
 
@@ -41,6 +64,13 @@ impl RemovalResult {
     pub fn save_png<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         self.image.save_with_format(path, image::ImageFormat::Png)?;
         Ok(())
+    }
+    
+    /// Save the result as PNG with alpha channel and return encoding time
+    pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
+        let encode_start = std::time::Instant::now();
+        self.image.save_with_format(path, image::ImageFormat::Png)?;
+        Ok(encode_start.elapsed().as_millis() as u64)
     }
 
     /// Save the result as JPEG with background color
@@ -116,6 +146,71 @@ impl RemovalResult {
     /// Get image dimensions
     pub fn dimensions(&self) -> (u32, u32) {
         self.image.dimensions()
+    }
+
+    /// Get detailed timing breakdown
+    pub fn timings(&self) -> &ProcessingTimings {
+        &self.metadata.timings
+    }
+    
+    /// Save and measure encoding time (updates internal timing)
+    pub fn save_with_timing<P: AsRef<Path>>(&mut self, path: P, format: image::ImageFormat) -> Result<()> {
+        let path_str = path.as_ref().display().to_string();
+        let encode_start = std::time::Instant::now();
+        self.image.save_with_format(&path, format)?;
+        let encode_ms = encode_start.elapsed().as_millis() as u64;
+        
+        // Update the timings
+        self.metadata.timings.image_encode_ms = Some(encode_ms);
+        
+        // Log encoding completion first
+        info!("[{}Z INFO bg_remove] Image Encoding completed in {}ms", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              encode_ms);
+              
+        // Then log final completion with total processing time 
+        let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+        let input_path = self.input_path.as_deref().unwrap_or("input");
+        info!("[{}Z INFO bg_remove] Processed: {} -> {} in {:.2}s", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              input_path,
+              path_str,
+              total_time_s);
+        
+        Ok(())
+    }
+    
+    /// Save as PNG and measure encoding time
+    pub fn save_png_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        self.save_with_timing(path, image::ImageFormat::Png)
+    }
+
+    /// Get timing summary for display
+    pub fn timing_summary(&self) -> String {
+        let t = &self.metadata.timings;
+        let breakdown = t.breakdown_percentages();
+        
+        let mut summary = format!(
+            "Total: {}ms | Decode: {}ms ({:.1}%) | Preprocess: {}ms ({:.1}%) | Inference: {}ms ({:.1}%) | Postprocess: {}ms ({:.1}%)",
+            t.total_ms,
+            t.image_decode_ms, breakdown.decode_pct,
+            t.preprocessing_ms, breakdown.preprocessing_pct,
+            t.inference_ms, breakdown.inference_pct,
+            t.postprocessing_ms, breakdown.postprocessing_pct
+        );
+        
+        // Add encode timing if present
+        if let Some(encode_ms) = t.image_encode_ms {
+            summary.push_str(&format!(" | Encode: {}ms ({:.1}%)", encode_ms, breakdown.encode_pct));
+        }
+        
+        // Add other/overhead if significant (>1% or >5ms)
+        let other_ms = t.other_overhead_ms();
+        if other_ms > 5 || breakdown.other_pct > 1.0 {
+            summary.push_str(&format!(" | Other: {}ms ({:.1}%)", other_ms, breakdown.other_pct));
+        }
+        
+        summary
     }
 
     /// Encode as WebP (placeholder implementation)
@@ -231,20 +326,132 @@ pub struct MaskStatistics {
     pub background_ratio: f32,
 }
 
+/// Detailed timing breakdown for background removal processing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessingTimings {
+    /// Model loading time (first call only)
+    pub model_load_ms: u64,
+    
+    /// Image loading and decoding from file
+    pub image_decode_ms: u64,
+    
+    /// Image preprocessing (resize, normalize, tensor conversion)
+    pub preprocessing_ms: u64,
+    
+    /// ONNX Runtime inference execution
+    pub inference_ms: u64,
+    
+    /// Postprocessing (mask generation, alpha application)
+    pub postprocessing_ms: u64,
+    
+    /// Final image encoding (if saving to file)
+    pub image_encode_ms: Option<u64>,
+    
+    /// Total end-to-end processing time
+    pub total_ms: u64,
+}
+
+impl ProcessingTimings {
+    pub fn new() -> Self {
+        Self {
+            model_load_ms: 0,
+            image_decode_ms: 0,
+            preprocessing_ms: 0,
+            inference_ms: 0,
+            postprocessing_ms: 0,
+            image_encode_ms: None,
+            total_ms: 0,
+        }
+    }
+    
+    /// Calculate efficiency metrics
+    pub fn inference_ratio(&self) -> f64 {
+        if self.total_ms == 0 {
+            0.0
+        } else {
+            self.inference_ms as f64 / self.total_ms as f64
+        }
+    }
+    
+    /// Get breakdown percentages
+    pub fn breakdown_percentages(&self) -> TimingBreakdown {
+        if self.total_ms == 0 {
+            return TimingBreakdown::default();
+        }
+        
+        let total = self.total_ms as f64;
+        let measured_time = self.model_load_ms + self.image_decode_ms + 
+                           self.preprocessing_ms + self.inference_ms + 
+                           self.postprocessing_ms + self.image_encode_ms.unwrap_or(0);
+        
+        let other_ms = if self.total_ms > measured_time {
+            self.total_ms - measured_time
+        } else {
+            0
+        };
+        
+        TimingBreakdown {
+            model_load_pct: (self.model_load_ms as f64 / total) * 100.0,
+            decode_pct: (self.image_decode_ms as f64 / total) * 100.0,
+            preprocessing_pct: (self.preprocessing_ms as f64 / total) * 100.0,
+            inference_pct: (self.inference_ms as f64 / total) * 100.0,
+            postprocessing_pct: (self.postprocessing_ms as f64 / total) * 100.0,
+            encode_pct: (self.image_encode_ms.unwrap_or(0) as f64 / total) * 100.0,
+            other_pct: (other_ms as f64 / total) * 100.0,
+        }
+    }
+    
+    /// Get the "other" overhead time (unaccounted time)
+    pub fn other_overhead_ms(&self) -> u64 {
+        let measured_time = self.model_load_ms + self.image_decode_ms + 
+                           self.preprocessing_ms + self.inference_ms + 
+                           self.postprocessing_ms + self.image_encode_ms.unwrap_or(0);
+        
+        if self.total_ms > measured_time {
+            self.total_ms - measured_time
+        } else {
+            0
+        }
+    }
+}
+
+impl Default for ProcessingTimings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Percentage breakdown of timing phases
+#[derive(Debug, Clone)]
+pub struct TimingBreakdown {
+    pub model_load_pct: f64,
+    pub decode_pct: f64,
+    pub preprocessing_pct: f64,
+    pub inference_pct: f64,
+    pub postprocessing_pct: f64,
+    pub encode_pct: f64,
+    pub other_pct: f64,
+}
+
+impl Default for TimingBreakdown {
+    fn default() -> Self {
+        Self {
+            model_load_pct: 0.0,
+            decode_pct: 0.0,
+            preprocessing_pct: 0.0,
+            inference_pct: 0.0,
+            postprocessing_pct: 0.0,
+            encode_pct: 0.0,
+            other_pct: 0.0,
+        }
+    }
+}
+
 /// Metadata about the processing operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessingMetadata {
-    /// Time taken for inference (milliseconds)
-    pub inference_time_ms: u64,
-    
-    /// Time taken for preprocessing (milliseconds)
-    pub preprocessing_time_ms: u64,
-    
-    /// Time taken for postprocessing (milliseconds)
-    pub postprocessing_time_ms: u64,
-    
-    /// Total processing time (milliseconds)
-    pub total_time_ms: u64,
+    /// Detailed timing breakdown
+    pub timings: ProcessingTimings,
     
     /// Model used for inference
     pub model_name: String,
@@ -260,30 +467,69 @@ pub struct ProcessingMetadata {
     
     /// Memory usage peak (bytes)
     pub peak_memory_bytes: u64,
+    
+    // Legacy timing fields for backward compatibility
+    /// Time taken for inference (milliseconds) - DEPRECATED: use timings.inference_ms
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_time_ms: Option<u64>,
+    
+    /// Time taken for preprocessing (milliseconds) - DEPRECATED: use timings.preprocessing_ms
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preprocessing_time_ms: Option<u64>,
+    
+    /// Time taken for postprocessing (milliseconds) - DEPRECATED: use timings.postprocessing_ms
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postprocessing_time_ms: Option<u64>,
+    
+    /// Total processing time (milliseconds) - DEPRECATED: use timings.total_ms
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_time_ms: Option<u64>,
 }
 
 impl ProcessingMetadata {
     /// Create new processing metadata
     pub fn new(model_name: String) -> Self {
         Self {
-            inference_time_ms: 0,
-            preprocessing_time_ms: 0,
-            postprocessing_time_ms: 0,
-            total_time_ms: 0,
+            timings: ProcessingTimings::new(),
             model_name,
             model_precision: "fp16".to_string(),
             input_format: "unknown".to_string(),
             output_format: "png".to_string(),
             peak_memory_bytes: 0,
+            // Legacy fields set to None by default
+            inference_time_ms: None,
+            preprocessing_time_ms: None,
+            postprocessing_time_ms: None,
+            total_time_ms: None,
         }
     }
 
-    /// Set timing information
+    /// Set timing information (new detailed version)
+    pub fn set_detailed_timings(&mut self, timings: ProcessingTimings) {
+        // Also set legacy fields for backward compatibility
+        self.inference_time_ms = Some(timings.inference_ms);
+        self.preprocessing_time_ms = Some(timings.preprocessing_ms);
+        self.postprocessing_time_ms = Some(timings.postprocessing_ms);
+        self.total_time_ms = Some(timings.total_ms);
+        
+        // Update detailed timings (move after using fields)
+        self.timings = timings;
+    }
+
+    /// Set timing information (legacy version for backward compatibility)
+    #[deprecated(note = "Use set_detailed_timings instead")]
     pub fn set_timings(&mut self, inference: u64, preprocessing: u64, postprocessing: u64) {
-        self.inference_time_ms = inference;
-        self.preprocessing_time_ms = preprocessing;
-        self.postprocessing_time_ms = postprocessing;
-        self.total_time_ms = inference + preprocessing + postprocessing;
+        let total = inference + preprocessing + postprocessing;
+        let timings = ProcessingTimings {
+            model_load_ms: 0,
+            image_decode_ms: 0,
+            preprocessing_ms: preprocessing,
+            inference_ms: inference,
+            postprocessing_ms: postprocessing,
+            image_encode_ms: None,
+            total_ms: total,
+        };
+        self.set_detailed_timings(timings);
     }
 }
 
@@ -318,9 +564,9 @@ mod tests {
         let mut metadata = ProcessingMetadata::new("isnet".to_string());
         metadata.set_timings(100, 50, 25);
         
-        assert_eq!(metadata.inference_time_ms, 100);
-        assert_eq!(metadata.preprocessing_time_ms, 50);
-        assert_eq!(metadata.postprocessing_time_ms, 25);
-        assert_eq!(metadata.total_time_ms, 175);
+        assert_eq!(metadata.inference_time_ms, Some(100));
+        assert_eq!(metadata.preprocessing_time_ms, Some(50));
+        assert_eq!(metadata.postprocessing_time_ms, Some(25));
+        assert_eq!(metadata.total_time_ms, Some(175));
     }
 }

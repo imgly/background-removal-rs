@@ -163,3 +163,6 @@ mod tests {
         // API compiles successfully if we reach this point
     }
 }
+
+#[cfg(test)]
+mod timing_tests;

@@ -38,11 +38,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let total_pixels = (dimensions.0 as f64) * (dimensions.1 as f64);
                 let megapixels = total_pixels / 1_000_000.0;
                 
+                // Get detailed timing breakdown
+                let timings = result.timings();
+                let breakdown = timings.breakdown_percentages();
+                
                 println!("✅ {:.2}s ({:.1}MP, {:.1}MP/s)", 
                     processing_time, 
                     megapixels,
                     megapixels / processing_time
                 );
+                
+                // Show detailed timing breakdown
+                println!("   🔍 Timing Breakdown:");
+                println!("      • Decode: {}ms ({:.1}%)", timings.image_decode_ms, breakdown.decode_pct);
+                println!("      • Preprocess: {}ms ({:.1}%)", timings.preprocessing_ms, breakdown.preprocessing_pct);
+                println!("      • Inference: {}ms ({:.1}%)", timings.inference_ms, breakdown.inference_pct);
+                println!("      • Postprocess: {}ms ({:.1}%)", timings.postprocessing_ms, breakdown.postprocessing_pct);
+                if let Some(encode_ms) = timings.image_encode_ms {
+                    println!("      • Encode: {}ms ({:.1}%)", encode_ms, breakdown.encode_pct);
+                }
+                let other_ms = timings.other_overhead_ms();
+                if other_ms > 0 {
+                    println!("      • Other: {}ms ({:.1}%)", other_ms, breakdown.other_pct);
+                }
                 
                 total_time += processing_time;
                 successful_tests += 1;

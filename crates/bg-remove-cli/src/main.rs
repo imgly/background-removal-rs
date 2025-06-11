@@ -312,7 +312,7 @@ async fn process_single_file(
     config: &RemovalConfig,
 ) -> Result<usize> {
     let start_time = Instant::now();
-    let result = bg_remove_core::remove_background(input_path, config).await
+    let mut result = bg_remove_core::remove_background(input_path, config).await
         .context("Failed to remove background")?;
 
     let processing_time = start_time.elapsed();
@@ -326,18 +326,30 @@ async fn process_single_file(
             info!("Processed {} and wrote to stdout in {:.2}s", input_path.display(), processing_time.as_secs_f64());
         }
         Some(target) => {
-            // Output to specific file
+            // Output to specific file - use timed save for detailed logging
             let output_path = PathBuf::from(target);
-            result.save(&output_path, config.output_format, config.jpeg_quality)
-                .context("Failed to save result")?;
-            info!("Processed: {} -> {} in {:.2}s", input_path.display(), output_path.display(), processing_time.as_secs_f64());
+            match config.output_format {
+                bg_remove_core::OutputFormat::Png => {
+                    result.save_png_timed(&output_path).context("Failed to save result")?;
+                }
+                _ => {
+                    result.save(&output_path, config.output_format, config.jpeg_quality)
+                        .context("Failed to save result")?;
+                }
+            }
         }
         None => {
-            // Generate default output filename
+            // Generate default output filename - use timed save for detailed logging
             let output_path = generate_output_path(input_path, config.output_format);
-            result.save(&output_path, config.output_format, config.jpeg_quality)
-                .context("Failed to save result")?;
-            info!("Processed: {} -> {} in {:.2}s", input_path.display(), output_path.display(), processing_time.as_secs_f64());
+            match config.output_format {
+                bg_remove_core::OutputFormat::Png => {
+                    result.save_png_timed(&output_path).context("Failed to save result")?;
+                }
+                _ => {
+                    result.save(&output_path, config.output_format, config.jpeg_quality)
+                        .context("Failed to save result")?;
+                }
+            }
         }
     }
 
@@ -392,8 +404,17 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
         progress.set_message(format!("Processing {}", input_file.display()));
 
         match bg_remove_core::remove_background(&input_file, config).await {
-            Ok(result) => {
-                match result.save(&output_file, config.output_format, config.jpeg_quality) {
+            Ok(mut result) => {
+                let save_result = match config.output_format {
+                    bg_remove_core::OutputFormat::Png => {
+                        result.save_png_timed(&output_file)
+                    }
+                    _ => {
+                        result.save(&output_file, config.output_format, config.jpeg_quality)
+                    }
+                };
+                
+                match save_result {
                     Ok(_) => {
                         processed_count += 1;
                         if cli.verbose {

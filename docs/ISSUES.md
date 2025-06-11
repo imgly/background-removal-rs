@@ -35,4 +35,4 @@ If an issue needs further information we can create an issue markdown for this p
 - [ ] Android Platform Build
 - [ ] NodeJS Platform build 
 - [x] Integration tests should use standard Rust patterns instead of separate testing crate binaries 📅 2025-06-11 14:00
-- [ ] Output timings for "load", "decode", "inference", "encode" seperately
+- [x] Output timings for "load", "decode", "inference", "encode" seperately [📋 output-timing-breakdown](./issues/output-timing-breakdown.md) 📅 2025-06-11 15:10

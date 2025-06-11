@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BatchSize};
 use bg_remove_core::{ImageProcessor, RemovalConfig};
 use bg_remove_core::config::ExecutionProvider;
 use image::{DynamicImage, RgbImage};
@@ -88,5 +88,60 @@ fn bench_image_sizes(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_execution_providers, bench_image_sizes);
+fn bench_timing_breakdown(c: &mut Criterion) {
+    let mut group = c.benchmark_group("timing_breakdown");
+    group.measurement_time(Duration::from_secs(10));
+    group.sample_size(10);
+    
+    let config = RemovalConfig::builder()
+        .execution_provider(ExecutionProvider::Auto)
+        .debug(false)
+        .build()
+        .unwrap();
+    
+    // Test with different image types to see timing variations
+    let test_cases = vec![
+        ("simple_512x512", create_test_image(512, 512)),
+        ("complex_1024x768", create_test_image(1024, 768)),
+    ];
+    
+    for (name, test_image) in test_cases {
+        group.bench_function(name, |b| {
+            b.iter_batched(
+                || {
+                    let mut processor = ImageProcessor::new(&config).unwrap();
+                    (processor, test_image.clone())
+                },
+                |(mut processor, img)| {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    let result = rt.block_on(async {
+                        processor.process_image(black_box(img)).unwrap()
+                    });
+                    
+                    // Extract timing breakdown for analysis
+                    let timings = result.timings();
+                    let breakdown = timings.breakdown_percentages();
+                    
+                    // Print detailed breakdown periodically (not in hot path)
+                    if cfg!(feature = "benchmark-details") {
+                        println!("\n📊 Timing Breakdown for {}:", name);
+                        println!("   • Total: {}ms", timings.total_ms);
+                        println!("   • Decode: {}ms ({:.1}%)", timings.image_decode_ms, breakdown.decode_pct);
+                        println!("   • Preprocess: {}ms ({:.1}%)", timings.preprocessing_ms, breakdown.preprocessing_pct);
+                        println!("   • Inference: {}ms ({:.1}%)", timings.inference_ms, breakdown.inference_pct);
+                        println!("   • Postprocess: {}ms ({:.1}%)", timings.postprocessing_ms, breakdown.postprocessing_pct);
+                        println!("   • Inference ratio: {:.1}%", timings.inference_ratio() * 100.0);
+                    }
+                    
+                    black_box(result)
+                },
+                BatchSize::SmallInput,
+            );
+        });
+    }
+    
+    group.finish();
+}
+
+criterion_group!(benches, bench_execution_providers, bench_image_sizes, bench_timing_breakdown);
 criterion_main!(benches);

@@ -10,6 +10,8 @@ use image::{DynamicImage, ImageBuffer, RgbaImage, GenericImageView};
 use ndarray::Array4;
 use std::path::Path;
 use std::time::Instant;
+use log::info;
+use chrono::Utc;
 
 /// Processing options for fine-tuning behavior
 #[derive(Debug, Clone)]
@@ -63,37 +65,75 @@ impl ImageProcessor {
 
     /// Remove background from an image file
     pub async fn remove_background<P: AsRef<Path>>(&mut self, input_path: P) -> Result<RemovalResult> {
-        let _start_time = Instant::now();
+        let input_path_str = input_path.as_ref().display().to_string();
+        let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
+        let mut timings = crate::types::ProcessingTimings::new();
 
-        // Load and preprocess image
-        let preprocess_start = Instant::now();
+        // Log start of processing with model information
+        let model_precision = if self.config.debug { "mock" } else { "fp16" };
+        info!("[{}Z INFO bg_remove] Starting processing: {} - Model: ISNet-{} ({})", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              input_path_str,
+              model_precision.to_uppercase(),
+              model_precision);
+
+        // 1. Image decode timing
+        let decode_start = Instant::now();
         let image = self.load_image(input_path)?;
         let original_dimensions = image.dimensions();
-        let (_processed_image, input_tensor) = self.preprocess_image(&image)?;
-        let preprocessing_time = preprocess_start.elapsed().as_millis() as u64;
+        timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
+        
+        info!("[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              original_dimensions.0, original_dimensions.1, 
+              timings.image_decode_ms);
 
-        // Run inference
+        // 2. Preprocessing timing
+        let preprocess_start = Instant::now();
+        let (_processed_image, input_tensor) = self.preprocess_image(&image)?;
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        
+        info!("[{}Z INFO bg_remove] Preprocessing completed in {}ms", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              timings.preprocessing_ms);
+
+        // 3. Inference timing (model load happens inside backend initialization if needed)
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        let inference_time = inference_start.elapsed().as_millis() as u64;
+        timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        
+        info!("[{}Z INFO bg_remove] Inference completed in {}ms", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              timings.inference_ms);
+        
+        // Note: Model loading timing is included in inference for now
+        // This could be separated by adding is_loaded() method to InferenceBackend trait
 
-        // Postprocess results
+        // 4. Postprocessing timing
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        let postprocessing_time = postprocess_start.elapsed().as_millis() as u64;
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        
+        info!("[{}Z INFO bg_remove] Postprocessing completed in {}ms", 
+              Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+              timings.postprocessing_ms);
 
-        // Set metadata
-        metadata.set_timings(inference_time, preprocessing_time, postprocessing_time);
+        // Calculate total time
+        timings.total_ms = total_start.elapsed().as_millis() as u64;
+
+        // Set metadata with detailed timings
+        metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
 
-        Ok(RemovalResult::new(
+        Ok(RemovalResult::with_input_path(
             result_image,
             mask,
             original_dimensions,
             metadata,
+            input_path_str,
         ))
     }
 
@@ -112,22 +152,37 @@ impl ImageProcessor {
         input_path: P,
         mask: &SegmentationMask,
     ) -> Result<RemovalResult> {
-        let _start_time = Instant::now();
+        let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("MaskApplication".to_string());
+        let mut timings = crate::types::ProcessingTimings::new();
 
+        // Image decode timing
+        let decode_start = Instant::now();
         let image = self.load_image(input_path)?;
         let original_dimensions = image.dimensions();
+        timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
         
-        // Resize mask if needed
+        // Mask preprocessing timing (resize if needed)
+        let preprocess_start = Instant::now();
         let resized_mask = if mask.dimensions != image.dimensions() {
             mask.resize(image.dimensions().0, image.dimensions().1)?
         } else {
             mask.clone()
         };
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
 
+        // No inference for mask application
+        timings.inference_ms = 0;
+
+        // Apply mask timing
+        let postprocess_start = Instant::now();
         let result_image = self.apply_background_removal(&image, &resized_mask)?;
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+
+        // Calculate total time
+        timings.total_ms = total_start.elapsed().as_millis() as u64;
         
-        metadata.set_timings(0, 0, _start_time.elapsed().as_millis() as u64);
+        metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
 
@@ -141,29 +196,36 @@ impl ImageProcessor {
 
     /// Process a DynamicImage directly for background removal
     pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
-        let _start_time = Instant::now();
+        let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
+        let mut timings = crate::types::ProcessingTimings::new();
         
         let original_dimensions = image.dimensions();
+
+        // Note: No image decode timing since image is already loaded
+        timings.image_decode_ms = 0;
 
         // Preprocess image
         let preprocess_start = Instant::now();
         let (_preprocessed_image, input_tensor) = self.preprocess_image(&image)?;
-        let preprocessing_time = preprocess_start.elapsed().as_millis() as u64;
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
 
         // Run inference
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        let inference_time = inference_start.elapsed().as_millis() as u64;
+        timings.inference_ms = inference_start.elapsed().as_millis() as u64;
 
         // Postprocess results
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        let postprocessing_time = postprocess_start.elapsed().as_millis() as u64;
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
 
-        // Set metadata
-        metadata.set_timings(inference_time, preprocessing_time, postprocessing_time);
+        // Calculate total time
+        timings.total_ms = total_start.elapsed().as_millis() as u64;
+
+        // Set metadata with detailed timings
+        metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
 
