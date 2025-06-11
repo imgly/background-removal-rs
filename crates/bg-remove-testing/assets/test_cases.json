@@ -1,0 +1,142 @@
+[
+  {
+    "id": "portrait_001",
+    "category": "portraits",
+    "input_file": "portraits/business_headshot.jpg",
+    "expected_output_file": "portraits/business_headshot.png",
+    "expected_accuracy": 0.93,
+    "description": "Professional business headshot with clean background",
+    "tags": ["portrait", "professional", "clean_background"],
+    "complexity_level": "simple"
+  },
+  {
+    "id": "portrait_002", 
+    "category": "portraits",
+    "input_file": "portraits/fine_hair_details.jpg",
+    "expected_output_file": "portraits/fine_hair_details.png",
+    "expected_accuracy": 0.88,
+    "description": "Portrait with intricate hair details and flyaways",
+    "tags": ["portrait", "hair_details", "challenging_edges"],
+    "complexity_level": "complex"
+  },
+  {
+    "id": "portrait_003",
+    "category": "portraits",
+    "input_file": "portraits/outdoor_natural.jpg", 
+    "expected_output_file": "portraits/outdoor_natural.png",
+    "expected_accuracy": 0.90,
+    "description": "Outdoor portrait with natural lighting and background",
+    "tags": ["portrait", "outdoor", "natural_lighting"],
+    "complexity_level": "medium"
+  },
+  {
+    "id": "portrait_004",
+    "category": "portraits",
+    "input_file": "portraits/multiple_people.jpg",
+    "expected_output_file": "portraits/multiple_people.png", 
+    "expected_accuracy": 0.85,
+    "description": "Group photo with multiple people",
+    "tags": ["portrait", "group", "multiple_subjects"],
+    "complexity_level": "complex"
+  },
+  {
+    "id": "product_001",
+    "category": "products",
+    "input_file": "products/white_background_shoe.jpg",
+    "expected_output_file": "products/white_background_shoe.png",
+    "expected_accuracy": 0.98,
+    "description": "Product shoe on white background",
+    "tags": ["product", "ecommerce", "white_background"],
+    "complexity_level": "simple"
+  },
+  {
+    "id": "product_002",
+    "category": "products", 
+    "input_file": "products/electronics_gradient.jpg",
+    "expected_output_file": "products/electronics_gradient.png",
+    "expected_accuracy": 0.95,
+    "description": "Electronic device with gradient background",
+    "tags": ["product", "electronics", "gradient_background"],
+    "complexity_level": "medium"
+  },
+  {
+    "id": "product_003",
+    "category": "products",
+    "input_file": "products/clothing_transparent.jpg",
+    "expected_output_file": "products/clothing_transparent.png",
+    "expected_accuracy": 0.92,
+    "description": "Clothing item with transparent/translucent elements",
+    "tags": ["product", "clothing", "transparent_materials"],
+    "complexity_level": "complex"
+  },
+  {
+    "id": "complex_001",
+    "category": "complex",
+    "input_file": "complex/pet_with_person.jpg",
+    "expected_output_file": "complex/pet_with_person.png",
+    "expected_accuracy": 0.82,
+    "description": "Person with pet, multiple subjects with fur details",
+    "tags": ["complex", "pet", "multiple_subjects", "fur"],
+    "complexity_level": "complex"
+  },
+  {
+    "id": "complex_002",
+    "category": "complex",
+    "input_file": "complex/glass_objects.jpg", 
+    "expected_output_file": "complex/glass_objects.png",
+    "expected_accuracy": 0.78,
+    "description": "Scene with transparent glass objects",
+    "tags": ["complex", "glass", "transparency", "challenging"],
+    "complexity_level": "extreme"
+  },
+  {
+    "id": "complex_003",
+    "category": "complex",
+    "input_file": "complex/overlapping_subjects.jpg",
+    "expected_output_file": "complex/overlapping_subjects.png", 
+    "expected_accuracy": 0.80,
+    "description": "Multiple overlapping subjects in frame",
+    "tags": ["complex", "overlapping", "multiple_subjects"],
+    "complexity_level": "complex"
+  },
+  {
+    "id": "edge_001",
+    "category": "edge_cases",
+    "input_file": "edge_cases/very_high_resolution.jpg",
+    "expected_output_file": "edge_cases/very_high_resolution.png",
+    "expected_accuracy": 0.90,
+    "description": "Very high resolution image (4K+)",
+    "tags": ["edge_case", "high_resolution", "performance"],
+    "complexity_level": "medium"
+  },
+  {
+    "id": "edge_002", 
+    "category": "edge_cases",
+    "input_file": "edge_cases/very_low_resolution.jpg",
+    "expected_output_file": "edge_cases/very_low_resolution.png",
+    "expected_accuracy": 0.75,
+    "description": "Very low resolution image (<200px)",
+    "tags": ["edge_case", "low_resolution", "pixelated"],
+    "complexity_level": "extreme"
+  },
+  {
+    "id": "edge_003",
+    "category": "edge_cases",
+    "input_file": "edge_cases/high_noise.jpg",
+    "expected_output_file": "edge_cases/high_noise.png", 
+    "expected_accuracy": 0.70,
+    "description": "Image with significant noise and compression artifacts",
+    "tags": ["edge_case", "noisy", "compression_artifacts"],
+    "complexity_level": "extreme"
+  },
+  {
+    "id": "edge_004",
+    "category": "edge_cases",
+    "input_file": "edge_cases/similar_colors.jpg",
+    "expected_output_file": "edge_cases/similar_colors.png",
+    "expected_accuracy": 0.73,
+    "description": "Subject and background with very similar colors",
+    "tags": ["edge_case", "similar_colors", "low_contrast"],
+    "complexity_level": "extreme"
+  }
+]
