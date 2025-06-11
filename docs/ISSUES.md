@@ -1,0 +1,37 @@
+# Issues
+
+
+
+This is a list of open issues. The syntax is as follows
+- "[ ]" marks an *open* issues
+- "[x]" marks a *done* issue
+- "[@]" marks a *delegated* issues, "[@USERNAME] marks a *delegated* issue to a specific agent or user
+- "[o]" marks a *on hold* issues
+
+
+There are also some modifies that are placed in the task description in the description
+ - 📅 YYYY-MM-DD HH:SS defines the due date
+ - 🔃 every XYZ defines the task to be recurring
+ - 🐞 defines the task to be a bug
+- 
+Additional we may use Hashtags "#" to tag, group and categorize Issues.
+If an issue needs further information we can create an issue markdown for this particular issue in the docs/issues folder and link it in the issue description
+
+
+## Open Issues
+
+- [x] Not sure if core-ml is used without feature flag 📅 2025-06-11 13:31
+- [ ] the tests seem to reference wrong files
+- [ ] Benchmarks skip all
+- [x] Image is not resized to the original size 📅 2025-06-11 13:31
+- [ ] Default build seems FP16
+- [ ] Backends like ort should move to a Wasi NN compat style
+- [ ] CLI combines a backend (ORT)
+- [ ] Ort support more backends like candle, tract etc., these my be implemented.
+- [ ] JSON Schema for the User facing API 
+- [ ] MCP Interface
+- [ ] Wasi1p Platform Build
+- [ ] iOS Platform Build
+- [ ] Android Platform Build
+- [ ] NodeJS Platform build 
+- [ ] Output timings for "load", "decode", "inference", "encode" seperately

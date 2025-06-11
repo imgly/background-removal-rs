@@ -70,7 +70,7 @@ impl ImageProcessor {
         let preprocess_start = Instant::now();
         let image = self.load_image(input_path)?;
         let original_dimensions = image.dimensions();
-        let (processed_image, input_tensor) = self.preprocess_image(&image)?;
+        let (_processed_image, input_tensor) = self.preprocess_image(&image)?;
         let preprocessing_time = preprocess_start.elapsed().as_millis() as u64;
 
         // Run inference
@@ -80,8 +80,8 @@ impl ImageProcessor {
 
         // Postprocess results
         let postprocess_start = Instant::now();
-        let mask = self.tensor_to_mask(&output_tensor, processed_image.dimensions())?;
-        let result_image = self.apply_background_removal(&processed_image, &mask)?;
+        let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
+        let result_image = self.apply_background_removal(&image, &mask)?;
         let postprocessing_time = postprocess_start.elapsed().as_millis() as u64;
 
         // Set metadata
