@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎯 Execution Provider Choice Demo");
     println!("=================================");
     
-    let test_image = "tests/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let test_image = "crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
     
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {}", test_image);

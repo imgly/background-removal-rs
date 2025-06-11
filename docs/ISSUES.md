@@ -22,7 +22,7 @@ If an issue needs further information we can create an issue markdown for this p
 
 - [x] Not sure if core-ml is used without feature flag 📅 2025-06-11 13:31
 - [ ] the tests seem to reference wrong files
-- [ ] Benchmarks skip all
+- [x] Benchmarks skip all 📅 2025-06-11 13:45
 - [x] Image is not resized to the original size 📅 2025-06-11 13:31
 - [ ] Default build seems FP16
 - [ ] Backends like ort should move to a Wasi NN compat style

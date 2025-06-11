@@ -132,8 +132,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut successful_comparisons = 0;
     
     for (category, image_name) in &test_cases {
-        let input_path = format!("tests/assets/input/{}/{}", category, image_name);
-        let js_mask_path = format!("tests/assets/expected/masks/js_{}_mask.png", 
+        let input_path = format!("crates/bg-remove-testing/assets/input/{}/{}", category, image_name);
+        let js_mask_path = format!("crates/bg-remove-testing/assets/expected/masks/js_{}_mask.png", 
             image_name.trim_end_matches(".jpg"));
         
         if !Path::new(&input_path).exists() || !Path::new(&js_mask_path).exists() {

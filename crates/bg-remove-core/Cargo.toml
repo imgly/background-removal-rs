@@ -46,6 +46,14 @@ criterion = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 
+[[bench]]
+name = "background_removal"
+harness = false
+
+[[bench]]
+name = "simple_bench"
+harness = false
+
 [build-dependencies]
 # For embedding model files during build (placeholder for now)
 # std-fs = "0.1"

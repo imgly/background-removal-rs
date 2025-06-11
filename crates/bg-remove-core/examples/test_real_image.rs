@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Testing background removal with real image...");
 
     // Use one of our test images
-    let input_path = "tests/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let input_path = "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
     let output_path = "test_output.png";
 
     if !Path::new(input_path).exists() {

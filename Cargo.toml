@@ -19,7 +19,7 @@ rust-version = "1.70"
 
 [workspace.dependencies]
 # Core dependencies
-ort = "2.0.0-rc.10"
+ort = { version = "2.0.0-rc.10", features = ["coreml"] }
 image = { version = "0.24", features = ["png", "jpeg", "webp"] }
 ndarray = "0.16"
 anyhow = "1.0"

@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut quality_metrics = Vec::new();
     
     for (category, image_name) in &test_cases {
-        let input_path = format!("tests/assets/input/{}/{}", category, image_name);
+        let input_path = format!("crates/bg-remove-testing/assets/input/{}/{}", category, image_name);
         
         if !Path::new(&input_path).exists() {
             println!("⏭️  Skipping {}: File not found", image_name);

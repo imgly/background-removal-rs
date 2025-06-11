@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Removal Test Report - dbd28cb6-5121-46a5-8ff2-863275af425a</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header .session-info {
+            margin-top: 10px;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .value.success { color: #4CAF50; }
+        .value.warning { color: #FF9800; }
+        .value.error { color: #f44336; }
+        
+        .comparison-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        .table-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .table-header h2 {
+            margin: 0;
+            color: #495057;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .image-cell {
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .test-image {
+            max-width: 150px;
+            max-height: 150px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .test-image:hover {
+            transform: scale(1.05);
+        }
+        
+        .status-passed {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .status-failed {
+            color: #f44336;
+            font-weight: bold;
+        }
+        
+        .metrics {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85em;
+        }
+        
+        .metric-good { color: #4CAF50; }
+        .metric-warning { color: #FF9800; }
+        .metric-poor { color: #f44336; }
+        
+        .category-section {
+            margin-bottom: 40px;
+        }
+        
+        .category-header {
+            background: #e9ecef;
+            padding: 15px 20px;
+            margin: 0;
+            color: #495057;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+        }
+        
+        .modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 900px;
+            margin-top: 50px;
+        }
+        
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            margin-top: 40px;
+        }
+        
+        @media (max-width: 768px) {
+            .test-image {
+                max-width: 100px;
+                max-height: 100px;
+            }
+            
+            .summary {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Background Removal Test Report</h1>
+        <div class="session-info">
+            Session ID: dbd28cb6-5121-46a5-8ff2-863275af425a<br>
+            Generated: 2025-06-11 15:45:48
+        </div>
+    </div>
+    <div class="summary">
+        <div class="summary-card">
+            <h3>Total Tests</h3>
+            <p class="value">12</p>
+        </div>
+        <div class="summary-card">
+            <h3>Pass Rate</h3>
+            <p class="value success">100.0%</p>
+        </div>
+        <div class="summary-card">
+            <h3>Average Accuracy</h3>
+            <p class="value success">96.0%</p>
+        </div>
+        <div class="summary-card">
+            <h3>Average Time</h3>
+            <p class="value">781ms</p>
+        </div>
+        <div class="summary-card">
+            <h3>Categories</h3>
+            <p class="value">4</p>
+        </div>
+    </div>
+    <div class="category-section">
+        <div class="comparison-table">
+            <div class="table-header">
+                <h2>📂 COMPLEX (3 tests)</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test Case</th>
+                        <th>Original Image</th>
+                        <th>Expected Output</th>
+                        <th>Current Output</th>
+                        <th>Diff Heatmap</th>
+                        <th>Status</th>
+                        <th>Metrics</th>
+                    </tr>
+                </thead>
+                <tbody>                    <tr>
+                        <td>
+                            <strong>complex_fine_details</strong><br>
+                            <small>Complex scene with very fine details</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_complex_fine_details.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_complex_fine_details.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_complex_complex_fine_details.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_complex_fine_details.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>789ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">84.0%</span><br>
+SSIM: <span class="metric-good">0.994</span><br>
+Edge: <span class="metric-good">85.4%</span><br>
+Pixel: <span class="metric-good">90.1%</span><br>
+MSE: 63.13
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>complex_group_photo</strong><br>
+                            <small>Group photo with multiple subjects</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_complex_group_photo.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_complex_group_photo.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_complex_complex_group_photo.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_complex_group_photo.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>751ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">84.6%</span><br>
+SSIM: <span class="metric-good">0.995</span><br>
+Edge: <span class="metric-good">87.7%</span><br>
+Pixel: <span class="metric-good">97.6%</span><br>
+MSE: 51.99
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>complex_mixed_lighting</strong><br>
+                            <small>Scene with mixed lighting conditions</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_complex_mixed_lighting.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_complex_mixed_lighting.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_complex_complex_mixed_lighting.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_complex_mixed_lighting.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>761ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">83.7%</span><br>
+SSIM: <span class="metric-good">0.986</span><br>
+Edge: <span class="metric-good">86.1%</span><br>
+Pixel: <span class="metric-good">95.6%</span><br>
+MSE: 162.55
+                        </td>
+                    </tr>                </tbody>
+            </table>
+        </div>
+    </div>    <div class="category-section">
+        <div class="comparison-table">
+            <div class="table-header">
+                <h2>📂 EDGE_CASES (3 tests)</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test Case</th>
+                        <th>Original Image</th>
+                        <th>Expected Output</th>
+                        <th>Current Output</th>
+                        <th>Diff Heatmap</th>
+                        <th>Status</th>
+                        <th>Metrics</th>
+                    </tr>
+                </thead>
+                <tbody>                    <tr>
+                        <td>
+                            <strong>edge_corrupted_data</strong><br>
+                            <small>Corrupted or damaged image data</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_edge_corrupted_data.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_edge_corrupted_data.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_edge_cases_edge_corrupted_data.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_edge_corrupted_data.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>739ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">84.6%</span><br>
+SSIM: <span class="metric-good">0.996</span><br>
+Edge: <span class="metric-good">87.4%</span><br>
+Pixel: <span class="metric-good">99.6%</span><br>
+MSE: 1.78
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>edge_high_contrast</strong><br>
+                            <small>Very high contrast image</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_edge_high_contrast.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_edge_high_contrast.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_edge_cases_edge_high_contrast.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_edge_high_contrast.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>802ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">88.0%</span><br>
+SSIM: <span class="metric-good">1.000</span><br>
+Edge: <span class="metric-good">100.0%</span><br>
+Pixel: <span class="metric-good">100.0%</span><br>
+MSE: 0.01
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>edge_high_noise</strong><br>
+                            <small>Image with high noise levels</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_edge_high_noise.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_edge_high_noise.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_edge_cases_edge_high_noise.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_edge_high_noise.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>812ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">84.0%</span><br>
+SSIM: <span class="metric-good">0.996</span><br>
+Edge: <span class="metric-good">85.0%</span><br>
+Pixel: <span class="metric-warning">82.8%</span><br>
+MSE: 29.02
+                        </td>
+                    </tr>                </tbody>
+            </table>
+        </div>
+    </div>    <div class="category-section">
+        <div class="comparison-table">
+            <div class="table-header">
+                <h2>📂 PORTRAITS (3 tests)</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test Case</th>
+                        <th>Original Image</th>
+                        <th>Expected Output</th>
+                        <th>Current Output</th>
+                        <th>Diff Heatmap</th>
+                        <th>Status</th>
+                        <th>Metrics</th>
+                    </tr>
+                </thead>
+                <tbody>                    <tr>
+                        <td>
+                            <strong>portrait_action_motion</strong><br>
+                            <small>Portrait with action and motion blur</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_portrait_action_motion.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_portrait_action_motion.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_portraits_portrait_action_motion.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_portrait_action_motion.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>880ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">83.7%</span><br>
+SSIM: <span class="metric-good">0.999</span><br>
+Edge: <span class="metric-warning">83.1%</span><br>
+Pixel: <span class="metric-good">98.2%</span><br>
+MSE: 6.92
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>portrait_fine_hair_details</strong><br>
+                            <small>Portrait with fine hair details requiring precise edge detection</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_portrait_fine_hair_details.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_portrait_fine_hair_details.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_portraits_portrait_fine_hair_details.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_portrait_fine_hair_details.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>758ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">84.5%</span><br>
+SSIM: <span class="metric-good">0.997</span><br>
+Edge: <span class="metric-good">86.4%</span><br>
+Pixel: <span class="metric-good">95.4%</span><br>
+MSE: 55.46
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>portrait_low_contrast</strong><br>
+                            <small>Low contrast portrait challenging for background separation</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_portrait_low_contrast.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_portrait_low_contrast.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_portraits_portrait_low_contrast.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_portrait_low_contrast.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>760ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">86.5%</span><br>
+SSIM: <span class="metric-good">0.999</span><br>
+Edge: <span class="metric-good">94.3%</span><br>
+Pixel: <span class="metric-good">97.0%</span><br>
+MSE: 51.43
+                        </td>
+                    </tr>                </tbody>
+            </table>
+        </div>
+    </div>    <div class="category-section">
+        <div class="comparison-table">
+            <div class="table-header">
+                <h2>📂 PRODUCTS (3 tests)</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test Case</th>
+                        <th>Original Image</th>
+                        <th>Expected Output</th>
+                        <th>Current Output</th>
+                        <th>Diff Heatmap</th>
+                        <th>Status</th>
+                        <th>Metrics</th>
+                    </tr>
+                </thead>
+                <tbody>                    <tr>
+                        <td>
+                            <strong>product_accessories_glass</strong><br>
+                            <small>Glass accessories with transparency effects</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_product_accessories_glass.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_product_accessories_glass.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_products_product_accessories_glass.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_product_accessories_glass.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>777ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">85.9%</span><br>
+SSIM: <span class="metric-good">0.998</span><br>
+Edge: <span class="metric-good">91.9%</span><br>
+Pixel: <span class="metric-good">98.5%</span><br>
+MSE: 22.92
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>product_clothing_transparent</strong><br>
+                            <small>Clothing with transparent/translucent materials</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_product_clothing_transparent.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_product_clothing_transparent.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_products_product_clothing_transparent.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_product_clothing_transparent.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>726ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">85.9%</span><br>
+SSIM: <span class="metric-good">0.996</span><br>
+Edge: <span class="metric-good">92.7%</span><br>
+Pixel: <span class="metric-good">98.3%</span><br>
+MSE: 8.97
+                        </td>
+                    </tr>                    <tr>
+                        <td>
+                            <strong>product_clothing_white_bg</strong><br>
+                            <small>Clothing on white background - easier case</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/original_product_clothing_white_bg.jpg" alt="Original" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Original</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/expected_product_clothing_white_bg.png" alt="Expected" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Expected</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/current_products_product_clothing_white_bg.png" alt="Current" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Current</small>
+                        </td>
+                        <td class="image-cell">
+                            <img src="images/heatmap_product_clothing_white_bg.png" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
+                        <td class="status-passed">
+                            ✅ PASSED<br>
+                            <small>817ms</small>
+                        </td>
+                        <td class="metrics">
+                            Visual: <span class="metric-good">86.8%</span><br>
+SSIM: <span class="metric-good">1.000</span><br>
+Edge: <span class="metric-good">95.4%</span><br>
+Pixel: <span class="metric-good">99.5%</span><br>
+MSE: 1.88
+                        </td>
+                    </tr>                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="comparison-table">
+        <div class="table-header">
+            <h2>📊 Category Statistics</h2>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Tests</th>
+                    <th>Pass Rate</th>
+                    <th>Avg Accuracy</th>
+                    <th>Avg SSIM</th>
+                    <th>Avg Time</th>
+                </tr>
+            </thead>
+            <tbody>                <tr>
+                    <td><strong>complex</strong></td>
+                    <td>3</td>
+                    <td>100.0%</td>
+                    <td>94.5%</td>
+                    <td>0.992</td>
+                    <td>767ms</td>
+                </tr>                <tr>
+                    <td><strong>edge_cases</strong></td>
+                    <td>3</td>
+                    <td>100.0%</td>
+                    <td>94.1%</td>
+                    <td>0.997</td>
+                    <td>784ms</td>
+                </tr>                <tr>
+                    <td><strong>portraits</strong></td>
+                    <td>3</td>
+                    <td>100.0%</td>
+                    <td>96.8%</td>
+                    <td>0.998</td>
+                    <td>799ms</td>
+                </tr>                <tr>
+                    <td><strong>products</strong></td>
+                    <td>3</td>
+                    <td>100.0%</td>
+                    <td>98.8%</td>
+                    <td>0.998</td>
+                    <td>773ms</td>
+                </tr>            </tbody>
+        </table>
+    </div>
+    
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <div class="footer">
+        <p>Generated by bg-remove-testing | Rust Background Removal Library</p>
+    </div>
+
+    <script>
+        function openModal(imageSrc) {
+            document.getElementById('imageModal').style.display = 'block';
+            document.getElementById('modalImage').src = imageSrc;
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside the image
+        window.onclick = function(event) {
+            const modal = document.getElementById('imageModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // Close modal with escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

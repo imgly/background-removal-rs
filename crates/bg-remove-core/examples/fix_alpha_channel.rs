@@ -9,8 +9,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Fixing Alpha Channel Application");
     println!("==================================");
     
-    let test_image = "../tests/assets/input/portraits/portrait_single_simple_bg.jpg";
-    let js_reference = "../tests/assets/expected/javascript_output/portrait_single_simple_bg.png";
+    let test_image = "../crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let js_reference = "../crates/bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
     
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {}", test_image);
