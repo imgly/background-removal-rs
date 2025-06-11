@@ -24,7 +24,7 @@ impl ImageComparison {
         let actual_rgba = actual.to_rgba8();
         let expected_rgba = expected.to_rgba8();
 
-        let total_pixels = (actual.width() * actual.height()) as f64;
+        let total_pixels = f64::from(actual.width() * actual.height());
         let mut matching_pixels = 0.0;
 
         for (actual_pixel, expected_pixel) in actual_rgba.pixels().zip(expected_rgba.pixels()) {
@@ -42,17 +42,17 @@ impl ImageComparison {
         expected: &image::Rgba<u8>,
         threshold: f64,
     ) -> bool {
-        let actual_alpha = actual[3] as f64 / 255.0;
-        let expected_alpha = expected[3] as f64 / 255.0;
+        let actual_alpha = f64::from(actual[3]) / 255.0;
+        let expected_alpha = f64::from(expected[3]) / 255.0;
 
         // Premultiply RGB by alpha
-        let actual_r = (actual[0] as f64) * actual_alpha;
-        let actual_g = (actual[1] as f64) * actual_alpha;
-        let actual_b = (actual[2] as f64) * actual_alpha;
+        let actual_r = f64::from(actual[0]) * actual_alpha;
+        let actual_g = f64::from(actual[1]) * actual_alpha;
+        let actual_b = f64::from(actual[2]) * actual_alpha;
 
-        let expected_r = (expected[0] as f64) * expected_alpha;
-        let expected_g = (expected[1] as f64) * expected_alpha;
-        let expected_b = (expected[2] as f64) * expected_alpha;
+        let expected_r = f64::from(expected[0]) * expected_alpha;
+        let expected_g = f64::from(expected[1]) * expected_alpha;
+        let expected_b = f64::from(expected[2]) * expected_alpha;
 
         // Calculate differences in premultiplied space
         let r_diff = (actual_r - expected_r).abs();
@@ -91,16 +91,16 @@ impl ImageComparison {
 
         for (x, y, pixel) in gray_image.enumerate_pixels_mut() {
             let rgba_pixel = rgba.get_pixel(x, y);
-            let alpha = rgba_pixel[3] as f64 / 255.0;
+            let alpha = f64::from(rgba_pixel[3]) / 255.0;
 
             // Premultiply RGB by alpha before converting to grayscale
-            let r = (rgba_pixel[0] as f64) * alpha;
-            let g = (rgba_pixel[1] as f64) * alpha;
-            let b = (rgba_pixel[2] as f64) * alpha;
+            let r = f64::from(rgba_pixel[0]) * alpha;
+            let g = f64::from(rgba_pixel[1]) * alpha;
+            let b = f64::from(rgba_pixel[2]) * alpha;
 
             // Convert to grayscale using standard luminance formula
             let gray_value = (0.299 * r + 0.587 * g + 0.114 * b).round().min(255.0) as u8;
-            *pixel = image::Luma([gray_value]);
+            *pixel = Luma([gray_value]);
         }
 
         gray_image
@@ -135,8 +135,8 @@ impl ImageComparison {
 
     /// Calculate mean pixel value for grayscale image
     fn calculate_mean(image: &GrayImage) -> f64 {
-        let sum: u64 = image.pixels().map(|p| p[0] as u64).sum();
-        let total_pixels = (image.width() * image.height()) as u64;
+        let sum: u64 = image.pixels().map(|p| u64::from(p[0])).sum();
+        let total_pixels = u64::from(image.width() * image.height());
         sum as f64 / total_pixels as f64
     }
 
@@ -147,15 +147,15 @@ impl ImageComparison {
         mean_actual: f64,
         mean_expected: f64,
     ) -> (f64, f64, f64) {
-        let total_pixels = (actual.width() * actual.height()) as f64;
+        let total_pixels = f64::from(actual.width() * actual.height());
 
         let mut var_actual = 0.0;
         let mut var_expected = 0.0;
         let mut covar = 0.0;
 
         for (actual_pixel, expected_pixel) in actual.pixels().zip(expected.pixels()) {
-            let diff_actual = actual_pixel[0] as f64 - mean_actual;
-            let diff_expected = expected_pixel[0] as f64 - mean_expected;
+            let diff_actual = f64::from(actual_pixel[0]) - mean_actual;
+            let diff_expected = f64::from(expected_pixel[0]) - mean_expected;
 
             var_actual += diff_actual.powi(2);
             var_expected += diff_expected.powi(2);
@@ -205,7 +205,7 @@ impl ImageComparison {
             return Ok(1.0); // No edges to compare
         }
 
-        Ok(matching_edge_pixels as f64 / edge_pixels as f64)
+        Ok(f64::from(matching_edge_pixels) / f64::from(edge_pixels))
     }
 
     /// Simple edge detection using Sobel operator
@@ -225,14 +225,14 @@ impl ImageComparison {
                 // Apply Sobel kernels
                 for i in 0..3 {
                     for j in 0..3 {
-                        let pixel_value = image.get_pixel(x + j - 1, y + i - 1)[0] as i32;
+                        let pixel_value = i32::from(image.get_pixel(x + j - 1, y + i - 1)[0]);
                         gx += sobel_x[i as usize][j as usize] * pixel_value;
                         gy += sobel_y[i as usize][j as usize] * pixel_value;
                     }
                 }
 
                 // Calculate gradient magnitude
-                let magnitude = ((gx * gx + gy * gy) as f64).sqrt();
+                let magnitude = f64::from(gx * gx + gy * gy).sqrt();
                 let edge_value = cmp::min(255, magnitude as u32) as u8;
 
                 edges.put_pixel(x, y, Luma([edge_value]));
@@ -253,21 +253,21 @@ impl ImageComparison {
         let actual_rgba = actual.to_rgba8();
         let expected_rgba = expected.to_rgba8();
 
-        let total_pixels = (actual.width() * actual.height()) as f64;
+        let total_pixels = f64::from(actual.width() * actual.height());
         let mut sum_squared_error = 0.0;
 
         for (actual_pixel, expected_pixel) in actual_rgba.pixels().zip(expected_rgba.pixels()) {
-            let actual_alpha = actual_pixel[3] as f64 / 255.0;
-            let expected_alpha = expected_pixel[3] as f64 / 255.0;
+            let actual_alpha = f64::from(actual_pixel[3]) / 255.0;
+            let expected_alpha = f64::from(expected_pixel[3]) / 255.0;
 
             // Premultiply RGB by alpha
-            let actual_r = (actual_pixel[0] as f64) * actual_alpha;
-            let actual_g = (actual_pixel[1] as f64) * actual_alpha;
-            let actual_b = (actual_pixel[2] as f64) * actual_alpha;
+            let actual_r = f64::from(actual_pixel[0]) * actual_alpha;
+            let actual_g = f64::from(actual_pixel[1]) * actual_alpha;
+            let actual_b = f64::from(actual_pixel[2]) * actual_alpha;
 
-            let expected_r = (expected_pixel[0] as f64) * expected_alpha;
-            let expected_g = (expected_pixel[1] as f64) * expected_alpha;
-            let expected_b = (expected_pixel[2] as f64) * expected_alpha;
+            let expected_r = f64::from(expected_pixel[0]) * expected_alpha;
+            let expected_g = f64::from(expected_pixel[1]) * expected_alpha;
+            let expected_b = f64::from(expected_pixel[2]) * expected_alpha;
 
             // Calculate squared differences in premultiplied space
             let r_diff = actual_r - expected_r;
@@ -304,10 +304,10 @@ impl ImageComparison {
             let expected_pixel = expected_rgba.get_pixel(x, y);
 
             // Calculate absolute difference
-            let r_diff = (actual_pixel[0] as i16 - expected_pixel[0] as i16).abs() as u8;
-            let g_diff = (actual_pixel[1] as i16 - expected_pixel[1] as i16).abs() as u8;
-            let b_diff = (actual_pixel[2] as i16 - expected_pixel[2] as i16).abs() as u8;
-            let a_diff = (actual_pixel[3] as i16 - expected_pixel[3] as i16).abs() as u8;
+            let r_diff = (i16::from(actual_pixel[0]) - i16::from(expected_pixel[0])).unsigned_abs() as u8;
+            let g_diff = (i16::from(actual_pixel[1]) - i16::from(expected_pixel[1])).unsigned_abs() as u8;
+            let b_diff = (i16::from(actual_pixel[2]) - i16::from(expected_pixel[2])).unsigned_abs() as u8;
+            let a_diff = (i16::from(actual_pixel[3]) - i16::from(expected_pixel[3])).unsigned_abs() as u8;
 
             // Color-code differences: red for major differences, yellow for minor
             let max_diff = cmp::max(cmp::max(r_diff, g_diff), cmp::max(b_diff, a_diff));
@@ -349,17 +349,17 @@ impl ImageComparison {
             let expected_pixel = expected_rgba.get_pixel(x, y);
 
             // Convert to premultiplied alpha for accurate visual comparison
-            let actual_alpha = actual_pixel[3] as f64 / 255.0;
-            let expected_alpha = expected_pixel[3] as f64 / 255.0;
+            let actual_alpha = f64::from(actual_pixel[3]) / 255.0;
+            let expected_alpha = f64::from(expected_pixel[3]) / 255.0;
 
             // Premultiply RGB by alpha - this gives us the actual visual contribution
-            let actual_r = (actual_pixel[0] as f64) * actual_alpha;
-            let actual_g = (actual_pixel[1] as f64) * actual_alpha;
-            let actual_b = (actual_pixel[2] as f64) * actual_alpha;
+            let actual_r = f64::from(actual_pixel[0]) * actual_alpha;
+            let actual_g = f64::from(actual_pixel[1]) * actual_alpha;
+            let actual_b = f64::from(actual_pixel[2]) * actual_alpha;
 
-            let expected_r = (expected_pixel[0] as f64) * expected_alpha;
-            let expected_g = (expected_pixel[1] as f64) * expected_alpha;
-            let expected_b = (expected_pixel[2] as f64) * expected_alpha;
+            let expected_r = f64::from(expected_pixel[0]) * expected_alpha;
+            let expected_g = f64::from(expected_pixel[1]) * expected_alpha;
+            let expected_b = f64::from(expected_pixel[2]) * expected_alpha;
 
             // Calculate differences in premultiplied space
             let r_diff = (actual_r - expected_r).abs();
@@ -450,7 +450,7 @@ impl ImageComparison {
     /// This checks if the image has good foreground/background separation
     fn assess_background_separation_quality(image: &DynamicImage) -> Result<f64> {
         let rgba = image.to_rgba8();
-        let total_pixels = (image.width() * image.height()) as f64;
+        let total_pixels = f64::from(image.width() * image.height());
 
         let mut fully_transparent = 0;
         let mut fully_opaque = 0;
@@ -465,9 +465,9 @@ impl ImageComparison {
             }
         }
 
-        let transparency_ratio = fully_transparent as f64 / total_pixels;
-        let opacity_ratio = fully_opaque as f64 / total_pixels;
-        let smooth_edges_ratio = partial_alpha as f64 / total_pixels;
+        let transparency_ratio = f64::from(fully_transparent) / total_pixels;
+        let opacity_ratio = f64::from(fully_opaque) / total_pixels;
+        let smooth_edges_ratio = f64::from(partial_alpha) / total_pixels;
 
         // Good background removal should have:
         // - Significant transparent areas (background removed)
@@ -534,8 +534,8 @@ pub struct ImageAnalysis;
 
 impl ImageAnalysis {
     /// Analyze mask quality (for alpha channel analysis)
-    pub fn analyze_mask_quality(mask: &GrayImage) -> MaskQualityMetrics {
-        let total_pixels = (mask.width() * mask.height()) as f64;
+    #[must_use] pub fn analyze_mask_quality(mask: &GrayImage) -> MaskQualityMetrics {
+        let total_pixels = f64::from(mask.width() * mask.height());
         let mut transparent_pixels = 0;
         let mut opaque_pixels = 0;
         let mut partial_transparency = 0;
@@ -556,17 +556,17 @@ impl ImageAnalysis {
         }
 
         MaskQualityMetrics {
-            transparency_ratio: transparent_pixels as f64 / total_pixels,
-            opacity_ratio: opaque_pixels as f64 / total_pixels,
-            partial_transparency_ratio: partial_transparency as f64 / total_pixels,
-            edge_softness: edge_pixels as f64 / total_pixels,
+            transparency_ratio: f64::from(transparent_pixels) / total_pixels,
+            opacity_ratio: f64::from(opaque_pixels) / total_pixels,
+            partial_transparency_ratio: f64::from(partial_transparency) / total_pixels,
+            edge_softness: f64::from(edge_pixels) / total_pixels,
         }
     }
 
     /// Check if image has realistic proportions and content
-    pub fn validate_output_realism(image: &DynamicImage) -> RealismScore {
+    #[must_use] pub fn validate_output_realism(image: &DynamicImage) -> RealismScore {
         let rgba = image.to_rgba8();
-        let total_pixels = (image.width() * image.height()) as f64;
+        let total_pixels = f64::from(image.width() * image.height());
 
         let mut fully_transparent = 0;
         let mut fully_opaque = 0;
@@ -579,8 +579,8 @@ impl ImageAnalysis {
             }
         }
 
-        let transparency_ratio = fully_transparent as f64 / total_pixels;
-        let opacity_ratio = fully_opaque as f64 / total_pixels;
+        let transparency_ratio = f64::from(fully_transparent) / total_pixels;
+        let opacity_ratio = f64::from(fully_opaque) / total_pixels;
 
         // Realistic images should have significant foreground and background separation
         let has_realistic_separation = transparency_ratio > 0.1 && opacity_ratio > 0.1;

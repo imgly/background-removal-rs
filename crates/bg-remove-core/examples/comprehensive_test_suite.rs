@@ -25,16 +25,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (category, image_name) in &test_cases {
         let input_path = format!(
-            "crates/bg-remove-testing/assets/input/{}/{}",
-            category, image_name
+            "crates/bg-remove-testing/assets/input/{category}/{image_name}"
         );
 
         if !Path::new(&input_path).exists() {
-            println!("⏭️  Skipping {}: File not found", image_name);
+            println!("⏭️  Skipping {image_name}: File not found");
             continue;
         }
 
-        print!("🔬 Testing {}... ", image_name);
+        print!("🔬 Testing {image_name}... ");
 
         let start_time = Instant::now();
         match remove_background(&input_path, &config).await {
@@ -82,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 quality_metrics.push(quality_score);
             },
             Err(e) => {
-                println!("❌ Failed: {}", e);
+                println!("❌ Failed: {e}");
             },
         }
     }

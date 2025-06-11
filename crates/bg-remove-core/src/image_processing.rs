@@ -1,9 +1,10 @@
 //! Image processing pipeline for background removal
 
 use crate::{
+    backends::{MockBackend, OnnxBackend},
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
-    inference::{InferenceBackend, MockBackend, OnnxBackend},
+    inference::InferenceBackend,
     types::{ProcessingMetadata, RemovalResult, SegmentationMask},
 };
 use chrono::Utc;
@@ -15,18 +16,12 @@ use std::time::Instant;
 
 /// Processing options for fine-tuning behavior
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct ProcessingOptions {
     /// Padding color for aspect ratio preservation (RGB)
     pub padding_color: [u8; 3],
 }
 
-impl Default for ProcessingOptions {
-    fn default() -> Self {
-        Self {
-            padding_color: [0, 0, 0], // Black padding by default
-        }
-    }
-}
 
 /// Main image processor for background removal operations
 pub struct ImageProcessor {
@@ -181,10 +176,10 @@ impl ImageProcessor {
 
         // Mask preprocessing timing (resize if needed)
         let preprocess_start = Instant::now();
-        let resized_mask = if mask.dimensions != image.dimensions() {
-            mask.resize(image.dimensions().0, image.dimensions().1)?
-        } else {
+        let resized_mask = if mask.dimensions == image.dimensions() {
             mask.clone()
+        } else {
+            mask.resize(image.dimensions().0, image.dimensions().1)?
         };
         timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
 
@@ -211,7 +206,7 @@ impl ImageProcessor {
         ))
     }
 
-    /// Process a DynamicImage directly for background removal
+    /// Process a `DynamicImage` directly for background removal
     pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
         let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
@@ -286,7 +281,7 @@ impl ImageProcessor {
 
         // Create a 1024x1024 canvas with configurable padding color
         let padding = self.options.padding_color;
-        let mut canvas = image::ImageBuffer::from_pixel(
+        let mut canvas = ImageBuffer::from_pixel(
             target_size,
             target_size,
             image::Rgb([padding[0], padding[1], padding[2]]),
@@ -312,9 +307,9 @@ impl ImageProcessor {
             for (x, pixel) in row.enumerate() {
                 // Normalization: (pixel - mean) / std
                 // Mean: [128, 128, 128], Std: [256, 256, 256]
-                tensor[[0, 0, y, x]] = (pixel[0] as f32 - 128.0) / 256.0; // R
-                tensor[[0, 1, y, x]] = (pixel[1] as f32 - 128.0) / 256.0; // G
-                tensor[[0, 2, y, x]] = (pixel[2] as f32 - 128.0) / 256.0; // B
+                tensor[[0, 0, y, x]] = (f32::from(pixel[0]) - 128.0) / 256.0; // R
+                tensor[[0, 1, y, x]] = (f32::from(pixel[1]) - 128.0) / 256.0; // G
+                tensor[[0, 2, y, x]] = (f32::from(pixel[2]) - 128.0) / 256.0; // B
             }
         }
 
@@ -416,12 +411,12 @@ impl ImageProcessor {
         let mut rgb_image = ImageBuffer::new(width, height);
 
         for (x, y, pixel) in rgba_image.enumerate_pixels() {
-            let alpha = pixel[3] as f32 / 255.0;
+            let alpha = f32::from(pixel[3]) / 255.0;
             let inv_alpha = 1.0 - alpha;
 
-            let r = (pixel[0] as f32 * alpha + bg_color.r as f32 * inv_alpha) as u8;
-            let g = (pixel[1] as f32 * alpha + bg_color.g as f32 * inv_alpha) as u8;
-            let b = (pixel[2] as f32 * alpha + bg_color.b as f32 * inv_alpha) as u8;
+            let r = (f32::from(pixel[0]) * alpha + f32::from(bg_color.r) * inv_alpha) as u8;
+            let g = (f32::from(pixel[1]) * alpha + f32::from(bg_color.g) * inv_alpha) as u8;
+            let b = (f32::from(pixel[2]) * alpha + f32::from(bg_color.b) * inv_alpha) as u8;
 
             rgb_image.put_pixel(x, y, image::Rgb([r, g, b]));
         }

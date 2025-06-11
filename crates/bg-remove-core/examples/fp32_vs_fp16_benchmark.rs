@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📷 Testing with {} images:", available_images.len());
     for (name, _) in &available_images {
-        println!("   • {}", name);
+        println!("   • {name}");
     }
 
     // Check model sizes
@@ -70,8 +70,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fp32_size = get_model_size("models/isnet_fp32.onnx")?;
 
     println!("\n📊 Model Sizes:");
-    println!("   • FP16: {:.1} MB", fp16_size);
-    println!("   • FP32: {:.1} MB", fp32_size);
+    println!("   • FP16: {fp16_size:.1} MB");
+    println!("   • FP32: {fp32_size:.1} MB");
     println!(
         "   • Size difference: {:.1}x larger (FP32)",
         fp32_size / fp16_size
@@ -162,7 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📊 Key Findings:");
     if performance_diff > 5.0 {
-        println!("   • FP32 is {:.1}% slower than FP16", performance_diff);
+        println!("   • FP32 is {performance_diff:.1}% slower than FP16");
     } else if performance_diff < -5.0 {
         println!("   • FP32 is {:.1}% faster than FP16", -performance_diff);
     } else {
@@ -183,8 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Similar performance - choose based on size
         println!("   ✅ KEEP FP16 as default");
         println!(
-            "   📝 Reasoning: Similar performance with {:.1}x smaller binary size",
-            size_ratio
+            "   📝 Reasoning: Similar performance with {size_ratio:.1}x smaller binary size"
         );
         println!("   💡 Users prioritizing download speed and storage will benefit");
         println!(
@@ -210,7 +209,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📦 Binary Size Impact:");
     let size_diff_mb = fp32.model_size_mb - fp16.model_size_mb;
-    println!("   • Additional download: ~{:.0}MB for FP32", size_diff_mb);
+    println!("   • Additional download: ~{size_diff_mb:.0}MB for FP32");
     println!(
         "   • Relative to typical application size: {}",
         if size_diff_mb > 50.0 {
@@ -244,7 +243,7 @@ async fn benchmark_precision(
     let mut processed_count = 0;
 
     for (image_name, path) in test_images {
-        print!("   🧪 Testing {} with {}... ", image_name, name);
+        print!("   🧪 Testing {image_name} with {name}... ");
 
         let start = Instant::now();
         match remove_background(path, &config).await {
@@ -266,7 +265,7 @@ async fn benchmark_precision(
                 );
             },
             Err(e) => {
-                println!("❌ Error: {}", e);
+                println!("❌ Error: {e}");
             },
         }
     }

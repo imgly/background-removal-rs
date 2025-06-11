@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !std::path::Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut results = Vec::new();
 
     for (name, provider) in &providers {
-        println!("🧪 Testing {} execution provider...", name);
+        println!("🧪 Testing {name} execution provider...");
         let config = RemovalConfig::builder()
             .execution_provider(*provider)
             .debug(false)
@@ -38,23 +38,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let elapsed_time = start.elapsed().as_secs_f64();
                 let stats = result.mask.statistics();
 
-                println!("   ⏱️  Time: {:.2}s", elapsed_time);
+                println!("   ⏱️  Time: {elapsed_time:.2}s");
                 println!("   📊 Foreground: {:.1}%", stats.foreground_ratio * 100.0);
 
                 // Save output
                 let output_name = format!(
                     "output_{}.png",
                     name.to_lowercase()
-                        .replace(" ", "_")
-                        .replace("(", "")
-                        .replace(")", "")
+                        .replace(' ', "_")
+                        .replace('(', "")
+                        .replace(')', "")
                 );
                 result.save_png(&output_name)?;
 
                 results.push((name, elapsed_time, stats.foreground_ratio));
             },
             Err(e) => {
-                println!("   ❌ Error: {}", e);
+                println!("   ❌ Error: {e}");
             },
         }
         println!();

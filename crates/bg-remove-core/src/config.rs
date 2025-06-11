@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Execution provider options for ONNX Runtime
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionProvider {
-    /// Auto-detect best available provider (CUDA > CoreML > CPU)
+    /// Auto-detect best available provider (CUDA > `CoreML` > CPU)
     Auto,
     /// CPU execution (always available)
     Cpu,
@@ -62,22 +62,22 @@ impl Default for BackgroundColor {
 
 impl BackgroundColor {
     /// Create a new background color
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
+    #[must_use] pub fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
     /// White background
-    pub fn white() -> Self {
+    #[must_use] pub fn white() -> Self {
         Self::new(255, 255, 255)
     }
 
     /// Black background
-    pub fn black() -> Self {
+    #[must_use] pub fn black() -> Self {
         Self::new(0, 0, 0)
     }
 
     /// Transparent (for formats supporting alpha)
-    pub fn transparent() -> Self {
+    #[must_use] pub fn transparent() -> Self {
         Self::new(0, 0, 0) // Will be ignored for transparent formats
     }
 }
@@ -127,7 +127,7 @@ impl Default for RemovalConfig {
 
 impl RemovalConfig {
     /// Create a new configuration builder
-    pub fn builder() -> RemovalConfigBuilder {
+    #[must_use] pub fn builder() -> RemovalConfigBuilder {
         RemovalConfigBuilder::default()
     }
 
@@ -149,7 +149,7 @@ impl RemovalConfig {
     }
 }
 
-/// Builder for RemovalConfig
+/// Builder for `RemovalConfig`
 #[derive(Debug, Default)]
 pub struct RemovalConfigBuilder {
     config: RemovalConfig,
@@ -157,55 +157,55 @@ pub struct RemovalConfigBuilder {
 
 impl RemovalConfigBuilder {
     /// Set execution provider
-    pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
+    #[must_use] pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
         self.config.execution_provider = provider;
         self
     }
 
     /// Set output format
-    pub fn output_format(mut self, format: OutputFormat) -> Self {
+    #[must_use] pub fn output_format(mut self, format: OutputFormat) -> Self {
         self.config.output_format = format;
         self
     }
 
     /// Set background color
-    pub fn background_color(mut self, color: BackgroundColor) -> Self {
+    #[must_use] pub fn background_color(mut self, color: BackgroundColor) -> Self {
         self.config.background_color = color;
         self
     }
 
     /// Set JPEG quality
-    pub fn jpeg_quality(mut self, quality: u8) -> Self {
+    #[must_use] pub fn jpeg_quality(mut self, quality: u8) -> Self {
         self.config.jpeg_quality = quality.min(100);
         self
     }
 
     /// Set WebP quality
-    pub fn webp_quality(mut self, quality: u8) -> Self {
+    #[must_use] pub fn webp_quality(mut self, quality: u8) -> Self {
         self.config.webp_quality = quality.min(100);
         self
     }
 
     /// Enable debug mode
-    pub fn debug(mut self, debug: bool) -> Self {
+    #[must_use] pub fn debug(mut self, debug: bool) -> Self {
         self.config.debug = debug;
         self
     }
 
     /// Set number of intra-op threads
-    pub fn intra_threads(mut self, threads: usize) -> Self {
+    #[must_use] pub fn intra_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self
     }
 
     /// Set number of inter-op threads
-    pub fn inter_threads(mut self, threads: usize) -> Self {
+    #[must_use] pub fn inter_threads(mut self, threads: usize) -> Self {
         self.config.inter_threads = threads;
         self
     }
 
     /// Set both intra and inter threads (convenience method)
-    pub fn num_threads(mut self, threads: usize) -> Self {
+    #[must_use] pub fn num_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self.config.inter_threads = if threads > 0 { (threads / 2).max(1) } else { 0 };
         self

@@ -102,8 +102,14 @@ pub struct TestSummary {
     pub categories_tested: Vec<String>,
 }
 
+impl Default for TestSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestSession {
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             session_id: uuid::Uuid::new_v4().to_string(),
             start_time: std::time::SystemTime::now(),

@@ -21,12 +21,12 @@ async fn test_jpeg_input() {
 
     for input_path in jpeg_inputs {
         if !Path::new(input_path).exists() {
-            println!("⏭️  Skipping JPEG test: {} not found", input_path);
+            println!("⏭️  Skipping JPEG test: {input_path} not found");
             continue;
         }
 
         let result = remove_background(input_path, &config).await;
-        assert!(result.is_ok(), "Should process JPEG input: {}", input_path);
+        assert!(result.is_ok(), "Should process JPEG input: {input_path}");
 
         let result = result.unwrap();
 
@@ -37,7 +37,7 @@ async fn test_jpeg_input() {
             "Output should have alpha channel for JPEG input"
         );
 
-        println!("✅ JPEG input test passed: {}", input_path);
+        println!("✅ JPEG input test passed: {input_path}");
     }
 }
 
@@ -56,12 +56,12 @@ async fn test_png_input() {
 
     for input_path in png_inputs {
         if !Path::new(input_path).exists() {
-            println!("⏭️  Skipping PNG test: {} not found", input_path);
+            println!("⏭️  Skipping PNG test: {input_path} not found");
             continue;
         }
 
         let result = remove_background(input_path, &config).await;
-        assert!(result.is_ok(), "Should process PNG input: {}", input_path);
+        assert!(result.is_ok(), "Should process PNG input: {input_path}");
 
         let result = result.unwrap();
 
@@ -72,7 +72,7 @@ async fn test_png_input() {
             "Output should maintain alpha channel for PNG input"
         );
 
-        println!("✅ PNG input test passed: {}", input_path);
+        println!("✅ PNG input test passed: {input_path}");
     }
 }
 
@@ -129,7 +129,7 @@ async fn test_image_dimensions_preservation() {
 
     for input_path in test_cases {
         if !Path::new(input_path).exists() {
-            println!("⏭️  Skipping dimension test: {} not found", input_path);
+            println!("⏭️  Skipping dimension test: {input_path} not found");
             continue;
         }
 
@@ -140,8 +140,7 @@ async fn test_image_dimensions_preservation() {
         let result = remove_background(input_path, &config).await;
         assert!(
             result.is_ok(),
-            "Background removal should succeed for {}",
-            input_path
+            "Background removal should succeed for {input_path}"
         );
 
         let result = result.unwrap();
@@ -150,30 +149,25 @@ async fn test_image_dimensions_preservation() {
         // Verify dimensions are preserved
         assert_eq!(
             orig_width, out_width,
-            "Output width should match input for {}",
-            input_path
+            "Output width should match input for {input_path}"
         );
         assert_eq!(
             orig_height, out_height,
-            "Output height should match input for {}",
-            input_path
+            "Output height should match input for {input_path}"
         );
 
         // Verify mask dimensions match
         assert_eq!(
             result.mask.dimensions.0, out_width,
-            "Mask width should match output for {}",
-            input_path
+            "Mask width should match output for {input_path}"
         );
         assert_eq!(
             result.mask.dimensions.1, out_height,
-            "Mask height should match output for {}",
-            input_path
+            "Mask height should match output for {input_path}"
         );
 
         println!(
-            "✅ Dimension preservation test passed: {} ({}x{})",
-            input_path, out_width, out_height
+            "✅ Dimension preservation test passed: {input_path} ({out_width}x{out_height})"
         );
     }
 }
@@ -199,16 +193,14 @@ async fn test_different_aspect_ratios() {
 
     for (aspect_name, input_path) in test_cases {
         if !Path::new(input_path).exists() {
-            println!("⏭️  Skipping aspect ratio test: {} not found", input_path);
+            println!("⏭️  Skipping aspect ratio test: {input_path} not found");
             continue;
         }
 
         let result = remove_background(input_path, &config).await;
         assert!(
             result.is_ok(),
-            "Should handle {} aspect ratio: {}",
-            aspect_name,
-            input_path
+            "Should handle {aspect_name} aspect ratio: {input_path}"
         );
 
         let result = result.unwrap();
@@ -225,8 +217,7 @@ async fn test_different_aspect_ratios() {
         );
 
         println!(
-            "✅ Aspect ratio test passed: {} ({}x{}) - {}",
-            aspect_name, width, height, input_path
+            "✅ Aspect ratio test passed: {aspect_name} ({width}x{height}) - {input_path}"
         );
     }
 }

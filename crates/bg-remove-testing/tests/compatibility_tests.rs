@@ -36,14 +36,13 @@ async fn test_execution_provider_compatibility() {
             Ok(result) => {
                 assert!(
                     !result.mask.data.is_empty(),
-                    "{} should produce non-empty mask",
-                    name
+                    "{name} should produce non-empty mask"
                 );
                 successful_providers.push(name);
-                println!("✅ {} provider: compatible", name);
+                println!("✅ {name} provider: compatible");
             },
             Err(e) => {
-                println!("⚠️  {} provider: incompatible - {}", name, e);
+                println!("⚠️  {name} provider: incompatible - {e}");
                 // Some providers might not be available on all systems
             },
         }
@@ -85,23 +84,21 @@ async fn test_background_color_options() {
             .expect("Failed to create config");
 
         let result = remove_background(input_path, &config).await;
-        assert!(result.is_ok(), "Should work with {} background", name);
+        assert!(result.is_ok(), "Should work with {name} background");
 
         let result = result.unwrap();
 
         // Verify output properties
         assert!(
             !result.mask.data.is_empty(),
-            "{} background should produce mask",
-            name
+            "{name} background should produce mask"
         );
         assert!(
             result.image.width() > 0,
-            "{} background should produce valid image",
-            name
+            "{name} background should produce valid image"
         );
 
-        println!("✅ {} background: compatible", name);
+        println!("✅ {name} background: compatible");
     }
 }
 
@@ -217,8 +214,7 @@ async fn test_concurrent_different_configs() {
 
         assert!(
             !bg_result.mask.data.is_empty(),
-            "Config {} should produce non-empty mask",
-            config_idx
+            "Config {config_idx} should produce non-empty mask"
         );
     }
 
@@ -247,10 +243,9 @@ async fn test_error_handling_compatibility() {
             let result = remove_background(invalid_path, &config).await;
             assert!(
                 result.is_err(),
-                "Should return error for invalid image file: {}",
-                invalid_path
+                "Should return error for invalid image file: {invalid_path}"
             );
-            println!("✅ Error handling: correctly rejected {}", invalid_path);
+            println!("✅ Error handling: correctly rejected {invalid_path}");
         }
     }
 
@@ -277,9 +272,9 @@ async fn test_cross_platform_paths() {
             let result = remove_background(path, &config).await;
             if result.is_ok() {
                 successful_paths += 1;
-                println!("✅ Path format works: {}", path);
+                println!("✅ Path format works: {path}");
             } else {
-                println!("❌ Path format failed: {}", path);
+                println!("❌ Path format failed: {path}");
             }
         }
     }

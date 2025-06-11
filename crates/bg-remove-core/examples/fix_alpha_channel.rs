@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "../crates/bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
 
     if !Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -38,15 +38,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let min_val = *sorted_values.first().unwrap().0;
     let max_val = *sorted_values.last().unwrap().0;
-    println!("   Range: {} to {}", min_val, max_val);
+    println!("   Range: {min_val} to {max_val}");
 
     // Show most common values
     let mut by_count: Vec<_> = value_histogram.iter().collect();
     by_count.sort_by_key(|&(_, count)| std::cmp::Reverse(*count));
     println!("   Most common values:");
     for (value, count) in by_count.iter().take(5) {
-        let percentage = (**count as f64) / (mask_data.len() as f64) * 100.0;
-        println!("     Value {}: {:.1}%", value, percentage);
+        let percentage = f64::from(**count) / (mask_data.len() as f64) * 100.0;
+        println!("     Value {value}: {percentage:.1}%");
     }
 
     // Create corrected alpha application
@@ -94,14 +94,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let js_min = *js_alpha_values.iter().min().unwrap();
             let js_max = *js_alpha_values.iter().max().unwrap();
-            println!("   JS Alpha range: {} to {}", js_min, js_max);
+            println!("   JS Alpha range: {js_min} to {js_max}");
 
             let mut js_by_count: Vec<_> = js_histogram.iter().collect();
             js_by_count.sort_by_key(|&(_, count)| std::cmp::Reverse(*count));
             println!("   JS Most common alpha values:");
             for (alpha, count) in js_by_count.iter().take(5) {
-                let percentage = (**count as f64) / (js_alpha_values.len() as f64) * 100.0;
-                println!("     Alpha {}: {:.1}%", alpha, percentage);
+                let percentage = f64::from(**count) / (js_alpha_values.len() as f64) * 100.0;
+                println!("     Alpha {alpha}: {percentage:.1}%");
             }
 
             // Compare distributions

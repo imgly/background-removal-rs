@@ -2,7 +2,7 @@
 
 //! Simple test script to verify our implementation works with a real image
 //!
-//! Usage: cargo run --bin test_real_image
+//! Usage: cargo run --bin `test_real_image`
 
 use bg_remove_core::{remove_background, RemovalConfig};
 use std::path::Path;
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_path = "test_output.png";
 
     if !Path::new(input_path).exists() {
-        println!("❌ Test image not found: {}", input_path);
+        println!("❌ Test image not found: {input_path}");
         println!("Make sure you're running from the project root directory");
         return Ok(());
     }
@@ -30,8 +30,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .debug(false) // Use ONNX backend (though it's currently mock)
         .build()?;
 
-    println!("📁 Input: {}", input_path);
-    println!("📁 Output: {}", output_path);
+    println!("📁 Input: {input_path}");
+    println!("📁 Output: {output_path}");
     println!("⚙️  Model: Auto-optimized precision");
 
     // Process the image
@@ -115,8 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         timings.inference_ratio() * 100.0
     );
     println!(
-        "   • Image encoding: {}ms (measured separately)",
-        encode_time_ms
+        "   • Image encoding: {encode_time_ms}ms (measured separately)"
     );
     if other_ms > 10 {
         println!(
@@ -126,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n🎯 Mask statistics: {:?}", result.mask.statistics());
-    println!("💾 Output saved to: {}", output_path);
+    println!("💾 Output saved to: {output_path}");
 
     Ok(())
 }

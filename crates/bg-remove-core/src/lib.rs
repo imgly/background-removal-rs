@@ -1,6 +1,6 @@
 //! # Background Removal Core Library
 //!
-//! A high-performance Rust library for background removal using ONNX Runtime and ISNet models.
+//! A high-performance Rust library for background removal using ONNX Runtime and `ISNet` models.
 //!
 //! This library provides efficient background removal capabilities with support for multiple
 //! image formats and model configurations. It's designed to be 2-5x faster than JavaScript
@@ -8,7 +8,7 @@
 //!
 //! ## Features
 //!
-//! - High-performance background removal using ISNet models
+//! - High-performance background removal using `ISNet` models
 //! - Support for multiple image formats (JPEG, PNG, WebP)
 //! - Configurable model precision (FP32, FP16)
 //! - Async and sync API support
@@ -29,6 +29,7 @@
 //! # }
 //! ```
 
+pub mod backends;
 pub mod config;
 pub mod error;
 pub mod image_processing;
@@ -37,10 +38,11 @@ pub mod models;
 pub mod types;
 
 // Public API exports
+pub use backends::{MockBackend, OnnxBackend};
 pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
-pub use inference::{InferenceBackend, OnnxBackend};
+pub use inference::InferenceBackend;
 pub use types::{RemovalResult, SegmentationMask};
 
 /// Remove background from an image file
@@ -76,7 +78,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
     processor.remove_background(input_path).await
 }
 
-/// Process a DynamicImage directly for background removal
+/// Process a `DynamicImage` directly for background removal
 ///
 /// This allows processing images loaded from memory or other sources.
 ///

@@ -28,7 +28,7 @@ pub struct RemovalResult {
 
 impl RemovalResult {
     /// Create a new removal result
-    pub fn new(
+    #[must_use] pub fn new(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -44,7 +44,7 @@ impl RemovalResult {
     }
 
     /// Create a new removal result with input path
-    pub fn with_input_path(
+    #[must_use] pub fn with_input_path(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -109,7 +109,7 @@ impl RemovalResult {
     }
 
     /// Get the image as raw RGBA bytes
-    pub fn to_rgba_bytes(&self) -> Vec<u8> {
+    #[must_use] pub fn to_rgba_bytes(&self) -> Vec<u8> {
         self.image.to_rgba8().into_raw()
     }
 
@@ -143,12 +143,12 @@ impl RemovalResult {
     }
 
     /// Get image dimensions
-    pub fn dimensions(&self) -> (u32, u32) {
+    #[must_use] pub fn dimensions(&self) -> (u32, u32) {
         self.image.dimensions()
     }
 
     /// Get detailed timing breakdown
-    pub fn timings(&self) -> &ProcessingTimings {
+    #[must_use] pub fn timings(&self) -> &ProcessingTimings {
         &self.metadata.timings
     }
 
@@ -193,7 +193,7 @@ impl RemovalResult {
     }
 
     /// Get timing summary for display
-    pub fn timing_summary(&self) -> String {
+    #[must_use] pub fn timing_summary(&self) -> String {
         let t = &self.metadata.timings;
         let breakdown = t.breakdown_percentages();
 
@@ -248,12 +248,12 @@ pub struct SegmentationMask {
 
 impl SegmentationMask {
     /// Create a new segmentation mask
-    pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
+    #[must_use] pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
         Self { data, dimensions }
     }
 
     /// Create mask from a grayscale image
-    pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
+    #[must_use] pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
         let (width, height) = image.dimensions();
         let data = image.as_raw().clone();
 
@@ -303,7 +303,7 @@ impl SegmentationMask {
     }
 
     /// Get mask statistics
-    pub fn statistics(&self) -> MaskStatistics {
+    #[must_use] pub fn statistics(&self) -> MaskStatistics {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;
         let background_pixels = total_pixels - foreground_pixels;
@@ -361,7 +361,7 @@ pub struct ProcessingTimings {
 }
 
 impl ProcessingTimings {
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             model_load_ms: 0,
             image_decode_ms: 0,
@@ -374,7 +374,7 @@ impl ProcessingTimings {
     }
 
     /// Calculate efficiency metrics
-    pub fn inference_ratio(&self) -> f64 {
+    #[must_use] pub fn inference_ratio(&self) -> f64 {
         if self.total_ms == 0 {
             0.0
         } else {
@@ -383,7 +383,7 @@ impl ProcessingTimings {
     }
 
     /// Get breakdown percentages
-    pub fn breakdown_percentages(&self) -> TimingBreakdown {
+    #[must_use] pub fn breakdown_percentages(&self) -> TimingBreakdown {
         if self.total_ms == 0 {
             return TimingBreakdown::default();
         }
@@ -414,7 +414,7 @@ impl ProcessingTimings {
     }
 
     /// Get the "other" overhead time (unaccounted time)
-    pub fn other_overhead_ms(&self) -> u64 {
+    #[must_use] pub fn other_overhead_ms(&self) -> u64 {
         let measured_time = self.model_load_ms
             + self.image_decode_ms
             + self.preprocessing_ms
@@ -484,26 +484,26 @@ pub struct ProcessingMetadata {
     pub peak_memory_bytes: u64,
 
     // Legacy timing fields for backward compatibility
-    /// Time taken for inference (milliseconds) - DEPRECATED: use timings.inference_ms
+    /// Time taken for inference (milliseconds) - DEPRECATED: use `timings.inference_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference_time_ms: Option<u64>,
 
-    /// Time taken for preprocessing (milliseconds) - DEPRECATED: use timings.preprocessing_ms
+    /// Time taken for preprocessing (milliseconds) - DEPRECATED: use `timings.preprocessing_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preprocessing_time_ms: Option<u64>,
 
-    /// Time taken for postprocessing (milliseconds) - DEPRECATED: use timings.postprocessing_ms
+    /// Time taken for postprocessing (milliseconds) - DEPRECATED: use `timings.postprocessing_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub postprocessing_time_ms: Option<u64>,
 
-    /// Total processing time (milliseconds) - DEPRECATED: use timings.total_ms
+    /// Total processing time (milliseconds) - DEPRECATED: use `timings.total_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_time_ms: Option<u64>,
 }
 
 impl ProcessingMetadata {
     /// Create new processing metadata
-    pub fn new(model_name: String) -> Self {
+    #[must_use] pub fn new(model_name: String) -> Self {
         Self {
             timings: ProcessingTimings::new(),
             model_name,

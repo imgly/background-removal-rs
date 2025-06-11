@@ -66,7 +66,7 @@ async fn test_execution_provider_performance() {
         let result = remove_background(input_path, &config).await;
         let duration = start.elapsed();
 
-        assert!(result.is_ok(), "{} provider should succeed", name);
+        assert!(result.is_ok(), "{name} provider should succeed");
 
         // Each provider should complete within reasonable time
         assert!(
@@ -153,7 +153,7 @@ async fn test_concurrent_processing() {
 
     // All tasks should complete successfully
     for (i, result) in results.iter().enumerate() {
-        assert!(result.is_ok(), "Sequential task {} should succeed", i);
+        assert!(result.is_ok(), "Sequential task {i} should succeed");
     }
 
     println!(

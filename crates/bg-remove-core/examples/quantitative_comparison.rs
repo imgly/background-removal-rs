@@ -1,7 +1,6 @@
 //! Quantitative mask comparison with JavaScript reference
 
 use bg_remove_core::{remove_background, RemovalConfig};
-use image;
 use std::path::Path;
 
 #[derive(Debug)]
@@ -16,7 +15,7 @@ struct ComparisonMetrics {
 
 fn load_js_mask(path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     if !Path::new(path).exists() {
-        return Err(format!("JavaScript mask not found: {}", path).into());
+        return Err(format!("JavaScript mask not found: {path}").into());
     }
 
     let js_mask_img = image::open(path)?;
@@ -41,7 +40,7 @@ fn calculate_metrics(rust_mask: &[u8], js_mask: &[u8]) -> ComparisonMetrics {
     let mae = rust_mask
         .iter()
         .zip(js_mask.iter())
-        .map(|(&r, &j)| (r as i32 - j as i32).abs() as f64)
+        .map(|(&r, &j)| f64::from((i32::from(r) - i32::from(j)).abs()))
         .sum::<f64>()
         / total_pixels;
 
@@ -81,22 +80,22 @@ fn calculate_metrics(rust_mask: &[u8], js_mask: &[u8]) -> ComparisonMetrics {
     let fg_ratio_diff = (rust_fg_ratio - js_fg_ratio).abs();
 
     // Simple structural similarity (correlation coefficient)
-    let rust_mean = rust_mask.iter().map(|&x| x as f64).sum::<f64>() / total_pixels;
-    let js_mean = js_mask.iter().map(|&x| x as f64).sum::<f64>() / total_pixels;
+    let rust_mean = rust_mask.iter().map(|&x| f64::from(x)).sum::<f64>() / total_pixels;
+    let js_mean = js_mask.iter().map(|&x| f64::from(x)).sum::<f64>() / total_pixels;
 
     let numerator = rust_mask
         .iter()
         .zip(js_mask.iter())
-        .map(|(&r, &j)| (r as f64 - rust_mean) * (j as f64 - js_mean))
+        .map(|(&r, &j)| (f64::from(r) - rust_mean) * (f64::from(j) - js_mean))
         .sum::<f64>();
 
     let rust_var = rust_mask
         .iter()
-        .map(|&x| (x as f64 - rust_mean).powi(2))
+        .map(|&x| (f64::from(x) - rust_mean).powi(2))
         .sum::<f64>();
     let js_var = js_mask
         .iter()
-        .map(|&x| (x as f64 - js_mean).powi(2))
+        .map(|&x| (f64::from(x) - js_mean).powi(2))
         .sum::<f64>();
 
     let structural_similarity = if rust_var > 0.0 && js_var > 0.0 {
@@ -143,8 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (category, image_name) in &test_cases {
         let input_path = format!(
-            "crates/bg-remove-testing/assets/input/{}/{}",
-            category, image_name
+            "crates/bg-remove-testing/assets/input/{category}/{image_name}"
         );
         let js_mask_path = format!(
             "crates/bg-remove-testing/assets/expected/masks/js_{}_mask.png",
@@ -152,11 +150,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         if !Path::new(&input_path).exists() || !Path::new(&js_mask_path).exists() {
-            println!("⏭️  Skipping {}: Missing files", image_name);
+            println!("⏭️  Skipping {image_name}: Missing files");
             continue;
         }
 
-        print!("🧪 Analyzing {}... ", image_name);
+        print!("🧪 Analyzing {image_name}... ");
 
         // Process with Rust
         let result = remove_background(&input_path, &config).await?;
@@ -204,10 +202,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if successful_comparisons > 0 {
-        let n = successful_comparisons as f64;
+        let n = f64::from(successful_comparisons);
         println!(
-            "📈 Average Metrics Across {} Images:",
-            successful_comparisons
+            "📈 Average Metrics Across {successful_comparisons} Images:"
         );
         println!(
             "   🎯 Pixel Accuracy: {:.1}%",

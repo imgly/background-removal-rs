@@ -1,6 +1,6 @@
 //! Background Removal CLI Tool
 //!
-//! Command-line interface for removing backgrounds from images using ISNet models.
+//! Command-line interface for removing backgrounds from images using `ISNet` models.
 
 use anyhow::{Context, Result};
 use bg_remove_core::config::BackgroundColor;
@@ -99,7 +99,7 @@ impl From<CliOutputFormat> for OutputFormat {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum CliExecutionProvider {
-    /// Auto-detect best available provider (CUDA > CoreML > CPU)
+    /// Auto-detect best available provider (CUDA > `CoreML` > CPU)
     Auto,
     /// CPU execution (always available)
     Cpu,
@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Input is required"))?;
 
     info!("Starting background removal CLI");
-    info!("Input: {}", input);
+    info!("Input: {input}");
 
     // Parse background color
     let background_color =
@@ -235,9 +235,9 @@ fn show_provider_diagnostics() -> Result<()> {
 
     // System information
     let cpu_count = std::thread::available_parallelism()
-        .map(|n| n.get())
+        .map(std::num::NonZero::get)
         .unwrap_or(1);
-    println!("💻 System: {} CPU cores detected", cpu_count);
+    println!("💻 System: {cpu_count} CPU cores detected");
 
     // Check provider availability
     let providers = check_provider_availability();
@@ -248,7 +248,7 @@ fn show_provider_diagnostics() -> Result<()> {
         } else {
             "❌ Not Available"
         };
-        println!("🚀 {}: {} - {}", name, status, description);
+        println!("🚀 {name}: {status} - {description}");
     }
 
     println!("\n💡 Tips:");
@@ -259,7 +259,7 @@ fn show_provider_diagnostics() -> Result<()> {
     Ok(())
 }
 
-/// Parse hex color string to BackgroundColor
+/// Parse hex color string to `BackgroundColor`
 fn parse_color(color_str: &str) -> Result<BackgroundColor> {
     let hex = color_str.trim_start_matches('#');
 
@@ -351,7 +351,7 @@ async fn process_single_file(
             // Output to specific file - use timed save for detailed logging
             let output_path = PathBuf::from(target);
             match config.output_format {
-                bg_remove_core::OutputFormat::Png => {
+                OutputFormat::Png => {
                     result
                         .save_png_timed(&output_path)
                         .context("Failed to save result")?;
@@ -367,7 +367,7 @@ async fn process_single_file(
             // Generate default output filename - use timed save for detailed logging
             let output_path = generate_output_path(input_path, config.output_format);
             match config.output_format {
-                bg_remove_core::OutputFormat::Png => {
+                OutputFormat::Png => {
                     result
                         .save_png_timed(&output_path)
                         .context("Failed to save result")?;
@@ -393,9 +393,7 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
     let input_dir = PathBuf::from(input);
     let output_dir = cli
         .output
-        .as_ref()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| input_dir.clone());
+        .as_ref().map_or_else(|| input_dir.clone(), PathBuf::from);
 
     // Create output directory if it doesn't exist
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory")?;
@@ -439,12 +437,12 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
         match bg_remove_core::remove_background(&input_file, config).await {
             Ok(mut result) => {
                 let save_result = match config.output_format {
-                    bg_remove_core::OutputFormat::Png => result.save_png_timed(&output_file),
+                    OutputFormat::Png => result.save_png_timed(&output_file),
                     _ => result.save(&output_file, config.output_format, config.jpeg_quality),
                 };
 
                 match save_result {
-                    Ok(_) => {
+                    Ok(()) => {
                         processed_count += 1;
                         if cli.verbose {
                             info!("Processed: {}", input_file.display());
@@ -466,8 +464,7 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
     }
 
     progress.finish_with_message(format!(
-        "Completed! Processed: {}, Failed: {}",
-        processed_count, failed_count
+        "Completed! Processed: {processed_count}, Failed: {failed_count}"
     ));
 
     Ok(processed_count)
@@ -507,8 +504,7 @@ fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Resul
 fn is_image_file(path: &Path, extensions: &[&str]) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
-        .map(|ext| extensions.contains(&ext.to_lowercase().as_str()))
-        .unwrap_or(false)
+        .is_some_and(|ext| extensions.contains(&ext.to_lowercase().as_str()))
 }
 
 /// Check if file matches the given pattern

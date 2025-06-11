@@ -28,6 +28,7 @@ If an issue needs further information we can create an issue markdown for this p
 - [ ] Backends like ort should move to a Wasi NN compat style
 - [ ] CLI combines a backend (ORT)
 - [ ] Ort support more backends like candle, tract etc., these my be implemented.
+- [ ] InferenceBackend implementations should be in their own file in a module
 - [ ] JSON Schema for the User facing API 
 - [ ] MCP Interface
 - [ ] Wasi1p Platform Build

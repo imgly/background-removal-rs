@@ -100,15 +100,13 @@ async fn test_different_execution_providers() {
         let result = remove_background(input_path, &config).await;
         assert!(
             result.is_ok(),
-            "Background removal should succeed with {} provider",
-            name
+            "Background removal should succeed with {name} provider"
         );
 
         let result = result.unwrap();
         assert!(
             !result.mask.data.is_empty(),
-            "{} provider should produce non-empty mask",
-            name
+            "{name} provider should produce non-empty mask"
         );
     }
 }
@@ -188,7 +186,7 @@ async fn test_edge_cases_basic() {
 
     for input_path in edge_cases {
         if !Path::new(input_path).exists() {
-            println!("⏭️  Skipping edge case: {} not found", input_path);
+            println!("⏭️  Skipping edge case: {input_path} not found");
             continue;
         }
 
@@ -201,10 +199,10 @@ async fn test_edge_cases_basic() {
                     !result.mask.data.is_empty(),
                     "Edge case should produce some mask data"
                 );
-                println!("✅ Edge case passed: {}", input_path);
+                println!("✅ Edge case passed: {input_path}");
             },
             Err(e) => {
-                println!("⚠️  Edge case failed gracefully: {} - {}", input_path, e);
+                println!("⚠️  Edge case failed gracefully: {input_path} - {e}");
                 // This is acceptable for edge cases
             },
         }

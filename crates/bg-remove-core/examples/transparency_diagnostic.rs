@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crates/bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
 
     if !Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -59,14 +59,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut sorted_values: Vec<_> = value_counts.iter().collect();
     sorted_values.sort_by_key(|&(value, _)| value);
     for (value, count) in sorted_values.iter().take(10) {
-        let percentage = (**count as f64) / (mask_data.len() as f64) * 100.0;
-        println!("   Value {}: {} pixels ({:.1}%)", value, count, percentage);
+        let percentage = f64::from(**count) / (mask_data.len() as f64) * 100.0;
+        println!("   Value {value}: {count} pixels ({percentage:.1}%)");
     }
 
     // Create binary mask version (threshold at 127)
     println!("\n🔧 Creating binary mask (threshold=127)...");
     let mut binary_mask_data = mask_data.clone();
-    for value in binary_mask_data.iter_mut() {
+    for value in &mut binary_mask_data {
         *value = if *value > 127 { 255 } else { 0 };
     }
 

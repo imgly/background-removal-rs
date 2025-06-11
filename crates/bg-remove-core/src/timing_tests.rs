@@ -201,8 +201,7 @@ async fn test_timing_measurements_integration() {
 
     assert!(
         (total_percentage - 100.0).abs() < 1.0,
-        "Total percentage should be close to 100%, got: {}",
-        total_percentage
+        "Total percentage should be close to 100%, got: {total_percentage}"
     );
 }
 
@@ -263,7 +262,6 @@ async fn test_timing_overhead() {
 
     assert!(
         overhead_percentage < 5.0,
-        "Timing overhead should be < 5% of total time, got {:.1}%",
-        overhead_percentage
+        "Timing overhead should be < 5% of total time, got {overhead_percentage:.1}%"
     );
 }

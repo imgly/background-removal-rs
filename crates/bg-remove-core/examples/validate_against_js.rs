@@ -1,7 +1,6 @@
 //! Validate Rust outputs against JavaScript reference results
 
 use bg_remove_core::{remove_background, RemovalConfig};
-use serde_json;
 use std::path::Path;
 use std::time::Instant;
 
@@ -59,8 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crates/bg-remove-testing/assets/expected/benchmarks/javascript_baseline.json";
     if !Path::new(js_benchmark_path).exists() {
         println!(
-            "❌ JavaScript benchmark file not found: {}",
-            js_benchmark_path
+            "❌ JavaScript benchmark file not found: {js_benchmark_path}"
         );
         return Ok(());
     }
@@ -104,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (category_name, category_data) in &categories {
-        println!("🧪 Testing {} images...", category_name);
+        println!("🧪 Testing {category_name} images...");
 
         for (image_name, js_result) in &category_data.images {
             if !js_result.success {
@@ -112,16 +110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let input_path = format!(
-                "crates/bg-remove-testing/assets/input/{}/{}",
-                category_name, image_name
+                "crates/bg-remove-testing/assets/input/{category_name}/{image_name}"
             );
 
             if !Path::new(&input_path).exists() {
-                println!("   ⏭️  Skipping {}: Input file not found", image_name);
+                println!("   ⏭️  Skipping {image_name}: Input file not found");
                 continue;
             }
 
-            print!("   📸 {}... ", image_name);
+            print!("   📸 {image_name}... ");
             total_tests += 1;
 
             let start = Instant::now();
@@ -168,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     total_js_time += js_time_ms;
                 },
                 Err(e) => {
-                    println!("❌ Error: {}", e);
+                    println!("❌ Error: {e}");
                 },
             }
         }
@@ -176,18 +173,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if successful_tests > 0 {
-        let avg_rust_time = total_rust_time / successful_tests as f64;
-        let avg_js_time = total_js_time / successful_tests as f64;
+        let avg_rust_time = total_rust_time / f64::from(successful_tests);
+        let avg_js_time = total_js_time / f64::from(successful_tests);
         let speedup = avg_js_time / avg_rust_time;
 
         println!("📊 Validation Summary:");
         println!(
-            "   ✅ Successful tests: {}/{}",
-            successful_tests, total_tests
+            "   ✅ Successful tests: {successful_tests}/{total_tests}"
         );
-        println!("   ⏱️  Average Rust time: {:.0}ms", avg_rust_time);
-        println!("   ⏱️  Average JavaScript time: {:.0}ms", avg_js_time);
-        println!("   🚀 Rust speedup: {:.1}x", speedup);
+        println!("   ⏱️  Average Rust time: {avg_rust_time:.0}ms");
+        println!("   ⏱️  Average JavaScript time: {avg_js_time:.0}ms");
+        println!("   🚀 Rust speedup: {speedup:.1}x");
 
         if speedup > 1.5 {
             println!("   🎯 Excellent performance advantage!");

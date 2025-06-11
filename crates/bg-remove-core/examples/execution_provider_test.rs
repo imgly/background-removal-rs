@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "../../crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
 
     if !std::path::Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _result = remove_background(test_image, &config).await?;
     let gpu_time = start.elapsed().as_secs_f64();
 
-    println!("   ⏱️  GPU-enabled time: {:.2}s", gpu_time);
+    println!("   ⏱️  GPU-enabled time: {gpu_time:.2}s");
 
     // Test with CPU only (debug mode)
     println!("\n🧪 Testing with CPU-only (debug mode)...");
@@ -40,14 +40,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _result_cpu = remove_background(test_image, &config_cpu).await?;
     let cpu_time = start.elapsed().as_secs_f64();
 
-    println!("   ⏱️  CPU-only time: {:.2}s", cpu_time);
+    println!("   ⏱️  CPU-only time: {cpu_time:.2}s");
 
     // Comparison
     let speedup = cpu_time / gpu_time;
     println!("\n🏆 Performance Comparison:");
-    println!("   GPU-enabled: {:.2}s", gpu_time);
-    println!("   CPU-only: {:.2}s", cpu_time);
-    println!("   Speedup: {:.1}x", speedup);
+    println!("   GPU-enabled: {gpu_time:.2}s");
+    println!("   CPU-only: {cpu_time:.2}s");
+    println!("   Speedup: {speedup:.1}x");
 
     if speedup > 1.5 {
         println!("   ✅ GPU acceleration is working effectively!");

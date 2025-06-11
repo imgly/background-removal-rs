@@ -36,18 +36,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (name, path) in &test_images {
         if !std::path::Path::new(path).exists() {
-            println!("⏭️  Skipping {}: File not found", name);
+            println!("⏭️  Skipping {name}: File not found");
             continue;
         }
 
-        print!("🧪 Testing {}... ", name);
+        print!("🧪 Testing {name}... ");
 
         let start = Instant::now();
         match remove_background(path, &config).await {
             Ok(result) => {
                 let processing_time = start.elapsed().as_secs_f64();
                 let dimensions = result.dimensions();
-                let total_pixels = (dimensions.0 as f64) * (dimensions.1 as f64);
+                let total_pixels = f64::from(dimensions.0) * f64::from(dimensions.1);
                 let megapixels = total_pixels / 1_000_000.0;
 
                 // Get detailed timing breakdown
@@ -97,27 +97,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 successful_tests += 1;
             },
             Err(e) => {
-                println!("❌ Error: {}", e);
+                println!("❌ Error: {e}");
             },
         }
     }
 
     if successful_tests > 0 {
-        let average_time = total_time / successful_tests as f64;
+        let average_time = total_time / f64::from(successful_tests);
         println!("\n📊 Performance Summary:");
-        println!("   Tests completed: {}", successful_tests);
-        println!("   Average time: {:.2}s", average_time);
-        println!("   Total time: {:.2}s", total_time);
+        println!("   Tests completed: {successful_tests}");
+        println!("   Average time: {average_time:.2}s");
+        println!("   Total time: {total_time:.2}s");
 
         // Compare with JavaScript baseline
         let js_baseline = 2.83; // seconds from benchmark data
         let improvement = ((js_baseline - average_time) / js_baseline) * 100.0;
 
         println!("\n🏆 vs JavaScript Baseline:");
-        println!("   JavaScript: {:.2}s", js_baseline);
-        println!("   Rust (GPU): {:.2}s", average_time);
+        println!("   JavaScript: {js_baseline:.2}s");
+        println!("   Rust (GPU): {average_time:.2}s");
         if improvement > 0.0 {
-            println!("   🚀 Rust is {:.1}% faster!", improvement);
+            println!("   🚀 Rust is {improvement:.1}% faster!");
         } else {
             println!("   📈 Rust is {:.1}% slower", -improvement);
         }

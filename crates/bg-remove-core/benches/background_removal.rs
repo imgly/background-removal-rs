@@ -11,8 +11,7 @@ fn bench_background_removal(c: &mut Criterion) {
     // Skip benchmark if test image doesn't exist
     if !std::path::Path::new(test_image).exists() {
         eprintln!(
-            "⚠️  Skipping benchmarks: test image not found at {}",
-            test_image
+            "⚠️  Skipping benchmarks: test image not found at {test_image}"
         );
         return;
     }
@@ -78,7 +77,7 @@ fn bench_image_sizes(c: &mut Criterion) {
 
     for (category, image_path) in test_images {
         if !std::path::Path::new(image_path).exists() {
-            eprintln!("⚠️  Skipping {}: image not found", category);
+            eprintln!("⚠️  Skipping {category}: image not found");
             continue;
         }
 

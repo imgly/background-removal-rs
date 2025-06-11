@@ -65,9 +65,9 @@ unsafe_code = "warn"
 unreachable_pub = "warn"
 unused_qualifications = "warn"
 
-# Documentation lints
-missing_docs = "warn"
-missing_debug_implementations = "warn"
+# Documentation lints  
+missing_docs = "allow"               # Temporarily allow while refactoring
+missing_debug_implementations = "allow"  # Temporarily allow while refactoring
 
 [workspace.lints.clippy]
 # Pedantic lints for high code quality

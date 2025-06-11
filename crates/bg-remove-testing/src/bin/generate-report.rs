@@ -106,7 +106,7 @@ impl ReportBuilder {
                     .await?;
                 session.add_result(result);
             } else {
-                eprintln!("⚠️  No test case found for output: {}", test_id);
+                eprintln!("⚠️  No test case found for output: {test_id}");
             }
         }
 
@@ -134,14 +134,14 @@ impl ReportBuilder {
         let output_path = PathBuf::from(output_dir);
 
         if !output_path.exists() {
-            return Err(format!("Output directory does not exist: {}", output_dir).into());
+            return Err(format!("Output directory does not exist: {output_dir}").into());
         }
 
         for entry in WalkDir::new(&output_path)
             .min_depth(1)
             .max_depth(2)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
         {
             let path = entry.path();

@@ -1,7 +1,7 @@
 //! Comprehensive benchmark for execution provider performance
 //!
 //! Tests execution providers:
-//! - CPU vs CoreML (Apple Silicon GPU)
+//! - CPU vs `CoreML` (Apple Silicon GPU)
 //! - Various image sizes and types
 //! - Uses the model precision compiled into the binary
 
@@ -121,7 +121,7 @@ impl BenchmarkSuite {
             let cpu_mean = cpu_avg.iter().sum::<f64>() / cpu_avg.len() as f64;
             let coreml_mean = coreml_avg.iter().sum::<f64>() / coreml_avg.len() as f64;
             let provider_diff = ((cpu_mean - coreml_mean) / cpu_mean) * 100.0;
-            println!("🍎 CoreML vs CPU: {:.1}% faster on average", provider_diff);
+            println!("🍎 CoreML vs CPU: {provider_diff:.1}% faster on average");
         }
     }
 }
@@ -150,10 +150,10 @@ fn create_test_image(width: u32, height: u32, pattern: &str) -> DynamicImage {
             let center_x = width / 2;
             let center_y = height / 2;
             for (x, y, pixel) in img.enumerate_pixels_mut() {
-                let dx = (x as i32 - center_x as i32).abs() as u32;
-                let dy = (y as i32 - center_y as i32).abs() as u32;
-                let dist = ((dx * dx + dy * dy) as f64).sqrt();
-                let face_radius = (width.min(height) / 3) as f64;
+                let dx = (x as i32 - center_x as i32).unsigned_abs();
+                let dy = (y as i32 - center_y as i32).unsigned_abs();
+                let dist = f64::from(dx * dx + dy * dy).sqrt();
+                let face_radius = f64::from(width.min(height) / 3);
 
                 if dist < face_radius {
                     // Face area - skin tone
@@ -227,7 +227,7 @@ async fn benchmark_configuration(
     let avg_time = times.iter().sum::<f64>() / times.len() as f64;
     let min_time = times.iter().fold(f64::INFINITY, |a, &b| a.min(b));
     let max_time = times.iter().fold(0.0f64, |a, &b| a.max(b));
-    let success_rate = successes as f64 / iterations as f64;
+    let success_rate = f64::from(successes) / iterations as f64;
 
     println!(
         "  ✅ Completed: {:.1}ms avg ({:.1}% success)",
@@ -276,8 +276,7 @@ async fn main() -> Result<()> {
 
     for (width, height, pattern) in test_cases {
         println!(
-            "📸 Generating test image: {}x{} ({})",
-            width, height, pattern
+            "📸 Generating test image: {width}x{height} ({pattern})"
         );
         let test_image = create_test_image(width, height, pattern);
 

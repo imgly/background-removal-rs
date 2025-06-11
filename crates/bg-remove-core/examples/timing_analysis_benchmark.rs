@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut timing_data = HashMap::new();
 
     for (provider_name, provider) in &execution_providers {
-        println!("\n🔧 Testing with {} execution provider", provider_name);
+        println!("\n🔧 Testing with {provider_name} execution provider");
         println!("{}", "─".repeat(50));
 
         let config = RemovalConfig::builder()
@@ -46,11 +46,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for (image_name, path) in &test_images {
             if !std::path::Path::new(path).exists() {
-                println!("⏭️  Skipping {}: File not found", image_name);
+                println!("⏭️  Skipping {image_name}: File not found");
                 continue;
             }
 
-            print!("🧪 {} with {}... ", image_name, provider_name);
+            print!("🧪 {image_name} with {provider_name}... ");
 
             let start = Instant::now();
             match remove_background(path, &config).await {
@@ -61,15 +61,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let breakdown = timings.breakdown_percentages();
 
                     // Store timing data for analysis
-                    let key = format!("{}_{}", provider_name, image_name);
+                    let key = format!("{provider_name}_{image_name}");
                     timing_data.insert(key.clone(), timings.clone());
 
-                    println!("✅ {}ms", total_time);
+                    println!("✅ {total_time}ms");
                     println!(
                         "   📏 Dimensions: {}x{} ({:.1}MP)",
                         dimensions.0,
                         dimensions.1,
-                        (dimensions.0 as f64 * dimensions.1 as f64) / 1_000_000.0
+                        (f64::from(dimensions.0) * f64::from(dimensions.1)) / 1_000_000.0
                     );
 
                     // Detailed breakdown
@@ -112,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 },
                 Err(e) => {
-                    println!("❌ Error: {}", e);
+                    println!("❌ Error: {e}");
                 },
             }
         }
@@ -124,8 +124,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("=======================");
 
         for (image_name, _) in &test_images {
-            let cpu_key = format!("CPU_{}", image_name);
-            let gpu_key = format!("Auto (GPU)_{}", image_name);
+            let cpu_key = format!("CPU_{image_name}");
+            let gpu_key = format!("Auto (GPU)_{image_name}");
 
             if let (Some(cpu_timings), Some(gpu_timings)) =
                 (timing_data.get(&cpu_key), timing_data.get(&gpu_key))
@@ -134,9 +134,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let gpu_total = gpu_timings.total_ms as f64;
                 let speedup = cpu_total / gpu_total;
 
-                println!("\n🏃 {} Performance:", image_name);
-                println!("   CPU Total:   {:.0}ms", cpu_total);
-                println!("   GPU Total:   {:.0}ms", gpu_total);
+                println!("\n🏃 {image_name} Performance:");
+                println!("   CPU Total:   {cpu_total:.0}ms");
+                println!("   GPU Total:   {gpu_total:.0}ms");
 
                 if speedup > 1.0 {
                     println!(
@@ -179,8 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if gpu_ms > 0 {
                         let phase_speedup = cpu_ms as f64 / gpu_ms as f64;
                         println!(
-                            "      {:>10} {:>5}ms {:>5}ms {:>8.2}x",
-                            phase_name, cpu_ms, gpu_ms, phase_speedup
+                            "      {phase_name:>10} {cpu_ms:>5}ms {gpu_ms:>5}ms {phase_speedup:>8.2}x"
                         );
                     }
                 }

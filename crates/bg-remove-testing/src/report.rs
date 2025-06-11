@@ -348,7 +348,7 @@ impl ReportGenerator {
         for result in &session.results {
             categories
                 .entry(result.test_case.category.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(result);
         }
 
@@ -492,7 +492,7 @@ impl ReportGenerator {
             self.create_placeholder_image(&output_path)?;
         }
 
-        Ok(format!("images/{}", output_filename))
+        Ok(format!("images/{output_filename}"))
     }
 
     /// Create a placeholder image for missing files
@@ -526,10 +526,10 @@ impl ReportGenerator {
 
         // Ensure images have the same dimensions
         let (width, height) = expected.dimensions();
-        let current_resized = if current.dimensions() != (width, height) {
-            current.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
-        } else {
+        let current_resized = if current.dimensions() == (width, height) {
             current
+        } else {
+            current.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
         };
 
         // Generate heatmap using the existing diff generation logic from ImageComparison
@@ -537,11 +537,11 @@ impl ReportGenerator {
             crate::ImageComparison::generate_enhanced_diff_heatmap(&current_resized, &expected)?;
 
         // Save the heatmap
-        let heatmap_filename = format!("heatmap_{}.png", test_id);
+        let heatmap_filename = format!("heatmap_{test_id}.png");
         let heatmap_path = self.output_dir.join("images").join(&heatmap_filename);
         diff_image.save(&heatmap_path)?;
 
-        Ok(format!("images/{}", heatmap_filename))
+        Ok(format!("images/{heatmap_filename}"))
     }
 
     /// Format metrics for display
@@ -595,7 +595,7 @@ MSE: {:.2}"#,
         for result in &session.results {
             let stats = category_stats
                 .entry(result.test_case.category.clone())
-                .or_insert_with(CategoryStats::default);
+                .or_default();
 
             stats.total += 1;
             if result.passed {
@@ -632,14 +632,14 @@ MSE: {:.2}"#,
             let avg_time = stats.total_time / stats.total as u64;
 
             metrics_html.push_str(&format!(
-                r#"                <tr>
+                r"                <tr>
                     <td><strong>{}</strong></td>
                     <td>{}</td>
                     <td>{:.1}%</td>
                     <td>{:.1}%</td>
                     <td>{:.3}</td>
                     <td>{}ms</td>
-                </tr>"#,
+                </tr>",
                 category, stats.total, pass_rate, avg_accuracy, avg_ssim, avg_time
             ));
         }

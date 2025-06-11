@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !std::path::Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gpu_time = start.elapsed().as_secs_f64();
     let gpu_stats = result_gpu.mask.statistics();
 
-    println!("   ⏱️  Time: {:.2}s", gpu_time);
+    println!("   ⏱️  Time: {gpu_time:.2}s");
     println!(
         "   🎯 Foreground: {:.1}%",
         gpu_stats.foreground_ratio * 100.0
@@ -36,11 +36,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Show what we know
     println!("\n📊 Performance Analysis:");
-    println!("   Current result: {:.2}s", gpu_time);
+    println!("   Current result: {gpu_time:.2}s");
     println!("   vs JavaScript: 2.83s baseline");
 
     let js_improvement = ((2.83 - gpu_time) / 2.83) * 100.0;
-    println!("   🚀 {:.1}% faster than JavaScript", js_improvement);
+    println!("   🚀 {js_improvement:.1}% faster than JavaScript");
 
     // Memory info
     println!("   📦 Model size: Automatically optimized");

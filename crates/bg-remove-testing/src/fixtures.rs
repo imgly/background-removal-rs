@@ -13,7 +13,7 @@ pub struct TestFixtures {
 }
 
 impl TestFixtures {
-    /// Create a new TestFixtures instance
+    /// Create a new `TestFixtures` instance
     pub fn new<P: AsRef<Path>>(assets_dir: P) -> Result<Self> {
         let assets_dir = assets_dir.as_ref().to_path_buf();
 
@@ -73,7 +73,7 @@ impl TestFixtures {
                 .min_depth(1)
                 .max_depth(1)
                 .into_iter()
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .filter(|e| e.file_type().is_file())
             {
                 let input_file = image_entry.file_name().to_string_lossy().to_string();
@@ -89,10 +89,10 @@ impl TestFixtures {
                 let test_case = TestCase {
                     id: format!("{}_{}", category_name, Self::get_file_stem(&input_file)),
                     category: category_name.clone(),
-                    input_file: format!("{}/{}", category_name, input_file),
+                    input_file: format!("{category_name}/{input_file}"),
                     expected_output_file: expected_file,
                     expected_accuracy: Self::default_accuracy_for_category(&category_name),
-                    description: format!("Test {} image: {}", category_name, input_file),
+                    description: format!("Test {category_name} image: {input_file}"),
                     tags: vec![category_name.clone()],
                     complexity_level: Self::infer_complexity(&category_name),
                 };
@@ -117,23 +117,22 @@ impl TestFixtures {
         let possible_extensions = ["png", "jpg", "jpeg"];
 
         for ext in &possible_extensions {
-            let expected_file = format!("{}.{}", stem, ext);
+            let expected_file = format!("{stem}.{ext}");
             let expected_path = category_dir.join(&expected_file);
 
             if expected_path.exists() {
-                return Ok(format!("{}/{}", category, expected_file));
+                return Ok(format!("{category}/{expected_file}"));
             }
         }
 
         Err(TestingError::ReferenceImageNotFound(format!(
-            "No expected output found for {} in category {}",
-            input_file, category
+            "No expected output found for {input_file} in category {category}"
         )))
     }
 
     /// Check if file is a supported image format
     fn is_image_file(filename: &str) -> bool {
-        let ext = filename.split('.').last().unwrap_or("").to_lowercase();
+        let ext = filename.split('.').next_back().unwrap_or("").to_lowercase();
         matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp")
     }
 
@@ -169,12 +168,12 @@ impl TestFixtures {
     }
 
     /// Get all test cases
-    pub fn get_test_cases(&self) -> &[TestCase] {
+    #[must_use] pub fn get_test_cases(&self) -> &[TestCase] {
         &self.test_cases
     }
 
     /// Get test cases for a specific category
-    pub fn get_test_cases_for_category(&self, category: &str) -> Vec<&TestCase> {
+    #[must_use] pub fn get_test_cases_for_category(&self, category: &str) -> Vec<&TestCase> {
         self.test_cases
             .iter()
             .filter(|tc| tc.category == category)
@@ -199,19 +198,19 @@ impl TestFixtures {
     }
 
     /// Get input image path
-    pub fn get_input_path(&self, test_case: &TestCase) -> PathBuf {
+    #[must_use] pub fn get_input_path(&self, test_case: &TestCase) -> PathBuf {
         self.assets_dir.join("input").join(&test_case.input_file)
     }
 
     /// Get expected output image path
-    pub fn get_expected_path(&self, test_case: &TestCase) -> PathBuf {
+    #[must_use] pub fn get_expected_path(&self, test_case: &TestCase) -> PathBuf {
         self.assets_dir
             .join("expected")
             .join(&test_case.expected_output_file)
     }
 
     /// Get all available categories
-    pub fn get_categories(&self) -> Vec<String> {
+    #[must_use] pub fn get_categories(&self) -> Vec<String> {
         let mut categories: Vec<String> = self
             .test_cases
             .iter()
@@ -223,7 +222,7 @@ impl TestFixtures {
     }
 
     /// Get test case by ID
-    pub fn get_test_case(&self, id: &str) -> Option<&TestCase> {
+    #[must_use] pub fn get_test_case(&self, id: &str) -> Option<&TestCase> {
         self.test_cases.iter().find(|tc| tc.id == id)
     }
 
@@ -263,7 +262,7 @@ impl TestFixtures {
     }
 
     /// Get summary of available test data
-    pub fn get_summary(&self) -> TestDataSummary {
+    #[must_use] pub fn get_summary(&self) -> TestDataSummary {
         let categories = self.get_categories();
         let mut category_counts = HashMap::new();
 
@@ -291,14 +290,14 @@ pub struct ValidationReport {
 }
 
 impl ValidationReport {
-    pub fn is_valid(&self) -> bool {
+    #[must_use] pub fn is_valid(&self) -> bool {
         self.missing_input_files.is_empty()
             && self.missing_expected_files.is_empty()
             && self.invalid_input_files.is_empty()
             && self.invalid_expected_files.is_empty()
     }
 
-    pub fn total_issues(&self) -> usize {
+    #[must_use] pub fn total_issues(&self) -> usize {
         self.missing_input_files.len()
             + self.missing_expected_files.len()
             + self.invalid_input_files.len()

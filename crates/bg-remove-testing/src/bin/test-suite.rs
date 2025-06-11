@@ -123,7 +123,9 @@ impl TestRunner {
         if args.verbose {
             println!("🔍 Validating test assets...");
             let validation_report = fixtures.validate_assets()?;
-            if !validation_report.is_valid() {
+            if validation_report.is_valid() {
+                println!("✅ All test assets validated");
+            } else {
                 eprintln!(
                     "⚠️  Found {} issues with test assets:",
                     validation_report.total_issues()
@@ -134,8 +136,6 @@ impl TestRunner {
                 for missing in &validation_report.missing_expected_files {
                     eprintln!("  Missing expected: {}", missing.display());
                 }
-            } else {
-                println!("✅ All test assets validated");
             }
             println!();
         }
@@ -357,8 +357,7 @@ impl TestRunner {
             let category_rate = (category_passed as f64 / category_total as f64) * 100.0;
 
             println!(
-                "  {}: {}/{} ({:.1}%)",
-                category, category_passed, category_total, category_rate
+                "  {category}: {category_passed}/{category_total} ({category_rate:.1}%)"
             );
         }
         println!();

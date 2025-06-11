@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_image = "crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
 
     if !Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (name, provider) in &providers {
-        println!("\n🔧 Testing {} execution provider...", name);
+        println!("\n🔧 Testing {name} execution provider...");
 
         let config = RemovalConfig::builder()
             .execution_provider(*provider)
@@ -46,13 +46,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
 
                 // Save output with provider name
-                let provider_name = format!("{:?}", provider).to_lowercase();
-                let output_path = format!("provider_test_{}.png", provider_name);
+                let provider_name = format!("{provider:?}").to_lowercase();
+                let output_path = format!("provider_test_{provider_name}.png");
                 result.save_png(&output_path)?;
-                println!("   💾 Saved: {}", output_path);
+                println!("   💾 Saved: {output_path}");
             },
             Err(e) => {
-                println!("   ❌ Failed: {}", e);
+                println!("   ❌ Failed: {e}");
                 match provider {
                     ExecutionProvider::Cuda => {
                         println!("   💡 CUDA may not be available on this system");

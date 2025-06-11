@@ -13,7 +13,7 @@ pub struct ModelInfo {
 }
 
 /// Model provider trait for loading models
-pub trait ModelProvider {
+pub trait ModelProvider: std::fmt::Debug {
     /// Load model data as bytes (uses embedded model based on compile-time feature)
     fn load_model_data(&self) -> Result<Vec<u8>>;
 
@@ -22,6 +22,7 @@ pub trait ModelProvider {
 }
 
 /// Embedded model provider (models compiled into binary)
+#[derive(Debug)]
 pub struct EmbeddedModelProvider;
 
 impl ModelProvider for EmbeddedModelProvider {
@@ -34,7 +35,7 @@ impl ModelProvider for EmbeddedModelProvider {
         #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         {
             // Load embedded FP16 ISNet model (only when FP32 not enabled)
-            return Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec());
+            Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
         }
         #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
         {
@@ -57,13 +58,13 @@ impl ModelProvider for EmbeddedModelProvider {
         #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
         {
             // FP16 model info (only when FP32 not enabled)
-            return Ok(ModelInfo {
+            Ok(ModelInfo {
                 name: "ISNet-FP16".to_string(),
                 precision: "fp16".to_string(),
                 size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
                 input_shape: (1, 3, 1024, 1024),
                 output_shape: (1, 1, 1024, 1024),
-            });
+            })
         }
         #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
         {
@@ -73,13 +74,14 @@ impl ModelProvider for EmbeddedModelProvider {
 }
 
 /// Model manager for handling different model sources
+#[derive(Debug)]
 pub struct ModelManager {
     provider: Box<dyn ModelProvider>,
 }
 
 impl ModelManager {
     /// Create a new model manager with embedded models
-    pub fn with_embedded() -> Self {
+    #[must_use] pub fn with_embedded() -> Self {
         Self {
             provider: Box::new(EmbeddedModelProvider),
         }

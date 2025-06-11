@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !Path::new(test_image).exists() {
-        println!("❌ Test image not found: {}", test_image);
+        println!("❌ Test image not found: {test_image}");
         return Ok(());
     }
 
@@ -36,15 +36,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let min_val = *mask_data.iter().min().unwrap();
     let max_val = *mask_data.iter().max().unwrap();
-    println!("   Range: {} to {}", min_val, max_val);
+    println!("   Range: {min_val} to {max_val}");
 
     // Show most common values
     let mut by_count: Vec<_> = value_histogram.iter().collect();
     by_count.sort_by_key(|&(_, count)| std::cmp::Reverse(*count));
     println!("   Most common values:");
     for (value, count) in by_count.iter().take(5) {
-        let percentage = (**count as f64) / (mask_data.len() as f64) * 100.0;
-        println!("     Value {}: {:.1}%", value, percentage);
+        let percentage = f64::from(**count) / (mask_data.len() as f64) * 100.0;
+        println!("     Value {value}: {percentage:.1}%");
     }
 
     // Check transparency distribution
