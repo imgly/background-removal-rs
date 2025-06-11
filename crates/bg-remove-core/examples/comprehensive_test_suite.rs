@@ -126,6 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[derive(Debug)]
 struct QualityMetrics {
+    #[allow(dead_code)] // Reserved for performance analysis
     processing_time: u64,
     foreground_ratio: f32,
     value_range: (u8, u8),

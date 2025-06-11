@@ -55,6 +55,40 @@ strip = true
 opt-level = 1
 debug = true
 
+# Workspace-level linting configuration for zero-warning policy
+[workspace.lints.rust]
+# Deny warnings to enforce zero-warning policy
+warnings = "deny"
+
+# Additional safety and correctness lints
+unsafe_code = "warn"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+# Documentation lints
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+# Pedantic lints for high code quality
+pedantic = "warn"
+
+# Specific safety and correctness lints
+indexing_slicing = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+unimplemented = "warn"
+todo = "warn"
+
+# Performance lints
+inefficient_to_string = "warn"
+large_types_passed_by_value = "warn"
+
+# Style consistency lints
+module_name_repetitions = "allow"  # Common in focused libraries
+similar_names = "allow"            # Allow similar parameter names
+
 # Features for model embedding  
 [workspace.metadata.features]
 default = ["fp16-model"]

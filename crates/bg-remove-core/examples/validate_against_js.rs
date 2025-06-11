@@ -1,6 +1,6 @@
 //! Validate Rust outputs against JavaScript reference results
 
-use bg_remove_core::{RemovalConfig, remove_background, segment_foreground};
+use bg_remove_core::{RemovalConfig, remove_background};
 use std::path::Path;
 use std::time::Instant;
 use serde_json;
@@ -21,6 +21,7 @@ struct JavaScriptResults {
 #[derive(Debug, serde::Deserialize)]
 struct JavaScriptCategory {
     processed: u32,
+    #[allow(dead_code)] // May be used for detailed reporting
     failed: u32,
     avg_processing_time_ms: f64,
     images: std::collections::HashMap<String, JavaScriptImageResult>,
@@ -30,15 +31,21 @@ struct JavaScriptCategory {
 struct JavaScriptImageResult {
     success: bool,
     processing_time_ms: f64,
+    #[allow(dead_code)] // Reserved for memory analysis
     memory_usage_mb: f64,
+    #[allow(dead_code)] // Reserved for output validation
     outputs: JavaScriptOutputs,
 }
 
 #[derive(Debug, serde::Deserialize)]
 struct JavaScriptOutputs {
+    #[allow(dead_code)] // Reserved for format comparison
     png: String,
+    #[allow(dead_code)] // Reserved for format comparison
     jpeg: String,
+    #[allow(dead_code)] // Reserved for format comparison
     webp: String,
+    #[allow(dead_code)] // Reserved for format comparison
     mask: String,
 }
 

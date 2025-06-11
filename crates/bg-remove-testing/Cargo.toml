@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Testing utilities and tools for the background removal library"
 
+# Inherit workspace lints for zero-warning policy
+[lints]
+workspace = true
+
 [[bin]]
 name = "test-suite"
 path = "src/bin/test-suite.rs"

@@ -2,7 +2,7 @@
 
 use bg_remove_core::{RemovalConfig, remove_background};
 use std::path::Path;
-use image::{DynamicImage, GrayImage};
+use image;
 
 #[derive(Debug)]
 struct ComparisonMetrics {

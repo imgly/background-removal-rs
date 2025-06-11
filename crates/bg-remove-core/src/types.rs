@@ -562,7 +562,18 @@ mod tests {
     #[test]
     fn test_processing_metadata() {
         let mut metadata = ProcessingMetadata::new("isnet".to_string());
-        metadata.set_timings(100, 50, 25);
+        
+        // Use new detailed timing method instead of deprecated set_timings
+        let timings = ProcessingTimings {
+            model_load_ms: 0,
+            image_decode_ms: 0,
+            preprocessing_ms: 50,
+            inference_ms: 100,
+            postprocessing_ms: 25,
+            image_encode_ms: None,
+            total_ms: 175,
+        };
+        metadata.set_detailed_timings(timings);
         
         assert_eq!(metadata.inference_time_ms, Some(100));
         assert_eq!(metadata.preprocessing_time_ms, Some(50));

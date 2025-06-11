@@ -11,6 +11,10 @@ categories.workspace = true
 rust-version.workspace = true
 description = "Command-line interface for background removal using ISNet models"
 
+# Inherit workspace lints for zero-warning policy
+[lints]
+workspace = true
+
 [[bin]]
 name = "bg-remove"
 path = "src/main.rs"

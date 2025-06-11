@@ -109,7 +109,7 @@ fn bench_timing_breakdown(c: &mut Criterion) {
         group.bench_function(name, |b| {
             b.iter_batched(
                 || {
-                    let mut processor = ImageProcessor::new(&config).unwrap();
+                    let processor = ImageProcessor::new(&config).unwrap();
                     (processor, test_image.clone())
                 },
                 |(mut processor, img)| {
@@ -119,11 +119,13 @@ fn bench_timing_breakdown(c: &mut Criterion) {
                     });
                     
                     // Extract timing breakdown for analysis
+                    #[cfg(feature = "benchmark-details")]
                     let timings = result.timings();
-                    let breakdown = timings.breakdown_percentages();
                     
                     // Print detailed breakdown periodically (not in hot path)
-                    if cfg!(feature = "benchmark-details") {
+                    #[cfg(feature = "benchmark-details")]
+                    {
+                        let breakdown = timings.breakdown_percentages();
                         println!("\n📊 Timing Breakdown for {}:", name);
                         println!("   • Total: {}ms", timings.total_ms);
                         println!("   • Decode: {}ms ({:.1}%)", timings.image_decode_ms, breakdown.decode_pct);

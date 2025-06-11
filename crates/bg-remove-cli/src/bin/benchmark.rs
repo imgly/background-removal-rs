@@ -24,6 +24,7 @@ struct BenchmarkResult {
     avg_time_ms: f64,
     min_time_ms: f64,
     max_time_ms: f64,
+    #[allow(dead_code)] // Reserved for future detailed reporting
     iterations: usize,
     success_rate: f64,
 }

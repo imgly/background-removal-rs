@@ -1,0 +1,144 @@
+name: Zero-Warning Policy
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  # Enable faster incremental builds
+  CARGO_INCREMENTAL: 1
+
+jobs:
+  zero-warnings:
+    name: Zero-Warning Policy Enforcement
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, beta]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+
+    - name: Setup Rust cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.rust }}
+
+    - name: Check workspace compilation (dev)
+      run: cargo check --workspace --all-targets
+
+    - name: Check workspace compilation (release)
+      run: cargo check --workspace --all-targets --release
+
+    - name: Run tests
+      run: cargo test --workspace
+
+    - name: Check code formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run Clippy (zero warnings)
+      run: cargo clippy --workspace --all-targets -- -D warnings
+
+    - name: Check documentation
+      run: cargo doc --workspace --no-deps --document-private-items
+
+    - name: Feature matrix testing
+      run: |
+        echo "Testing FP16 model (default)..."
+        cargo check --workspace --features fp16-model
+        echo "Testing FP32 model..."
+        cargo check --workspace --features fp32-model
+
+  cross-platform:
+    name: Cross-Platform Zero-Warning Check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Setup Rust cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Platform-specific compilation check
+      run: cargo check --workspace
+
+    - name: Platform-specific Clippy check
+      run: cargo clippy --workspace -- -D warnings
+
+  audit:
+    name: Security and Quality Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+    - name: Check for unused dependencies
+      run: |
+        cargo install cargo-udeps --locked
+        cargo udeps --workspace
+
+  performance-regression:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for comparison
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Setup Rust cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Run benchmarks (baseline)
+      run: |
+        git checkout ${{ github.event.pull_request.base.sha }}
+        cargo bench --workspace > baseline-bench.txt 2>&1 || true
+
+    - name: Run benchmarks (PR)
+      run: |
+        git checkout ${{ github.event.pull_request.head.sha }}
+        cargo bench --workspace > pr-bench.txt 2>&1 || true
+
+    - name: Compare benchmarks
+      run: |
+        echo "## Benchmark Comparison" >> $GITHUB_STEP_SUMMARY
+        echo "### Baseline (target branch):" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat baseline-bench.txt | tail -20 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "### PR Changes:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat pr-bench.txt | tail -20 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

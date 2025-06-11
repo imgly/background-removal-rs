@@ -11,6 +11,10 @@ categories.workspace = true
 rust-version.workspace = true
 description = "Core background removal library using ONNX Runtime and ISNet models"
 
+# Inherit workspace lints for zero-warning policy
+[lints]
+workspace = true
+
 [features]
 # Default: FP16 model (balanced performance, ~90MB binary)
 default = ["fp16-model"]
@@ -22,6 +26,9 @@ fp32-model = []           # Embed FP32 model (higher precision, ~175MB binary)
 # Legacy compatibility
 isnet-fp16 = ["fp16-model"]
 isnet-standard = ["fp32-model"]
+
+# Development features
+benchmark-details = []    # Enable detailed benchmark output
 
 [dependencies]
 # Core dependencies

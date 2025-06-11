@@ -3,7 +3,7 @@
 use bg_remove_core::{RemovalConfig, remove_background};
 use bg_remove_core::config::OutputFormat;
 use std::path::Path;
-use image::{RgbaImage, DynamicImage};
+use image::DynamicImage;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
