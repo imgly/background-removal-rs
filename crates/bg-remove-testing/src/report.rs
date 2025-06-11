@@ -365,6 +365,7 @@ impl ReportGenerator {
                         <th>Original Image</th>
                         <th>Expected Output</th>
                         <th>Current Output</th>
+                        <th>Diff Heatmap</th>
                         <th>Status</th>
                         <th>Metrics</th>
                     </tr>
@@ -389,11 +390,27 @@ impl ReportGenerator {
         let status_class = if result.passed { "status-passed" } else { "status-failed" };
         let status_text = if result.passed { "✅ PASSED" } else { "❌ FAILED" };
 
+        // Resolve full paths for input and expected images
+        let assets_dir = Path::new("crates/bg-remove-testing/assets");
+        let input_path = assets_dir.join("input").join(&result.test_case.input_file);
+        let expected_path = assets_dir.join("expected").join(&result.test_case.expected_output_file);
+        
         // Copy images to output directory and get relative paths
-        let original_image_path = self.copy_image_to_output(&result.test_case.input_file, "original")?;
-        let expected_image_path = self.copy_image_to_output(&result.test_case.expected_output_file, "expected")?;
+        let original_image_path = self.copy_image_to_output(&input_path.to_string_lossy(), "original")?;
+        let expected_image_path = self.copy_image_to_output(&expected_path.to_string_lossy(), "expected")?;
         let current_image_path = if let Some(ref output_path) = result.output_path {
             self.copy_image_to_output(&output_path.to_string_lossy(), "current")?
+        } else {
+            "images/placeholder.png".to_string()
+        };
+        
+        // Generate diff heatmap
+        let diff_heatmap_path = if let Some(ref output_path) = result.output_path {
+            if expected_path.exists() && output_path.exists() {
+                self.generate_diff_heatmap(&expected_path, output_path, &result.test_case.id)?
+            } else {
+                "images/placeholder.png".to_string()
+            }
         } else {
             "images/placeholder.png".to_string()
         };
@@ -418,6 +435,10 @@ impl ReportGenerator {
                             <img src="{}" alt="Current" class="test-image" onclick="openModal(this.src)">
                             <br><small>Current</small>
                         </td>
+                        <td class="image-cell">
+                            <img src="{}" alt="Diff Heatmap" class="test-image" onclick="openModal(this.src)">
+                            <br><small>Diff Heatmap</small>
+                        </td>
                         <td class="{}">
                             {}<br>
                             <small>{}ms</small>
@@ -431,6 +452,7 @@ impl ReportGenerator {
             original_image_path,
             expected_image_path,
             current_image_path,
+            diff_heatmap_path,
             status_class,
             status_text,
             result.processing_time.as_millis(),
@@ -473,23 +495,55 @@ impl ReportGenerator {
         Ok(())
     }
 
+    /// Generate a diff heatmap image showing differences between expected and current output
+    fn generate_diff_heatmap(&self, expected_path: &Path, current_path: &Path, test_id: &str) -> Result<String> {
+        use image::GenericImageView;
+        
+        // Load images
+        let expected = image::open(expected_path)?;
+        let current = image::open(current_path)?;
+        
+        // Ensure images have the same dimensions
+        let (width, height) = expected.dimensions();
+        let current_resized = if current.dimensions() != (width, height) {
+            current.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+        } else {
+            current
+        };
+        
+        // Generate heatmap using the existing diff generation logic from ImageComparison
+        let diff_image = crate::ImageComparison::generate_enhanced_diff_heatmap(&current_resized, &expected)?;
+        
+        // Save the heatmap
+        let heatmap_filename = format!("heatmap_{}.png", test_id);
+        let heatmap_path = self.output_dir.join("images").join(&heatmap_filename);
+        diff_image.save(&heatmap_path)?;
+        
+        Ok(format!("images/{}", heatmap_filename))
+    }
+
     /// Format metrics for display
     fn format_metrics(&self, metrics: &crate::TestMetrics) -> String {
         let pixel_class = self.get_metric_class(metrics.pixel_accuracy, 0.9, 0.8);
         let ssim_class = self.get_metric_class(metrics.ssim, 0.85, 0.7);
         let edge_class = self.get_metric_class(metrics.edge_accuracy, 0.85, 0.7);
 
+        let visual_class = self.get_metric_class(metrics.visual_quality_score, 0.8, 0.6);
+        
         format!(
-            r#"Pixel: <span class="{}">{:.1}%</span><br>
+            r#"Visual: <span class="{}">{:.1}%</span><br>
 SSIM: <span class="{}">{:.3}</span><br>
 Edge: <span class="{}">{:.1}%</span><br>
+Pixel: <span class="{}">{:.1}%</span><br>
 MSE: {:.2}"#,
-            pixel_class,
-            metrics.pixel_accuracy * 100.0,
+            visual_class,
+            metrics.visual_quality_score * 100.0,
             ssim_class,
             metrics.ssim,
             edge_class,
             metrics.edge_accuracy * 100.0,
+            pixel_class,
+            metrics.pixel_accuracy * 100.0,
             metrics.mean_squared_error
         )
     }

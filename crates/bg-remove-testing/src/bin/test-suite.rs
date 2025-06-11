@@ -1,14 +1,13 @@
 //! Main test suite runner for background removal testing
 
 use bg_remove_testing::{
-    TestFixtures, TestSession, TestResult, TestMetrics, ImageComparison, ReportGenerator,
+    TestFixtures, TestSession, TestResult, ImageComparison, ReportGenerator,
     ValidationThresholds, TestingError,
 };
 use bg_remove_core::{process_image, RemovalConfig, ExecutionProvider};
 use clap::{Parser, ValueEnum};
-use image::DynamicImage;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 #[derive(Parser)]
@@ -272,14 +271,14 @@ impl TestRunner {
         )?;
         
         // Determine if test passed
-        let passed = metrics.pixel_accuracy >= test_case.expected_accuracy
+        let passed = metrics.visual_quality_score >= test_case.expected_accuracy
             && metrics.ssim >= self.thresholds.ssim
             && metrics.edge_accuracy >= self.thresholds.edge_accuracy;
         
         // Calculate average processing time
         let avg_processing_time = processing_times.iter().sum::<std::time::Duration>() / processing_times.len() as u32;
         
-        let total_time = start_time.elapsed();
+        let _total_time = start_time.elapsed();
         
         Ok(TestResult {
             test_case: test_case.clone(),

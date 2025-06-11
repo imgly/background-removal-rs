@@ -1,6 +1,6 @@
 //! Generate HTML reports from test results
 
-use bg_remove_testing::{ReportGenerator, TestSession, TestResult, TestCase, TestMetrics, TestingError};
+use bg_remove_testing::{ReportGenerator, TestSession, TestResult, TestCase, TestMetrics};
 use clap::Parser;
 use std::path::PathBuf;
 use walkdir::WalkDir;
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     
     let report_generator = ReportBuilder::new(args)?;
-    let session = report_generator.build_session_from_outputs().await?;
+    let _session = report_generator.build_session_from_outputs().await?;
     
     println!("✅ Report generated successfully!");
     println!("📄 Open: {}/comparison_report.html", report_generator.output_dir.display());
@@ -189,7 +189,7 @@ impl ReportBuilder {
         let expected_path = PathBuf::from(&self.args.expected_outputs)
             .join(&test_case.expected_output_file);
         
-        let input_path = PathBuf::from(&self.args.input_dir)
+        let _input_path = PathBuf::from(&self.args.input_dir)
             .join(&test_case.input_file);
         
         // Check if expected output exists
@@ -205,6 +205,7 @@ impl ReportBuilder {
                 pixel_accuracy: 0.0,
                 ssim: 0.0,
                 edge_accuracy: 0.0,
+                visual_quality_score: 0.0,
                 mean_squared_error: f64::MAX,
             };
             (metrics, false)
