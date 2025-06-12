@@ -249,6 +249,12 @@ async fn main() -> Result<()> {
     };
     
     info!("Starting background removal CLI");
+    if cli.debug {
+        info!("🐛 DEBUG MODE: Using mock backend for testing");
+    }
+    if cli.verbose {
+        info!("📋 VERBOSE MODE: Detailed logging enabled");
+    }
     info!("Input: {input}");
     info!("Model: {} ({})", model_arg, match &model_spec.source {
         ModelSource::Embedded(name) => format!("embedded: {}", name),
@@ -310,6 +316,17 @@ async fn main() -> Result<()> {
         .build()
         .context("Invalid configuration")?;
 
+    if cli.verbose {
+        log::debug!("Configuration: execution_provider={:?}, output_format={:?}, debug={}", 
+            config.execution_provider, config.output_format, config.debug);
+        log::debug!("Threading: intra_threads={}, inter_threads={}", 
+            config.intra_threads, config.inter_threads);
+        log::debug!("Background color: RGB({}, {}, {})", 
+            config.background_color.r, config.background_color.g, config.background_color.b);
+        log::debug!("Quality settings: jpeg={}, webp={}", 
+            config.jpeg_quality, config.webp_quality);
+    }
+
     // Process input
     let start_time = Instant::now();
     let processed_count = if input == "-" {
@@ -345,6 +362,11 @@ fn init_logging(verbose: bool) {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
         .format_timestamp_secs()
         .init();
+    
+    if verbose {
+        log::debug!("Verbose logging enabled - showing DEBUG level messages");
+        log::debug!("Log level: {}", log_level);
+    }
 }
 
 /// Read image data from stdin
