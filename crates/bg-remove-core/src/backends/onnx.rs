@@ -3,7 +3,7 @@
 use crate::config::{ExecutionProvider, RemovalConfig};
 use crate::error::Result;
 use crate::inference::InferenceBackend;
-use crate::models::ModelManager;
+use crate::models::{ModelManager, EMBEDDED_INPUT_NAME, EMBEDDED_OUTPUT_NAME, EMBEDDED_INPUT_SHAPE, EMBEDDED_OUTPUT_SHAPE};
 use log;
 use ndarray::Array4;
 use ort::execution_providers::{
@@ -182,12 +182,12 @@ impl InferenceBackend for OnnxBackend {
             ))
         })?;
 
-        // Run inference - ISNet models typically use "input" as the input name
-        let outputs = session.run(ort::inputs!["input" => input_value])
-            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name. Original error: {e}")))?;
+        // Run inference using generated input tensor name
+        let outputs = session.run(ort::inputs![EMBEDDED_INPUT_NAME => input_value])
+            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{}'. Original error: {e}", EMBEDDED_INPUT_NAME)))?;
 
-        // Extract output tensor - try common output names
-        let output_tensor = if let Ok(output) = outputs["output"].try_extract_array::<f32>() {
+        // Extract output tensor using generated output tensor name
+        let output_tensor = if let Ok(output) = outputs[EMBEDDED_OUTPUT_NAME].try_extract_array::<f32>() {
             output
         } else if let Ok(output) = outputs[0].try_extract_array::<f32>() {
             // Try first output if named access fails
@@ -228,12 +228,12 @@ impl InferenceBackend for OnnxBackend {
     }
 
     fn input_shape(&self) -> (usize, usize, usize, usize) {
-        // Standard ISNet input shape: NCHW (1, 3, 1024, 1024)
-        (1, 3, 1024, 1024)
+        // Use generated input shape from model.json
+        (EMBEDDED_INPUT_SHAPE[0], EMBEDDED_INPUT_SHAPE[1], EMBEDDED_INPUT_SHAPE[2], EMBEDDED_INPUT_SHAPE[3])
     }
 
     fn output_shape(&self) -> (usize, usize, usize, usize) {
-        // Standard ISNet output shape: NCHW (1, 1, 1024, 1024)
-        (1, 1, 1024, 1024)
+        // Use generated output shape from model.json
+        (EMBEDDED_OUTPUT_SHAPE[0], EMBEDDED_OUTPUT_SHAPE[1], EMBEDDED_OUTPUT_SHAPE[2], EMBEDDED_OUTPUT_SHAPE[3])
     }
 }

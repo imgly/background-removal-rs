@@ -64,5 +64,4 @@ name = "simple_bench"
 harness = false
 
 [build-dependencies]
-# For embedding model files during build (placeholder for now)
-# std-fs = "0.1"
+serde_json = { workspace = true }

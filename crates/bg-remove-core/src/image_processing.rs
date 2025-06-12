@@ -5,6 +5,7 @@ use crate::{
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
     inference::InferenceBackend,
+    models::{EMBEDDED_TARGET_SIZE, EMBEDDED_NORMALIZATION_MEAN, EMBEDDED_NORMALIZATION_STD},
     types::{ProcessingMetadata, RemovalResult, SegmentationMask},
 };
 use chrono::Utc;
@@ -257,7 +258,7 @@ impl ImageProcessor {
 
     /// Preprocess image for model inference with aspect ratio preservation
     fn preprocess_image(&self, image: &DynamicImage) -> Result<(DynamicImage, Array4<f32>)> {
-        let target_size = 1024u32;
+        let target_size = EMBEDDED_TARGET_SIZE[0];
 
         // Convert to RGB
         let rgb_image = image.to_rgb8();
@@ -279,7 +280,7 @@ impl ImageProcessor {
             image::imageops::FilterType::Triangle,
         );
 
-        // Create a 1024x1024 canvas with configurable padding color
+        // Create a target_size x target_size canvas with configurable padding color
         let padding = self.options.padding_color;
         let mut canvas = ImageBuffer::from_pixel(
             target_size,
@@ -305,11 +306,10 @@ impl ImageProcessor {
 
         for (y, row) in canvas.rows().enumerate() {
             for (x, pixel) in row.enumerate() {
-                // Normalization: (pixel - mean) / std
-                // Mean: [128, 128, 128], Std: [256, 256, 256]
-                tensor[[0, 0, y, x]] = (f32::from(pixel[0]) - 128.0) / 256.0; // R
-                tensor[[0, 1, y, x]] = (f32::from(pixel[1]) - 128.0) / 256.0; // G
-                tensor[[0, 2, y, x]] = (f32::from(pixel[2]) - 128.0) / 256.0; // B
+                // Normalization using generated constants from model.json
+                tensor[[0, 0, y, x]] = (f32::from(pixel[0]) - EMBEDDED_NORMALIZATION_MEAN[0]) / EMBEDDED_NORMALIZATION_STD[0]; // R
+                tensor[[0, 1, y, x]] = (f32::from(pixel[1]) - EMBEDDED_NORMALIZATION_MEAN[1]) / EMBEDDED_NORMALIZATION_STD[1]; // G
+                tensor[[0, 2, y, x]] = (f32::from(pixel[2]) - EMBEDDED_NORMALIZATION_MEAN[2]) / EMBEDDED_NORMALIZATION_STD[2]; // B
             }
         }
 
@@ -332,7 +332,7 @@ impl ImageProcessor {
             ));
         }
 
-        let model_size = 1024u32;
+        let model_size = EMBEDDED_TARGET_SIZE[0];
         let (orig_width, orig_height) = original_size;
 
         // Calculate the scale and padding used during preprocessing

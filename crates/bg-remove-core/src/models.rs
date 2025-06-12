@@ -2,6 +2,9 @@
 
 use crate::error::Result;
 
+// Include generated model configuration constants
+include!(concat!(env!("OUT_DIR"), "/model_config.rs"));
+
 /// Model information and metadata
 #[derive(Debug, Clone)]
 pub struct ModelInfo {
@@ -27,49 +30,29 @@ pub struct EmbeddedModelProvider;
 
 impl ModelProvider for EmbeddedModelProvider {
     fn load_model_data(&self) -> Result<Vec<u8>> {
-        #[cfg(feature = "fp32-model")]
-        {
-            // Load embedded FP32 ISNet model (takes precedence when both features enabled)
-            return Ok(include_bytes!("../../../models/isnet_fp32.onnx").to_vec());
-        }
-        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
-        {
-            // Load embedded FP16 ISNet model (only when FP32 not enabled)
-            Ok(include_bytes!("../../../models/isnet_fp16.onnx").to_vec())
-        }
-        #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
-        {
-            compile_error!("Either fp32-model or fp16-model feature must be enabled")
-        }
+        // Load model using generated function
+        Ok(load_embedded_model())
     }
 
     fn get_model_info(&self) -> Result<ModelInfo> {
-        #[cfg(feature = "fp32-model")]
-        {
-            // FP32 model info (takes precedence when both features enabled)
-            return Ok(ModelInfo {
-                name: "ISNet-FP32".to_string(),
-                precision: "fp32".to_string(),
-                size_bytes: 168 * 1024 * 1024, // ~168MB (actual size)
-                input_shape: (1, 3, 1024, 1024),
-                output_shape: (1, 1, 1024, 1024),
-            });
-        }
-        #[cfg(all(feature = "fp16-model", not(feature = "fp32-model")))]
-        {
-            // FP16 model info (only when FP32 not enabled)
-            Ok(ModelInfo {
-                name: "ISNet-FP16".to_string(),
-                precision: "fp16".to_string(),
-                size_bytes: 84 * 1024 * 1024, // ~84MB (actual size)
-                input_shape: (1, 3, 1024, 1024),
-                output_shape: (1, 1, 1024, 1024),
-            })
-        }
-        #[cfg(not(any(feature = "fp32-model", feature = "fp16-model")))]
-        {
-            compile_error!("Either fp32-model or fp16-model feature must be enabled")
-        }
+        // Use generated constants from model.json
+        Ok(ModelInfo {
+            name: format!("{}-{}", EMBEDDED_MODEL_NAME, EMBEDDED_MODEL_VARIANT.to_uppercase()),
+            precision: EMBEDDED_MODEL_VARIANT.to_string(),
+            size_bytes: 0, // TODO: Could be calculated from file size at build time
+            input_shape: (
+                EMBEDDED_INPUT_SHAPE[0],
+                EMBEDDED_INPUT_SHAPE[1], 
+                EMBEDDED_INPUT_SHAPE[2],
+                EMBEDDED_INPUT_SHAPE[3]
+            ),
+            output_shape: (
+                EMBEDDED_OUTPUT_SHAPE[0],
+                EMBEDDED_OUTPUT_SHAPE[1],
+                EMBEDDED_OUTPUT_SHAPE[2], 
+                EMBEDDED_OUTPUT_SHAPE[3]
+            ),
+        })
     }
 }
 
