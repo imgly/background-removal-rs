@@ -265,36 +265,11 @@ async fn main() -> Result<()> {
     let final_variant = cli.variant.clone()
         .or_else(|| model_spec.variant.clone());
     
-    // Create final model spec with resolved variant
-    let final_model_spec = ModelSpec {
-        source: model_spec.source.clone(),
-        variant: final_variant.clone(),
-    };
-    
-    // Validate model by attempting to create ModelManager
-    let _model_manager = ModelManager::from_spec(&final_model_spec)
-        .context("Failed to load specified model")?;
-    
-    match &final_model_spec.source {
-        ModelSource::Embedded(name) => {
-            info!("Using embedded model: {}", name);
-            if let Some(variant) = &final_variant {
-                info!("Using variant: {}", variant);
-            }
-        },
-        ModelSource::External(path) => {
-            info!("Using external model from: {}", path.display());
-            if let Some(variant) = &final_variant {
-                info!("Using variant: {}", variant);
-            }
-        },
-    }
-
     // Parse background color
     let background_color =
         parse_color(&cli.background_color).context("Invalid background color format")?;
 
-    // Build configuration
+    // Build configuration first so we can use it for model optimization
     let config = RemovalConfig::builder()
         .execution_provider(cli.execution_provider.into())
         .output_format(cli.format.into())
@@ -315,6 +290,31 @@ async fn main() -> Result<()> {
         })
         .build()
         .context("Invalid configuration")?;
+
+    // Create final model spec with resolved variant
+    let final_model_spec = ModelSpec {
+        source: model_spec.source.clone(),
+        variant: final_variant.clone(),
+    };
+    
+    // Validate model by attempting to create ModelManager with execution provider optimization
+    let _model_manager = ModelManager::from_spec_with_provider(&final_model_spec, Some(&config.execution_provider))
+        .context("Failed to load specified model")?;
+    
+    match &final_model_spec.source {
+        ModelSource::Embedded(name) => {
+            info!("Using embedded model: {}", name);
+            if let Some(variant) = &final_variant {
+                info!("Using variant: {}", variant);
+            }
+        },
+        ModelSource::External(path) => {
+            info!("Using external model from: {}", path.display());
+            if let Some(variant) = &final_variant {
+                info!("Using variant: {}", variant);
+            }
+        },
+    }
 
     if cli.verbose {
         log::debug!("Configuration: execution_provider={:?}, output_format={:?}, debug={}", 

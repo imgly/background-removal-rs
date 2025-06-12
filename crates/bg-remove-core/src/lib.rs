@@ -81,7 +81,7 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     config: &RemovalConfig,
     model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
-    let model_manager = ModelManager::from_spec(model_spec)?;
+    let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))?;
     let mut processor = ImageProcessor::with_model_manager(config, model_manager)?;
     processor.remove_background(input_path).await
 }

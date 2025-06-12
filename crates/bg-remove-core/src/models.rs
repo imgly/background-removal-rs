@@ -138,6 +138,15 @@ pub struct ExternalModelProvider {
 impl ExternalModelProvider {
     /// Create provider for external model from folder path
     pub fn new<P: AsRef<Path>>(model_path: P, variant: Option<String>) -> Result<Self> {
+        Self::new_with_provider(model_path, variant, None)
+    }
+    
+    /// Create provider for external model from folder path with execution provider optimization
+    pub fn new_with_provider<P: AsRef<Path>>(
+        model_path: P, 
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>
+    ) -> Result<Self> {
         let model_path = model_path.as_ref().to_path_buf();
         
         // Validate path exists and is directory
@@ -174,8 +183,8 @@ impl ExternalModelProvider {
         // Validate required fields
         Self::validate_model_config(&model_config)?;
         
-        // Determine variant to use
-        let resolved_variant = Self::resolve_variant(&model_config, variant)?;
+        // Determine variant to use with execution provider optimization
+        let resolved_variant = Self::resolve_variant_for_provider(&model_config, variant, execution_provider)?;
         
         // Validate variant exists
         if !model_config["variants"].as_object().unwrap().contains_key(&resolved_variant) {
@@ -226,13 +235,23 @@ impl ExternalModelProvider {
         Ok(())
     }
     
-    fn resolve_variant(config: &serde_json::Value, requested_variant: Option<String>) -> Result<String> {
+    
+    /// Resolve variant with execution provider compatibility from model.json
+    fn resolve_variant_for_provider(
+        config: &serde_json::Value, 
+        requested_variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>
+    ) -> Result<String> {
         let available_variants: Vec<String> = config["variants"].as_object().unwrap()
             .keys().map(|k| k.clone()).collect();
             
-        // If variant explicitly requested, use it
+        // If variant explicitly requested, use it (but warn if not optimal)
         if let Some(variant) = requested_variant {
             if available_variants.contains(&variant) {
+                // Check if this variant is compatible with the execution provider
+                if let Some(provider) = execution_provider {
+                    Self::warn_if_incompatible(config, &variant, provider);
+                }
                 return Ok(variant);
             } else {
                 return Err(crate::error::BgRemovalError::invalid_config(
@@ -242,7 +261,53 @@ impl ExternalModelProvider {
             }
         }
         
-        // Auto-detection: prefer fp16, fallback to available
+        // Auto-detection using provider_recommendations from model.json
+        if let Some(provider) = execution_provider {
+            if let Some(recommendations) = config.get("provider_recommendations") {
+                let provider_name = Self::execution_provider_to_string(provider);
+                
+                // First try the specific provider recommendation
+                if let Some(recommended_variant) = recommendations.get(&provider_name) {
+                    if let Some(variant_str) = recommended_variant.as_str() {
+                        if available_variants.contains(&variant_str.to_string()) {
+                            log::info!("🎯 Using model-recommended variant '{}' for {} provider", variant_str, provider_name);
+                            return Ok(variant_str.to_string());
+                        }
+                    }
+                }
+                
+                // For Auto provider, use the most compatible variant
+                if matches!(provider, crate::config::ExecutionProvider::Auto) {
+                    // Check for CoreML availability and use its recommendation if available
+                    #[cfg(target_os = "macos")]
+                    {
+                        use ort::execution_providers::{CoreMLExecutionProvider, ExecutionProvider as OrtExecutionProvider};
+                        if OrtExecutionProvider::is_available(&CoreMLExecutionProvider::default()).unwrap_or(false) {
+                            if let Some(coreml_variant) = recommendations.get("coreml") {
+                                if let Some(variant_str) = coreml_variant.as_str() {
+                                    if available_variants.contains(&variant_str.to_string()) {
+                                        log::info!("🍎 Auto provider: Using CoreML-optimized variant '{}' (Apple Silicon detected)", variant_str);
+                                        return Ok(variant_str.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Fall back to CPU recommendation
+                    if let Some(cpu_variant) = recommendations.get("cpu") {
+                        if let Some(variant_str) = cpu_variant.as_str() {
+                            if available_variants.contains(&variant_str.to_string()) {
+                                log::info!("🖥️ Auto provider: Using CPU-optimized variant '{}'", variant_str);
+                                return Ok(variant_str.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Fallback to old behavior: prefer fp16, then fp32
         if available_variants.contains(&"fp16".to_string()) {
             return Ok("fp16".to_string());
         }
@@ -259,6 +324,38 @@ impl ExternalModelProvider {
         Err(crate::error::BgRemovalError::invalid_config(
             "No variants available in model.json"
         ))
+    }
+    
+    fn execution_provider_to_string(provider: &crate::config::ExecutionProvider) -> String {
+        match provider {
+            crate::config::ExecutionProvider::Cpu => "cpu".to_string(),
+            crate::config::ExecutionProvider::Cuda => "cuda".to_string(),
+            crate::config::ExecutionProvider::CoreMl => "coreml".to_string(),
+            crate::config::ExecutionProvider::Auto => "auto".to_string(),
+        }
+    }
+    
+    fn warn_if_incompatible(config: &serde_json::Value, variant: &str, provider: &crate::config::ExecutionProvider) {
+        if let Some(variants) = config.get("variants") {
+            if let Some(variant_config) = variants.get(variant) {
+                if let Some(compatible_providers) = variant_config.get("compatible_providers") {
+                    if let Some(providers_array) = compatible_providers.as_array() {
+                        let provider_name = Self::execution_provider_to_string(provider);
+                        let is_compatible = providers_array.iter()
+                            .any(|p| p.as_str() == Some(&provider_name));
+                            
+                        if !is_compatible {
+                            log::warn!("⚠️ Variant '{}' may not be optimal for {} provider", variant, provider_name);
+                            if let Some(notes) = variant_config.get("performance_notes") {
+                                if let Some(notes_str) = notes.as_str() {
+                                    log::warn!("   Note: {}", notes_str);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     fn get_variant_config(&self) -> &serde_json::Value {
@@ -366,12 +463,20 @@ pub struct ModelManager {
 impl ModelManager {
     /// Create a new model manager from a model specification
     pub fn from_spec(spec: &ModelSpec) -> Result<Self> {
+        Self::from_spec_with_provider(spec, None)
+    }
+    
+    /// Create a new model manager from a model specification with execution provider optimization
+    pub fn from_spec_with_provider(
+        spec: &ModelSpec, 
+        execution_provider: Option<&crate::config::ExecutionProvider>
+    ) -> Result<Self> {
         match &spec.source {
             ModelSource::Embedded(model_name) => {
                 Self::with_embedded_model(model_name.clone())
             },
             ModelSource::External(model_path) => {
-                Self::with_external_model(model_path, spec.variant.clone())
+                Self::with_external_model_and_provider(model_path, spec.variant.clone(), execution_provider)
             },
         }
     }
@@ -387,6 +492,18 @@ impl ModelManager {
     /// Create model manager with external model from folder path
     pub fn with_external_model<P: AsRef<Path>>(model_path: P, variant: Option<String>) -> Result<Self> {
         let provider = ExternalModelProvider::new(model_path, variant)?;
+        Ok(Self {
+            provider: Box::new(provider),
+        })
+    }
+    
+    /// Create model manager with external model from folder path and execution provider optimization
+    pub fn with_external_model_and_provider<P: AsRef<Path>>(
+        model_path: P, 
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>
+    ) -> Result<Self> {
+        let provider = ExternalModelProvider::new_with_provider(model_path, variant, execution_provider)?;
         Ok(Self {
             provider: Box::new(provider),
         })

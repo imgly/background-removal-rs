@@ -1,0 +1,84 @@
+[
+  {
+    "test_case": {
+      "id": "portrait_action_motion",
+      "category": "portraits",
+      "input_file": "portraits/portrait_action_motion.jpg",
+      "expected_output_file": "portraits/portrait_action_motion.png",
+      "expected_accuracy": 0.6,
+      "description": "Portrait with action and motion blur",
+      "tags": [
+        "portrait",
+        "motion",
+        "challenging"
+      ],
+      "complexity_level": "complex"
+    },
+    "passed": false,
+    "metrics": {
+      "pixel_accuracy": 0.9748825,
+      "ssim": 0.9870679551538224,
+      "edge_accuracy": 0.4815792631705268,
+      "visual_quality_score": 0.850076838884925,
+      "mean_squared_error": 92.15987343464728
+    },
+    "processing_time": 15289,
+    "error_message": null,
+    "output_path": "test_results/outputs/portraits_portrait_action_motion.png"
+  },
+  {
+    "test_case": {
+      "id": "portrait_fine_hair_details",
+      "category": "portraits",
+      "input_file": "portraits/portrait_fine_hair_details.jpg",
+      "expected_output_file": "portraits/portrait_fine_hair_details.png",
+      "expected_accuracy": 0.6,
+      "description": "Portrait with fine hair details requiring precise edge detection",
+      "tags": [
+        "portrait",
+        "hair",
+        "details",
+        "edges"
+      ],
+      "complexity_level": "complex"
+    },
+    "passed": true,
+    "metrics": {
+      "pixel_accuracy": 0.9529895833333333,
+      "ssim": 0.9904053135801619,
+      "edge_accuracy": 0.8234841328155068,
+      "visual_quality_score": 0.9501142213519739,
+      "mean_squared_error": 261.3040788051435
+    },
+    "processing_time": 15188,
+    "error_message": null,
+    "output_path": "test_results/outputs/portraits_portrait_fine_hair_details.png"
+  },
+  {
+    "test_case": {
+      "id": "portrait_low_contrast",
+      "category": "portraits",
+      "input_file": "portraits/portrait_low_contrast.jpg",
+      "expected_output_file": "portraits/portrait_low_contrast.png",
+      "expected_accuracy": 0.7,
+      "description": "Low contrast portrait challenging for background separation",
+      "tags": [
+        "portrait",
+        "low-contrast",
+        "challenging"
+      ],
+      "complexity_level": "complex"
+    },
+    "passed": true,
+    "metrics": {
+      "pixel_accuracy": 0.9677708333333334,
+      "ssim": 0.9964966190289594,
+      "edge_accuracy": 0.9271293490562593,
+      "visual_quality_score": 0.9205884336814404,
+      "mean_squared_error": 96.832026976378
+    },
+    "processing_time": 15644,
+    "error_message": null,
+    "output_path": "test_results/outputs/portraits_portrait_low_contrast.png"
+  }
+]

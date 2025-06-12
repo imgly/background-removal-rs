@@ -34,7 +34,7 @@ If an issue needs further information we can create an issue markdown for this p
 - [ ] Add comprehensive documentation after multi-model refactoring
 - [-] Compile individual binaries for each model in the models directory instead of feature flags - Runtime model selection with feature flags is more flexible 📅 2025-06-12 10:35
 - [x] Allow to specify the model folder to use in the cli as alternative and allow embedding multiple models and choosing one. 📅 2025-06-12 10:30
-- [ ] Metal MPS performance is way to slow. Are we sure we are running on the GPU on Apple Macs?
+- [x] Metal MPS performance is way to slow. Are we sure we are running on the GPU on Apple Macs? - RESOLVED: CoreML works well with FP32 models (43% faster) but poorly with FP16 models (7% faster). Need to default to FP32 for CoreML. 📅 2025-06-12 22:08
 - [ ] Is there a difference if we apply a sigmoid to the alpha channel estimate?
 - [ ] We might want to jailroot the AI and thus let it run without us having to accept everything #YOLOMODE
 
