@@ -5,7 +5,7 @@ use crate::{
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
     inference::InferenceBackend,
-    models::{EMBEDDED_TARGET_SIZE, EMBEDDED_NORMALIZATION_MEAN, EMBEDDED_NORMALIZATION_STD, EMBEDDED_RESCALE_FACTOR},
+    models::{EMBEDDED_TARGET_SIZE, EMBEDDED_NORMALIZATION_MEAN, EMBEDDED_NORMALIZATION_STD},
     types::{ProcessingMetadata, RemovalResult, SegmentationMask},
 };
 use chrono::Utc;
@@ -306,15 +306,14 @@ impl ImageProcessor {
 
         for (y, row) in canvas.rows().enumerate() {
             for (x, pixel) in row.enumerate() {
-                // Apply rescale factor first (convert 0-255 to 0-1 if rescale_factor is 1/255)
-                let rescaled_r = f32::from(pixel[0]) * EMBEDDED_RESCALE_FACTOR;
-                let rescaled_g = f32::from(pixel[1]) * EMBEDDED_RESCALE_FACTOR;
-                let rescaled_b = f32::from(pixel[2]) * EMBEDDED_RESCALE_FACTOR;
+                // Convert to 0-1 range and apply normalization using generated constants from model.json
+                let normalized_r = (f32::from(pixel[0]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[0]) / EMBEDDED_NORMALIZATION_STD[0];
+                let normalized_g = (f32::from(pixel[1]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[1]) / EMBEDDED_NORMALIZATION_STD[1];
+                let normalized_b = (f32::from(pixel[2]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[2]) / EMBEDDED_NORMALIZATION_STD[2];
                 
-                // Then apply normalization using generated constants from model.json
-                tensor[[0, 0, y, x]] = (rescaled_r - EMBEDDED_NORMALIZATION_MEAN[0]) / EMBEDDED_NORMALIZATION_STD[0]; // R
-                tensor[[0, 1, y, x]] = (rescaled_g - EMBEDDED_NORMALIZATION_MEAN[1]) / EMBEDDED_NORMALIZATION_STD[1]; // G
-                tensor[[0, 2, y, x]] = (rescaled_b - EMBEDDED_NORMALIZATION_MEAN[2]) / EMBEDDED_NORMALIZATION_STD[2]; // B
+                tensor[[0, 0, y, x]] = normalized_r; // R
+                tensor[[0, 1, y, x]] = normalized_g; // G
+                tensor[[0, 2, y, x]] = normalized_b; // B
             }
         }
 

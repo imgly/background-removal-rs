@@ -61,18 +61,39 @@ impl Default for ValidationThresholds {
 }
 
 /// Test result for a single image
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestResult {
     pub test_case: TestCase,
     pub passed: bool,
     pub metrics: TestMetrics,
+    #[serde(with = "duration_serde")]
     pub processing_time: std::time::Duration,
     pub error_message: Option<String>,
     pub output_path: Option<PathBuf>,
 }
 
+mod duration_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use std::time::Duration;
+
+    pub(crate) fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(duration.as_millis() as u64)
+    }
+
+    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let millis = u64::deserialize(deserializer)?;
+        Ok(Duration::from_millis(millis))
+    }
+}
+
 /// Accuracy and quality metrics for test results
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestMetrics {
     pub pixel_accuracy: f64,
     pub ssim: f64,

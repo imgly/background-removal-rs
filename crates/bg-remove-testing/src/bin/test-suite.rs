@@ -195,6 +195,15 @@ impl TestRunner {
         // Finalize session
         session.finalize();
 
+        // Save timing data for report generation
+        let timing_data_path = self.output_dir.join("timing_data.json");
+        let timing_data = serde_json::to_string_pretty(&session.results)?;
+        std::fs::write(&timing_data_path, timing_data)?;
+        
+        if self.args.verbose {
+            println!("📊 Saved timing data to: {}", timing_data_path.display());
+        }
+
         // Generate report if requested
         if self.args.generate_report {
             println!("📊 Generating HTML report...");

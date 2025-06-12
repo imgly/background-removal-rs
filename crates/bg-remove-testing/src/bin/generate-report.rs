@@ -203,6 +203,28 @@ impl ReportBuilder {
 
         let _input_path = PathBuf::from(&self.args.input_dir).join(&test_case.input_file);
 
+        // Try to read timing data from timing_data.json
+        let timing_data_path = self.output_dir.join("timing_data.json");
+        let processing_time = if timing_data_path.exists() {
+            match std::fs::read_to_string(&timing_data_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<Vec<TestResult>>(&content) {
+                        Ok(timing_results) => {
+                            // Find timing data for this test case
+                            timing_results.iter()
+                                .find(|r| r.test_case.id == test_case.id)
+                                .map(|r| r.processing_time)
+                                .unwrap_or_else(|| std::time::Duration::from_millis(0))
+                        }
+                        Err(_) => std::time::Duration::from_millis(0)
+                    }
+                }
+                Err(_) => std::time::Duration::from_millis(0)
+            }
+        } else {
+            std::time::Duration::from_millis(0) // Unknown from file-based analysis
+        };
+
         // Check if expected output exists
         let (metrics, passed) = if expected_path.exists() {
             let expected_output = image::open(&expected_path)?;
@@ -226,7 +248,7 @@ impl ReportBuilder {
             test_case: test_case.clone(),
             passed,
             metrics,
-            processing_time: std::time::Duration::from_millis(0), // Unknown from file-based analysis
+            processing_time,
             error_message: None,
             output_path: Some(rust_output_path.clone()),
         })

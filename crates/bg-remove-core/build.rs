@@ -33,10 +33,6 @@ fn main() {
     let mean = &preprocessing["normalization"]["mean"];
     let std = &preprocessing["normalization"]["std"];
     
-    // Handle rescale factor with explicit type conversion to f64 first, then to string with proper formatting
-    let rescale_factor = preprocessing.get("rescale_factor")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(1.0);
     
     // Generate the constants file - path from build output directory to workspace root
     let model_path = format!("../../../../../models/{}/model_{}.onnx", model_name, variant);
@@ -74,9 +70,6 @@ pub const EMBEDDED_NORMALIZATION_MEAN: [f32; 3] = [{}, {}, {}];
 
 /// Normalization std values [R, G, B]  
 pub const EMBEDDED_NORMALIZATION_STD: [f32; 3] = [{}, {}, {}];
-
-/// Rescale factor for preprocessing (optional, 1.0 if not specified)
-pub const EMBEDDED_RESCALE_FACTOR: f32 = {:.10};
 "#,
         model_name,
         variant,
@@ -87,8 +80,7 @@ pub const EMBEDDED_RESCALE_FACTOR: f32 = {:.10};
         output_shape[0], output_shape[1], output_shape[2], output_shape[3],
         target_size[0], target_size[1],
         mean[0], mean[1], mean[2],
-        std[0], std[1], std[2],
-        rescale_factor
+        std[0], std[1], std[2]
     );
     
     fs::write(&dest_path, generated_code).unwrap();
