@@ -16,28 +16,19 @@ description = "Core background removal library using ONNX Runtime and ISNet mode
 workspace = true
 
 [features]
-# Default: ISNet FP16 model (balanced performance, ~90MB binary)
-default = ["isnet-fp16"]
+# Default: no embedded models - runtime loading only
+default = []
 
-# ISNet model variants
-isnet-fp16 = ["model-isnet", "precision-fp16"]    # ISNet FP16 (84MB)
-isnet-fp32 = ["model-isnet", "precision-fp32"]    # ISNet FP32 (168MB)
+# Individual model embedding (additive, not mutually exclusive)
+embed-isnet-fp16 = []
+embed-isnet-fp32 = []
+embed-birefnet-fp16 = []
+embed-birefnet-fp32 = []
 
-# BiRefNet portrait model variants
-birefnet-fp16 = ["model-birefnet", "precision-fp16"]  # BiRefNet FP16 (467MB) 
-birefnet-fp32 = ["model-birefnet", "precision-fp32"]  # BiRefNet FP32 (928MB)
-
-# Internal model type features (not user-facing)
-model-isnet = []
-model-birefnet = []
-
-# Internal precision features (not user-facing)
-precision-fp16 = []
-precision-fp32 = []
-
-# Legacy compatibility (deprecated)
-fp16-model = ["isnet-fp16"]       # Deprecated: use isnet-fp16
-fp32-model = ["isnet-fp32"]       # Deprecated: use isnet-fp32
+# Convenience groups
+embed-all-isnet = ["embed-isnet-fp16", "embed-isnet-fp32"]
+embed-all-birefnet = ["embed-birefnet-fp16", "embed-birefnet-fp32"]
+embed-all = ["embed-all-isnet", "embed-all-birefnet"]
 
 # Development features
 benchmark-details = []    # Enable detailed benchmark output

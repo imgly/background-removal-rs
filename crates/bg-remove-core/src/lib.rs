@@ -43,11 +43,52 @@ pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
+pub use models::{ModelManager, ModelSource, ModelSpec};
 pub use types::{RemovalResult, SegmentationMask};
 
-/// Remove background from an image file
+/// Remove background from an image file with specific model
 ///
-/// This is the main entry point for background removal operations.
+/// This is the main entry point for background removal operations with model selection.
+///
+/// # Arguments
+///
+/// * `input_path` - Path to the input image file
+/// * `config` - Configuration for the removal operation
+/// * `model_spec` - Specification of which model to use
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image and metadata
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use bg_remove_core::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Embedded("isnet-fp16".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
+/// result.save_png("result.png")?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
+    input_path: P,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<RemovalResult> {
+    let model_manager = ModelManager::from_spec(model_spec)?;
+    let mut processor = ImageProcessor::with_model_manager(config, model_manager)?;
+    processor.remove_background(input_path).await
+}
+
+/// Remove background from an image file (legacy - uses first available embedded model)
+///
+/// This is the legacy entry point for background removal operations.
 ///
 /// # Arguments
 ///

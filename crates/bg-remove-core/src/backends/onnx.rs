@@ -3,7 +3,7 @@
 use crate::config::{ExecutionProvider, RemovalConfig};
 use crate::error::Result;
 use crate::inference::InferenceBackend;
-use crate::models::{ModelManager, EMBEDDED_INPUT_NAME, EMBEDDED_OUTPUT_NAME, EMBEDDED_INPUT_SHAPE, EMBEDDED_OUTPUT_SHAPE};
+use crate::models::ModelManager;
 use log;
 use ndarray::Array4;
 use ort::execution_providers::{
@@ -16,24 +16,48 @@ use ort::{self, value::Value};
 #[derive(Debug)]
 pub struct OnnxBackend {
     session: Option<Session>,
-    model_manager: ModelManager,
+    model_manager: Option<ModelManager>,
     initialized: bool,
 }
 
 impl OnnxBackend {
-    /// Create a new ONNX backend
-    #[must_use] pub fn new() -> Self {
+    /// Create a new ONNX backend with specific model manager
+    pub fn with_model_manager(model_manager: ModelManager) -> Self {
         Self {
             session: None,
-            model_manager: ModelManager::with_embedded(),
+            model_manager: Some(model_manager),
             initialized: false,
         }
+    }
+    
+    /// Create a new ONNX backend (legacy - uses first available embedded model)
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            session: None,
+            model_manager: None,
+            initialized: false,
+        })
+    }
+    
+    /// Set the model manager for this backend
+    pub fn set_model_manager(&mut self, model_manager: ModelManager) {
+        self.model_manager = Some(model_manager);
     }
 
     /// Load and initialize the ONNX model
     fn load_model(&mut self, config: &RemovalConfig) -> Result<()> {
-        // Load the model data (uses embedded model based on compile-time feature)
-        let model_data = self.model_manager.load_model()?;
+        // Get or create model manager
+        let model_manager = if let Some(ref manager) = self.model_manager {
+            manager
+        } else {
+            // Fall back to embedded model if no model manager was set
+            let embedded_manager = ModelManager::with_embedded()?;
+            self.model_manager = Some(embedded_manager);
+            self.model_manager.as_ref().unwrap()
+        };
+        
+        // Load the model data
+        let model_data = model_manager.load_model()?;
 
         // Create ONNX Runtime session with specified execution provider
         let mut session_builder =
@@ -129,7 +153,7 @@ impl OnnxBackend {
             .commit_from_memory(&model_data)?;
 
         // Log comprehensive configuration details
-        let model_info = self.model_manager.get_info()?;
+        let model_info = self.model_manager.as_ref().unwrap().get_info()?;
         log::info!("ONNX Runtime session created successfully");
         log::info!("Execution provider: {:?}", config.execution_provider);
         log::info!(
@@ -150,7 +174,7 @@ impl OnnxBackend {
 
 impl Default for OnnxBackend {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Failed to create default OnnxBackend")
     }
 }
 
@@ -182,12 +206,20 @@ impl InferenceBackend for OnnxBackend {
             ))
         })?;
 
-        // Run inference using generated input tensor name
-        let outputs = session.run(ort::inputs![EMBEDDED_INPUT_NAME => input_value])
-            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{}'. Original error: {e}", EMBEDDED_INPUT_NAME)))?;
+        // Run inference using model-specific input tensor name
+        let model_manager = self.model_manager.as_ref().ok_or_else(|| {
+            crate::error::BgRemovalError::internal("Model manager not initialized")
+        })?;
+        let input_name = model_manager.get_input_name()?;
+        let output_name = model_manager.get_output_name()?;
+        
+        // Convert to SessionInputs format expected by ORT
+        let inputs = vec![(input_name.as_str(), input_value)];
+        let outputs = session.run(inputs)
+            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{}'. Original error: {e}", input_name)))?;
 
-        // Extract output tensor using generated output tensor name
-        let output_tensor = if let Ok(output) = outputs[EMBEDDED_OUTPUT_NAME].try_extract_array::<f32>() {
+        // Extract output tensor using model-specific output tensor name
+        let output_tensor = if let Ok(output) = outputs[output_name.as_str()].try_extract_array::<f32>() {
             output
         } else if let Ok(output) = outputs[0].try_extract_array::<f32>() {
             // Try first output if named access fails
@@ -228,12 +260,32 @@ impl InferenceBackend for OnnxBackend {
     }
 
     fn input_shape(&self) -> (usize, usize, usize, usize) {
-        // Use generated input shape from model.json
-        (EMBEDDED_INPUT_SHAPE[0], EMBEDDED_INPUT_SHAPE[1], EMBEDDED_INPUT_SHAPE[2], EMBEDDED_INPUT_SHAPE[3])
+        // Use model-specific input shape from model info
+        self.model_manager.as_ref()
+            .and_then(|manager| manager.get_info().ok())
+            .map(|info| info.input_shape)
+            .unwrap_or((1, 3, 1024, 1024)) // Default fallback
     }
 
     fn output_shape(&self) -> (usize, usize, usize, usize) {
-        // Use generated output shape from model.json
-        (EMBEDDED_OUTPUT_SHAPE[0], EMBEDDED_OUTPUT_SHAPE[1], EMBEDDED_OUTPUT_SHAPE[2], EMBEDDED_OUTPUT_SHAPE[3])
+        // Use model-specific output shape from model info
+        self.model_manager.as_ref()
+            .and_then(|manager| manager.get_info().ok())
+            .map(|info| info.output_shape)
+            .unwrap_or((1, 1, 1024, 1024)) // Default fallback
+    }
+    
+    fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig> {
+        let model_manager = self.model_manager.as_ref().ok_or_else(|| {
+            crate::error::BgRemovalError::internal("Model manager not initialized")
+        })?;
+        model_manager.get_preprocessing_config()
+    }
+    
+    fn get_model_info(&self) -> Result<crate::models::ModelInfo> {
+        let model_manager = self.model_manager.as_ref().ok_or_else(|| {
+            crate::error::BgRemovalError::internal("Model manager not initialized")
+        })?;
+        model_manager.get_info()
     }
 }

@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use bg_remove_core::config::BackgroundColor;
-use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig};
+use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig, remove_background_with_model, ModelManager, ModelSource, ModelSpec};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info, warn};
@@ -76,6 +76,14 @@ struct Cli {
     /// Show execution provider diagnostics and exit
     #[arg(long)]
     show_providers: bool,
+
+    /// Model name or path to model folder
+    #[arg(short, long, required_unless_present = "show_providers")]
+    model: Option<String>,
+
+    /// Model variant (fp16, fp32). Defaults to fp16
+    #[arg(long)]
+    variant: Option<String>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -120,6 +128,87 @@ impl From<CliExecutionProvider> for ExecutionProvider {
     }
 }
 
+/// Parse model argument into ModelSpec with optional variant suffix
+fn parse_model_spec(model_arg: &str) -> ModelSpec {
+    // Check for suffix syntax: "model:variant"
+    if let Some((path_part, variant_part)) = model_arg.split_once(':') {
+        let source = if Path::new(path_part).exists() {
+            ModelSource::External(PathBuf::from(path_part))
+        } else {
+            ModelSource::Embedded(path_part.to_string())
+        };
+        
+        return ModelSpec {
+            source,
+            variant: Some(variant_part.to_string()),
+        };
+    }
+    
+    // No suffix - determine source type
+    let source = if Path::new(model_arg).exists() {
+        ModelSource::External(PathBuf::from(model_arg))
+    } else {
+        ModelSource::Embedded(model_arg.to_string())
+    };
+    
+    ModelSpec {
+        source,
+        variant: None,
+    }
+}
+
+/// Resolve the final variant to use based on precedence rules
+#[allow(dead_code)] // TODO: Remove when Phase 2+ is implemented
+fn resolve_variant(
+    model_spec: &ModelSpec, 
+    cli_variant: Option<&str>,
+    available_variants: &[String]
+) -> Result<String> {
+    // Precedence: CLI param > suffix > auto-detection > default
+    
+    // 1. CLI parameter has highest precedence
+    if let Some(variant) = cli_variant {
+        if available_variants.contains(&variant.to_string()) {
+            return Ok(variant.to_string());
+        } else {
+            return Err(anyhow::anyhow!(
+                "Variant '{}' not available. Available variants: {:?}",
+                variant,
+                available_variants
+            ));
+        }
+    }
+    
+    // 2. Suffix syntax has medium precedence
+    if let Some(variant) = &model_spec.variant {
+        if available_variants.contains(variant) {
+            return Ok(variant.clone());
+        } else {
+            return Err(anyhow::anyhow!(
+                "Variant '{}' not available. Available variants: {:?}",
+                variant,
+                available_variants
+            ));
+        }
+    }
+    
+    // 3. Auto-detection: prefer fp16, fallback to available
+    if available_variants.contains(&"fp16".to_string()) {
+        return Ok("fp16".to_string());
+    }
+    
+    if available_variants.contains(&"fp32".to_string()) {
+        return Ok("fp32".to_string());
+    }
+    
+    // 4. Use first available variant
+    if let Some(first) = available_variants.first() {
+        return Ok(first.clone());
+    }
+    
+    Err(anyhow::anyhow!("No variants available for model"))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -137,8 +226,49 @@ async fn main() -> Result<()> {
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Input is required"))?;
 
+    // Validate and parse model parameter
+    let model_arg = cli
+        .model
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Model parameter is required. Use --model to specify a model name or path"))?;
+
+    let model_spec = parse_model_spec(model_arg);
+    
     info!("Starting background removal CLI");
     info!("Input: {input}");
+    info!("Model: {} ({})", model_arg, match &model_spec.source {
+        ModelSource::Embedded(name) => format!("embedded: {}", name),
+        ModelSource::External(path) => format!("external: {}", path.display()),
+    });
+
+    // Resolve final variant based on CLI parameter precedence 
+    let final_variant = cli.variant.clone()
+        .or_else(|| model_spec.variant.clone());
+    
+    // Create final model spec with resolved variant
+    let final_model_spec = ModelSpec {
+        source: model_spec.source.clone(),
+        variant: final_variant.clone(),
+    };
+    
+    // Validate model by attempting to create ModelManager
+    let _model_manager = ModelManager::from_spec(&final_model_spec)
+        .context("Failed to load specified model")?;
+    
+    match &final_model_spec.source {
+        ModelSource::Embedded(name) => {
+            info!("Using embedded model: {}", name);
+            if let Some(variant) = &final_variant {
+                info!("Using variant: {}", variant);
+            }
+        },
+        ModelSource::External(path) => {
+            info!("Using external model from: {}", path.display());
+            if let Some(variant) = &final_variant {
+                info!("Using variant: {}", variant);
+            }
+        },
+    }
 
     // Parse background color
     let background_color =
@@ -170,13 +300,13 @@ async fn main() -> Result<()> {
     let start_time = Instant::now();
     let processed_count = if input == "-" {
         // Read from stdin
-        process_stdin(&cli.output, &config).await?
+        process_stdin(&cli.output, &config, &final_model_spec).await?
     } else {
         let input_path = PathBuf::from(input);
         if input_path.is_file() {
-            process_single_file(&input_path, &cli.output, &config).await?
+            process_single_file(&input_path, &cli.output, &config, &final_model_spec).await?
         } else if input_path.is_dir() {
-            process_directory(&cli, &config).await?
+            process_directory(&cli, &config, &final_model_spec).await?
         } else {
             return Err(anyhow::anyhow!(
                 "Input path does not exist or is not accessible"
@@ -275,19 +405,24 @@ fn parse_color(color_str: &str) -> Result<BackgroundColor> {
 }
 
 /// Process image from stdin
-async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig) -> Result<usize> {
+async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig, model_spec: &ModelSpec) -> Result<usize> {
     info!("Reading image from stdin");
 
     let image_data = read_stdin()?;
     let start_time = Instant::now();
 
-    // Load image from bytes
-    let image =
-        image::load_from_memory(&image_data).context("Failed to decode image from stdin")?;
-
-    // Process image through bg-remove-core
-    let result =
-        bg_remove_core::process_image(image, config).context("Failed to remove background")?;
+    // Use the existing API for consistency - we'll need to save to a temporary file and use remove_background_with_model
+    // For now, use a simpler approach that matches the file-based API
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("stdin_input.tmp");
+    std::fs::write(&temp_file, &image_data)?;
+    
+    let result = remove_background_with_model(&temp_file, config, model_spec)
+        .await
+        .context("Failed to remove background")?;
+    
+    // Clean up temp file
+    let _ = std::fs::remove_file(&temp_file);
 
     let processing_time = start_time.elapsed();
     info!(
@@ -327,9 +462,10 @@ async fn process_single_file(
     input_path: &Path,
     output_path: &Option<String>,
     config: &RemovalConfig,
+    model_spec: &ModelSpec,
 ) -> Result<usize> {
     let start_time = Instant::now();
-    let mut result = bg_remove_core::remove_background(input_path, config)
+    let mut result = remove_background_with_model(input_path, config, model_spec)
         .await
         .context("Failed to remove background")?;
 
@@ -385,7 +521,7 @@ async fn process_single_file(
 }
 
 /// Process all images in a directory
-async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
+async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &ModelSpec) -> Result<usize> {
     let input = cli
         .input
         .as_ref()
@@ -434,7 +570,7 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig) -> Result<usize> {
 
         progress.set_message(format!("Processing {}", input_file.display()));
 
-        match bg_remove_core::remove_background(&input_file, config).await {
+        match remove_background_with_model(&input_file, config, model_spec).await {
             Ok(mut result) => {
                 let save_result = match config.output_format {
                     OutputFormat::Png => result.save_png_timed(&output_file),
@@ -596,5 +732,60 @@ mod tests {
         assert!(is_image_file(Path::new("test.PNG"), &extensions));
         assert!(!is_image_file(Path::new("test.txt"), &extensions));
         assert!(!is_image_file(Path::new("test"), &extensions));
+    }
+
+    #[test]
+    fn test_parse_model_spec() {
+        // Test embedded model without variant
+        let spec = parse_model_spec("isnet");
+        match spec.source {
+            ModelSource::Embedded(name) => assert_eq!(name, "isnet"),
+            _ => panic!("Expected embedded model"),
+        }
+        assert_eq!(spec.variant, None);
+
+        // Test embedded model with variant suffix
+        let spec = parse_model_spec("birefnet:fp32");
+        match spec.source {
+            ModelSource::Embedded(name) => assert_eq!(name, "birefnet"),
+            _ => panic!("Expected embedded model"),
+        }
+        assert_eq!(spec.variant, Some("fp32".to_string()));
+
+        // Test non-existent path (should be treated as embedded)
+        let spec = parse_model_spec("/non/existent/path");
+        match spec.source {
+            ModelSource::Embedded(name) => assert_eq!(name, "/non/existent/path"),
+            _ => panic!("Expected embedded model for non-existent path"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_variant() {
+        let available = vec!["fp16".to_string(), "fp32".to_string()];
+        
+        // Test CLI parameter precedence
+        let spec = ModelSpec {
+            source: ModelSource::Embedded("test".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let result = resolve_variant(&spec, Some("fp16"), &available).unwrap();
+        assert_eq!(result, "fp16"); // CLI param wins
+
+        // Test suffix precedence when no CLI param
+        let result = resolve_variant(&spec, None, &available).unwrap();
+        assert_eq!(result, "fp32"); // Suffix wins
+
+        // Test auto-detection (prefers fp16)
+        let spec_no_variant = ModelSpec {
+            source: ModelSource::Embedded("test".to_string()),
+            variant: None,
+        };
+        let result = resolve_variant(&spec_no_variant, None, &available).unwrap();
+        assert_eq!(result, "fp16"); // Auto-detection prefers fp16
+
+        // Test invalid variant error
+        let result = resolve_variant(&spec, Some("invalid"), &available);
+        assert!(result.is_err());
     }
 }

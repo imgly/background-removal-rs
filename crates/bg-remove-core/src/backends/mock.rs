@@ -75,4 +75,24 @@ impl InferenceBackend for MockBackend {
     fn output_shape(&self) -> (usize, usize, usize, usize) {
         self.output_shape
     }
+    
+    fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig> {
+        // Return a default preprocessing config for mock backend
+        Ok(crate::models::PreprocessingConfig {
+            target_size: [1024, 1024],
+            normalization_mean: [0.485, 0.456, 0.406],
+            normalization_std: [0.229, 0.224, 0.225],
+        })
+    }
+    
+    fn get_model_info(&self) -> Result<crate::models::ModelInfo> {
+        // Return mock model info
+        Ok(crate::models::ModelInfo {
+            name: "Mock Backend".to_string(),
+            precision: "mock".to_string(),
+            size_bytes: 0,
+            input_shape: self.input_shape,
+            output_shape: self.output_shape,
+        })
+    }
 }

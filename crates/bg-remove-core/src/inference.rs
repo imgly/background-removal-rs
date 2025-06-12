@@ -55,6 +55,12 @@ pub trait InferenceBackend {
 
     /// Get the expected output shape for this backend
     fn output_shape(&self) -> (usize, usize, usize, usize);
+    
+    /// Get preprocessing configuration for this backend
+    fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig>;
+    
+    /// Get model information for this backend
+    fn get_model_info(&self) -> Result<crate::models::ModelInfo>;
 }
 
 /// Backend registry for managing different inference backends
@@ -69,7 +75,9 @@ impl BackendRegistry {
         };
 
         // Register default backends
-        registry.register("onnx", Box::new(OnnxBackend::new()));
+        if let Ok(onnx_backend) = OnnxBackend::new() {
+            registry.register("onnx", Box::new(onnx_backend));
+        }
         registry.register("mock", Box::new(MockBackend::new()));
 
         registry

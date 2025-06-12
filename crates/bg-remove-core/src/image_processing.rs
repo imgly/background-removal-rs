@@ -5,7 +5,7 @@ use crate::{
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
     inference::InferenceBackend,
-    models::{EMBEDDED_TARGET_SIZE, EMBEDDED_NORMALIZATION_MEAN, EMBEDDED_NORMALIZATION_STD},
+    models::ModelManager,
     types::{ProcessingMetadata, RemovalResult, SegmentationMask},
 };
 use chrono::Utc;
@@ -32,14 +32,14 @@ pub struct ImageProcessor {
 }
 
 impl ImageProcessor {
-    /// Create a new image processor with the given configuration
-    pub fn new(config: &RemovalConfig) -> Result<Self> {
+    /// Create a new image processor with the given configuration and model manager
+    pub fn with_model_manager(config: &RemovalConfig, model_manager: ModelManager) -> Result<Self> {
         let mut backend: Box<dyn InferenceBackend> = if config.debug {
-            // Use mock backend for debugging
+            // Use mock backend for debugging - it doesn't need the model manager
             Box::new(MockBackend::new())
         } else {
-            // Use ONNX backend for production
-            Box::new(OnnxBackend::new())
+            // Use ONNX backend with the specific model manager
+            Box::new(OnnxBackend::with_model_manager(model_manager))
         };
 
         // Initialize the backend
@@ -51,8 +51,21 @@ impl ImageProcessor {
             options: ProcessingOptions::default(),
         })
     }
+    
+    /// Create a new image processor with the given configuration (legacy - uses first available embedded model)
+    pub fn new(config: &RemovalConfig) -> Result<Self> {
+        let model_manager = ModelManager::with_embedded()?;
+        Self::with_model_manager(config, model_manager)
+    }
 
-    /// Create processor with custom processing options
+    /// Create processor with custom processing options and model manager
+    pub fn with_options_and_model(config: &RemovalConfig, options: ProcessingOptions, model_manager: ModelManager) -> Result<Self> {
+        let mut processor = Self::with_model_manager(config, model_manager)?;
+        processor.options = options;
+        Ok(processor)
+    }
+    
+    /// Create processor with custom processing options (legacy - uses first available embedded model)
     pub fn with_options(config: &RemovalConfig, options: ProcessingOptions) -> Result<Self> {
         let mut processor = Self::new(config)?;
         processor.options = options;
@@ -69,14 +82,17 @@ impl ImageProcessor {
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
         let mut timings = crate::types::ProcessingTimings::new();
 
-        // Log start of processing with model information
-        let model_precision = if self.config.debug { "mock" } else { "fp16" };
+        // Log start of processing with actual model information from backend
+        let model_info = match self.backend.get_model_info() {
+            Ok(info) => format!("{} ({})", info.name, info.precision),
+            Err(_) => "Unknown Model".to_string(),
+        };
+        
         info!(
-            "[{}Z INFO bg_remove] Starting processing: {} - Model: ISNet-{} ({})",
+            "[{}Z INFO bg_remove] Starting processing: {} - Model: {}",
             Utc::now().format("%Y-%m-%dT%H:%M:%S"),
             input_path_str,
-            model_precision.to_uppercase(),
-            model_precision
+            model_info
         );
 
         // 1. Image decode timing
@@ -258,7 +274,8 @@ impl ImageProcessor {
 
     /// Preprocess image for model inference with aspect ratio preservation
     fn preprocess_image(&self, image: &DynamicImage) -> Result<(DynamicImage, Array4<f32>)> {
-        let target_size = EMBEDDED_TARGET_SIZE[0];
+        let preprocessing_config = self.backend.get_preprocessing_config()?;
+        let target_size = preprocessing_config.target_size[0];
 
         // Convert to RGB
         let rgb_image = image.to_rgb8();
@@ -307,9 +324,9 @@ impl ImageProcessor {
         for (y, row) in canvas.rows().enumerate() {
             for (x, pixel) in row.enumerate() {
                 // Convert to 0-1 range and apply normalization using generated constants from model.json
-                let normalized_r = (f32::from(pixel[0]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[0]) / EMBEDDED_NORMALIZATION_STD[0];
-                let normalized_g = (f32::from(pixel[1]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[1]) / EMBEDDED_NORMALIZATION_STD[1];
-                let normalized_b = (f32::from(pixel[2]) / 255.0 - EMBEDDED_NORMALIZATION_MEAN[2]) / EMBEDDED_NORMALIZATION_STD[2];
+                let normalized_r = (f32::from(pixel[0]) / 255.0 - preprocessing_config.normalization_mean[0]) / preprocessing_config.normalization_std[0];
+                let normalized_g = (f32::from(pixel[1]) / 255.0 - preprocessing_config.normalization_mean[1]) / preprocessing_config.normalization_std[1];
+                let normalized_b = (f32::from(pixel[2]) / 255.0 - preprocessing_config.normalization_mean[2]) / preprocessing_config.normalization_std[2];
                 
                 tensor[[0, 0, y, x]] = normalized_r; // R
                 tensor[[0, 1, y, x]] = normalized_g; // G
@@ -336,7 +353,8 @@ impl ImageProcessor {
             ));
         }
 
-        let model_size = EMBEDDED_TARGET_SIZE[0];
+        let preprocessing_config = self.backend.get_preprocessing_config()?;
+        let model_size = preprocessing_config.target_size[0];
         let (orig_width, orig_height) = original_size;
 
         // Calculate the scale and padding used during preprocessing
