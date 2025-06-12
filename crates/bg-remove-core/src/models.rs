@@ -341,6 +341,11 @@ impl ModelProvider for ExternalModelProvider {
     }
 }
 
+/// Get list of available embedded models (public API)
+pub fn get_available_embedded_models() -> Vec<String> {
+    EmbeddedModelProvider::list_available().iter().map(|s| s.to_string()).collect()
+}
+
 /// Extract precision from model name (e.g., "isnet-fp16" -> "fp16")
 fn extract_precision_from_name(name: &str) -> String {
     if name.contains("fp32") {

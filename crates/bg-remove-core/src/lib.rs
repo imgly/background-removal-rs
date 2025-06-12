@@ -43,7 +43,7 @@ pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
-pub use models::{ModelManager, ModelSource, ModelSpec};
+pub use models::{get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
 pub use types::{RemovalResult, SegmentationMask};
 
 /// Remove background from an image file with specific model

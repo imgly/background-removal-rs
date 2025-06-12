@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use bg_remove_core::config::BackgroundColor;
-use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig, remove_background_with_model, ModelManager, ModelSource, ModelSpec};
+use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig, remove_background_with_model, get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info, warn};
@@ -77,8 +77,8 @@ struct Cli {
     #[arg(long)]
     show_providers: bool,
 
-    /// Model name or path to model folder
-    #[arg(short, long, required_unless_present = "show_providers")]
+    /// Model name or path to model folder (optional if embedded models available)
+    #[arg(short, long)]
     model: Option<String>,
 
     /// Model variant (fp16, fp32). Defaults to fp16
@@ -226,13 +226,27 @@ async fn main() -> Result<()> {
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Input is required"))?;
 
-    // Validate and parse model parameter
-    let model_arg = cli
-        .model
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Model parameter is required. Use --model to specify a model name or path"))?;
-
-    let model_spec = parse_model_spec(model_arg);
+    // Parse model parameter or use default embedded model
+    let (model_spec, model_arg) = if let Some(model_arg) = &cli.model {
+        // User specified a model
+        let model_spec = parse_model_spec(model_arg);
+        (model_spec, model_arg.clone())
+    } else {
+        // No model specified - try to use first available embedded model
+        let available_embedded = get_available_embedded_models();
+        if available_embedded.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No model specified and no embedded models available. Use --model to specify a model name or path, or build with embed-* features."
+            ));
+        }
+        
+        let default_model = &available_embedded[0];
+        let model_spec = ModelSpec {
+            source: ModelSource::Embedded(default_model.clone()),
+            variant: None,
+        };
+        (model_spec, default_model.clone())
+    };
     
     info!("Starting background removal CLI");
     info!("Input: {input}");
