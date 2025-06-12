@@ -1,4 +1,5 @@
 //! Build script for generating model configuration constants from model.json
+//! Updated for rescale factor support
 
 #![allow(missing_docs)]
 
@@ -31,6 +32,11 @@ fn main() {
     let target_size = &preprocessing["target_size"];
     let mean = &preprocessing["normalization"]["mean"];
     let std = &preprocessing["normalization"]["std"];
+    
+    // Handle rescale factor with explicit type conversion to f64 first, then to string with proper formatting
+    let rescale_factor = preprocessing.get("rescale_factor")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1.0);
     
     // Generate the constants file - path from build output directory to workspace root
     let model_path = format!("../../../../../models/{}/model_{}.onnx", model_name, variant);
@@ -68,6 +74,9 @@ pub const EMBEDDED_NORMALIZATION_MEAN: [f32; 3] = [{}, {}, {}];
 
 /// Normalization std values [R, G, B]  
 pub const EMBEDDED_NORMALIZATION_STD: [f32; 3] = [{}, {}, {}];
+
+/// Rescale factor for preprocessing (optional, 1.0 if not specified)
+pub const EMBEDDED_RESCALE_FACTOR: f32 = {:.10};
 "#,
         model_name,
         variant,
@@ -78,25 +87,31 @@ pub const EMBEDDED_NORMALIZATION_STD: [f32; 3] = [{}, {}, {}];
         output_shape[0], output_shape[1], output_shape[2], output_shape[3],
         target_size[0], target_size[1],
         mean[0], mean[1], mean[2],
-        std[0], std[1], std[2]
+        std[0], std[1], std[2],
+        rescale_factor
     );
     
     fs::write(&dest_path, generated_code).unwrap();
 }
 
 fn determine_model_from_features() -> String {
-    // For now, only ISNet is supported
-    // Later we can check for model-specific features
-    "isnet".to_string()
+    if cfg!(feature = "model-birefnet") {
+        "birefnet_portrait".to_string()
+    } else if cfg!(feature = "model-isnet") {
+        "isnet".to_string()
+    } else {
+        // Default to ISNet for backward compatibility
+        "isnet".to_string()
+    }
 }
 
 fn determine_variant_from_features() -> String {
-    if cfg!(feature = "fp32-model") {
+    if cfg!(feature = "precision-fp32") {
         "fp32".to_string()
-    } else if cfg!(feature = "fp16-model") {
+    } else if cfg!(feature = "precision-fp16") {
         "fp16".to_string()
     } else {
-        panic!("No model variant feature enabled. Enable either 'fp16-model' or 'fp32-model'");
+        panic!("No model precision feature enabled. Enable either 'precision-fp16' or 'precision-fp32'");
     }
 }
 

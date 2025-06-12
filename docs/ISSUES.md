@@ -40,5 +40,6 @@ If an issue needs further information we can create an issue markdown for this p
 - [x] Implement zero-warning policy for all compilation targets 🐞 [📋 zero-warning-policy](./issues/zero-warning-policy.md) [📊 implementation-status](./issues/zero-warning-policy-implementation.md)
 - [ ] Zero warning polocy is to strict. During development allow it but before finishing up or commiting it has to be ensured
 - [x] Multi-model support with compile-time model.json configuration [📋 multi-model-support](./issues/multi-model-support.md)
+- [ ] Add BiRefNet-portrait model support for specialized portrait background removal [📋 birefnet-portrait-support](./issues/birefnet-portrait-support.md)
 - [ ] Add comprehensive documentation after multi-model refactoring
 - [ ] Compile individual binaries for each model in the models directory instead of feature flags

@@ -91,6 +91,10 @@ similar_names = "allow"            # Allow similar parameter names
 
 # Features for model embedding  
 [workspace.metadata.features]
-default = ["fp16-model"]
-fp16-model = ["balanced-performance", "90mb-binary"]
-fp32-model = ["high-accuracy", "175mb-binary"]
+default = ["isnet-fp16"]
+# ISNet model features  
+isnet-fp16 = ["balanced-performance", "90mb-binary"]
+isnet-fp32 = ["high-accuracy", "175mb-binary"]
+# BiRefNet portrait model features
+birefnet-fp16 = ["portrait-optimized", "467mb-binary"]
+birefnet-fp32 = ["portrait-optimized", "928mb-binary"]
