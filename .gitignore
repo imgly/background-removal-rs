@@ -17,6 +17,9 @@ final_*.png
 improved_*.png
 rust_*.png
 timed_*.png
+test_results/
+test_*.png
+*_test_*.png
 
 # IDE
 .vscode/
