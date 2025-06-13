@@ -22,7 +22,8 @@ If an issue needs further information we can create an issue markdown for this p
 ## Open Issues
 
 - [ ] Backends like ort should move to a Wasi NN compat style
-- [ ] CLI combines a backend (ORT)
+- [ ] Idea – Compile with MCP tool/call interface and create platform specific language wrappers with MCP client (even cli)
+- [ ] Implement C-lib as universal interface for all platforms
 - [ ] Ort support more backends like candle, tract etc., these my be implemented.
 - [ ] JSON Schema for the User facing API
 - [ ] MCP Interface
@@ -39,6 +40,7 @@ If an issue needs further information we can create an issue markdown for this p
 
 ## Closed Issues
 
+- [x] Docker-based cross-compilation system - COMPLETED: Implemented comprehensive cross-compilation system with target triplet naming, supporting aarch64-unknown-linux-gnu and x86_64-unknown-linux-gnu. Fixed Docker platform warnings and added multi-target build support. 📅 2025-06-13 10:20
 - [x] Add comprehensive documentation after multi-model refactoring - COMPLETED: Added comprehensive docs to all public functions with examples, performance metrics, and usage patterns 📅 2025-06-12 23:30
 - [x] Allow to specify the model folder to use in the cli as alternative and allow embedding multiple models and choosing one. 📅 2025-06-12 10:30
 - [x] Metal MPS performance is way to slow. Are we sure we are running on the GPU on Apple Macs? - RESOLVED: CoreML works well with FP32 models (43% faster) but poorly with FP16 models (7% faster). Need to default to FP32 for CoreML. 📅 2025-06-12 22:08
