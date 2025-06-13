@@ -438,7 +438,96 @@ impl ModelProvider for ExternalModelProvider {
     }
 }
 
-/// Get list of available embedded models (public API)
+/// Get list of all available embedded models
+///
+/// Returns a list of model names that are embedded in the current binary.
+/// These models can be used without external files and are immediately available.
+///
+/// # Returns
+///
+/// A `Vec<String>` containing embedded model names like:
+/// - `"isnet-fp16"` - Fast general-purpose model (FP16 precision)
+/// - `"isnet-fp32"` - General-purpose model (FP32 precision, better CoreML performance)
+/// - `"birefnet-fp16"` - High-quality portrait model (FP16 precision)
+/// - `"birefnet-fp32"` - High-quality portrait model (FP32 precision)
+/// - `"birefnet-lite-fp32"` - Balanced performance model (FP32 precision)
+///
+/// # Build Dependencies
+///
+/// The returned list depends on which embedding features were enabled at build time:
+/// - `embed-isnet-fp16` - Includes ISNet FP16 model
+/// - `embed-isnet-fp32` - Includes ISNet FP32 model  
+/// - `embed-birefnet-fp16` - Includes BiRefNet FP16 model
+/// - `embed-birefnet-fp32` - Includes BiRefNet FP32 model
+/// - `embed-birefnet-lite-fp32` - Includes BiRefNet Lite FP32 model
+/// - `embed-all` - Includes all available models
+///
+/// # Performance Characteristics
+///
+/// - **ISNet models**: Fastest inference, good general-purpose quality
+/// - **BiRefNet models**: Highest quality, slower inference, excellent for portraits
+/// - **BiRefNet Lite**: Balanced speed/quality, good compromise option
+/// - **FP16 models**: Faster on CPU/CUDA, poor CoreML performance
+/// - **FP32 models**: Better CoreML performance, slightly larger size
+///
+/// # Examples
+///
+/// ## Check available models
+/// ```rust
+/// use bg_remove_core::get_available_embedded_models;
+///
+/// let models = get_available_embedded_models();
+/// if models.is_empty() {
+///     println!("No embedded models available. Build with --features embed-all");
+/// } else {
+///     println!("Available models: {:?}", models);
+/// }
+/// ```
+///
+/// ## Select best model for execution provider
+/// ```rust
+/// use bg_remove_core::{get_available_embedded_models, ExecutionProvider};
+///
+/// fn select_optimal_model(provider: ExecutionProvider) -> Option<String> {
+///     let models = get_available_embedded_models();
+///     
+///     match provider {
+///         ExecutionProvider::CoreMl => {
+///             // Prefer FP32 models for CoreML
+///             models.iter().find(|m| m.contains("fp32")).cloned()
+///         },
+///         ExecutionProvider::Cuda | ExecutionProvider::Cpu => {
+///             // Prefer FP16 models for CPU/CUDA
+///             models.iter().find(|m| m.contains("fp16")).cloned()
+///         },
+///         ExecutionProvider::Auto => {
+///             // Use first available model
+///             models.first().cloned()
+///         }
+///     }
+/// }
+/// ```
+///
+/// ## Model selection priority
+/// ```rust
+/// use bg_remove_core::get_available_embedded_models;
+///
+/// fn get_recommended_model() -> Option<String> {
+///     let models = get_available_embedded_models();
+///     
+///     // Priority: ISNet (fast) > BiRefNet Lite (balanced) > BiRefNet (quality)
+///     ["isnet-fp16", "isnet-fp32", "birefnet-lite-fp32", "birefnet-fp16", "birefnet-fp32"]
+///         .iter()
+///         .find(|&name| models.contains(&name.to_string()))
+///         .map(|&name| name.to_string())
+/// }
+/// ```
+///
+/// # Note
+///
+/// If no models are embedded (empty list), you must either:
+/// 1. Rebuild with embedding features: `cargo build --features embed-all`
+/// 2. Use external models with `ModelSource::External(path)`
 pub fn get_available_embedded_models() -> Vec<String> {
     EmbeddedModelProvider::list_available().iter().map(|s| s.to_string()).collect()
 }

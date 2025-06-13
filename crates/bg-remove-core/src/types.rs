@@ -60,7 +60,42 @@ impl RemovalResult {
         }
     }
 
-    /// Save the result as PNG with alpha channel
+    /// Save the result as PNG with full alpha channel transparency
+    ///
+    /// PNG format preserves the alpha channel created by background removal,
+    /// resulting in a truly transparent background that works in web browsers,
+    /// image editors, and other applications supporting transparency.
+    ///
+    /// # Arguments
+    /// * `path` - Output file path (will be created or overwritten)
+    ///
+    /// # File Format
+    /// - **Format**: PNG with RGBA channels
+    /// - **Compression**: Lossless PNG compression
+    /// - **Transparency**: Full alpha channel support
+    /// - **Quality**: No quality loss (lossless format)
+    ///
+    /// # Use Cases
+    /// - Web development (transparent images for overlays)
+    /// - Graphic design (compositing in image editors)
+    /// - Print materials (transparent logos and graphics)
+    /// - Mobile apps (icons and UI elements)
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let result = remove_background("input.jpg", &config).await?;
+    /// result.save_png("output.png")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns `BgRemovalError` for file I/O errors, permission issues,
+    /// or disk space problems.
     pub fn save_png<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         self.image.save_with_format(path, image::ImageFormat::Png)?;
         Ok(())
@@ -108,7 +143,65 @@ impl RemovalResult {
         }
     }
 
-    /// Get the image as raw RGBA bytes
+    /// Get the processed image as raw RGBA bytes
+    ///
+    /// Returns the image data as a flat vector of RGBA bytes suitable for
+    /// direct use with graphics APIs, web frameworks, or custom image processing.
+    ///
+    /// # Format
+    /// - **Layout**: Flat array of RGBA pixels
+    /// - **Order**: Row-major, left-to-right, top-to-bottom
+    /// - **Channels**: Red, Green, Blue, Alpha (4 bytes per pixel)
+    /// - **Alpha**: 0 = transparent background, 255 = opaque foreground
+    ///
+    /// # Size
+    /// The returned vector size is `width × height × 4` bytes.
+    ///
+    /// # Use Cases
+    /// - **Web APIs**: Canvas ImageData, WebGL textures
+    /// - **Game engines**: Texture loading, sprite processing
+    /// - **Custom processing**: Direct pixel manipulation
+    /// - **Memory-efficient**: No intermediate file encoding
+    ///
+    /// # Examples
+    ///
+    /// ## Web API integration
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, process_image};
+    /// use image::DynamicImage;
+    ///
+    /// # fn example(img: DynamicImage) -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let result = process_image(img, &config)?;
+    /// 
+    /// let rgba_bytes = result.to_rgba_bytes();
+    /// let (width, height) = result.dimensions();
+    /// 
+    /// // Use with web APIs
+    /// // canvas.putImageData(rgba_bytes, width, height);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Custom pixel processing
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let result = remove_background("input.jpg", &config).await?;
+    /// 
+    /// let rgba_bytes = result.to_rgba_bytes();
+    /// let (width, height) = result.dimensions();
+    /// 
+    /// // Process each pixel
+    /// for chunk in rgba_bytes.chunks(4) {
+    ///     let [r, g, b, a] = [chunk[0], chunk[1], chunk[2], chunk[3]];
+    ///     // Custom processing logic
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use] pub fn to_rgba_bytes(&self) -> Vec<u8> {
         self.image.to_rgba8().into_raw()
     }
@@ -302,7 +395,71 @@ impl SegmentationMask {
         Ok(SegmentationMask::from_image(&resized))
     }
 
-    /// Get mask statistics
+    /// Calculate comprehensive statistics about the segmentation mask
+    ///
+    /// Analyzes the mask to provide insights about the segmentation quality
+    /// and composition. Useful for quality control and automated validation.
+    ///
+    /// # Returns
+    /// `MaskStatistics` containing:
+    /// - **Total pixels**: Complete pixel count in the mask
+    /// - **Foreground pixels**: Pixels classified as subject (value > 127)
+    /// - **Background pixels**: Pixels classified as background (value ≤ 127)
+    /// - **Foreground ratio**: Percentage of image that is foreground (0.0-1.0)
+    /// - **Background ratio**: Percentage of image that is background (0.0-1.0)
+    ///
+    /// # Threshold
+    /// Uses 127 as the threshold (mid-point of 0-255 range):
+    /// - Values 0-127: Background
+    /// - Values 128-255: Foreground
+    ///
+    /// # Use Cases
+    /// - **Quality validation**: Detect masks with too small/large foreground
+    /// - **Automated filtering**: Skip images with poor segmentation
+    /// - **Performance monitoring**: Track segmentation accuracy over time
+    /// - **Batch processing**: Generate reports on processing results
+    ///
+    /// # Examples
+    ///
+    /// ## Basic statistics analysis
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, segment_foreground};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let mask = segment_foreground("photo.jpg", &config).await?;
+    /// 
+    /// let stats = mask.statistics();
+    /// println!("Foreground: {:.1}% ({} pixels)", 
+    ///     stats.foreground_ratio * 100.0, 
+    ///     stats.foreground_pixels);
+    /// println!("Background: {:.1}% ({} pixels)", 
+    ///     stats.background_ratio * 100.0, 
+    ///     stats.background_pixels);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Quality control workflow
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, segment_foreground};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let mask = segment_foreground("portrait.jpg", &config).await?;
+    /// 
+    /// let stats = mask.statistics();
+    /// 
+    /// if stats.foreground_ratio < 0.05 {
+    ///     println!("Warning: Very small subject detected");
+    /// } else if stats.foreground_ratio > 0.8 {
+    ///     println!("Warning: Most of image classified as foreground");
+    /// } else {
+    ///     println!("Good segmentation ratio: {:.1}%", stats.foreground_ratio * 100.0);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use] pub fn statistics(&self) -> MaskStatistics {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;

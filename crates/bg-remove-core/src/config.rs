@@ -61,22 +61,67 @@ impl Default for BackgroundColor {
 }
 
 impl BackgroundColor {
-    /// Create a new background color
+    /// Create a new background color with RGB values
+    ///
+    /// # Arguments
+    /// * `r` - Red component (0-255)
+    /// * `g` - Green component (0-255) 
+    /// * `b` - Blue component (0-255)
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::BackgroundColor;
+    /// let purple = BackgroundColor::new(128, 0, 128);
+    /// let orange = BackgroundColor::new(255, 165, 0);
+    /// ```
     #[must_use] pub fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
-    /// White background
+    /// Create a white background color (255, 255, 255)
+    ///
+    /// Commonly used for product photography and clean presentations.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::BackgroundColor;
+    /// let white = BackgroundColor::white();
+    /// assert_eq!(white.r, 255);
+    /// assert_eq!(white.g, 255);
+    /// assert_eq!(white.b, 255);
+    /// ```
     #[must_use] pub fn white() -> Self {
         Self::new(255, 255, 255)
     }
 
-    /// Black background
+    /// Create a black background color (0, 0, 0)
+    ///
+    /// Useful for dramatic effects or when the foreground is light-colored.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::BackgroundColor;
+    /// let black = BackgroundColor::black();
+    /// assert_eq!(black.r, 0);
+    /// assert_eq!(black.g, 0);
+    /// assert_eq!(black.b, 0);
+    /// ```
     #[must_use] pub fn black() -> Self {
         Self::new(0, 0, 0)
     }
 
-    /// Transparent (for formats supporting alpha)
+    /// Create a transparent background placeholder
+    ///
+    /// Note: This returns black (0,0,0) but the color is ignored for formats
+    /// that support transparency (PNG, WebP). Only used for JPEG output.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::{BackgroundColor, OutputFormat};
+    /// let transparent = BackgroundColor::transparent();
+    /// // Used with PNG - color ignored, true transparency
+    /// // Used with JPEG - renders as black background
+    /// ```
     #[must_use] pub fn transparent() -> Self {
         Self::new(0, 0, 0) // Will be ignored for transparent formats
     }
@@ -126,12 +171,67 @@ impl Default for RemovalConfig {
 }
 
 impl RemovalConfig {
-    /// Create a new configuration builder
+    /// Create a new configuration builder for fluent API construction
+    ///
+    /// The builder pattern allows for easy and readable configuration setup
+    /// with method chaining and validation at build time.
+    ///
+    /// # Examples
+    ///
+    /// ## Basic configuration
+    /// ```rust
+    /// use bg_remove_core::RemovalConfig;
+    ///
+    /// let config = RemovalConfig::builder()
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    ///
+    /// ## Advanced configuration
+    /// ```rust
+    /// use bg_remove_core::{RemovalConfig, ExecutionProvider, OutputFormat, BackgroundColor};
+    ///
+    /// let config = RemovalConfig::builder()
+    ///     .execution_provider(ExecutionProvider::CoreMl)
+    ///     .output_format(OutputFormat::WebP)
+    ///     .webp_quality(95)
+    ///     .background_color(BackgroundColor::new(240, 248, 255))
+    ///     .debug(true)
+    ///     .num_threads(8)
+    ///     .build()
+    ///     .unwrap();
+    /// ```
     #[must_use] pub fn builder() -> RemovalConfigBuilder {
         RemovalConfigBuilder::default()
     }
 
-    /// Validate configuration parameters
+    /// Validate all configuration parameters
+    ///
+    /// Ensures that quality values are within valid ranges and other
+    /// configuration parameters are logically consistent.
+    ///
+    /// # Validation Rules
+    ///
+    /// - JPEG quality: 0-100 (inclusive)
+    /// - WebP quality: 0-100 (inclusive)
+    /// - Thread counts: Any non-negative value (0 = auto-detect)
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if configuration is valid, `Err(BgRemovalError)` with
+    /// descriptive message if validation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use bg_remove_core::RemovalConfig;
+    ///
+    /// let mut config = RemovalConfig::default();
+    /// assert!(config.validate().is_ok());
+    ///
+    /// config.jpeg_quality = 150; // Invalid
+    /// assert!(config.validate().is_err());
+    /// ```
     pub fn validate(&self) -> crate::Result<()> {
         if self.jpeg_quality > 100 {
             return Err(crate::error::BgRemovalError::invalid_config(
@@ -204,14 +304,78 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set both intra and inter threads (convenience method)
+    /// Set both intra and inter threads with optimal defaults (convenience method)
+    ///
+    /// This method automatically sets both intra-op and inter-op thread counts
+    /// with optimal ratios for background removal workloads.
+    ///
+    /// # Arguments
+    /// * `threads` - Total thread count (0 = auto-detect optimal values)
+    ///
+    /// # Thread Allocation
+    /// - **Intra-op threads**: Set to `threads` (within operations like matrix multiplication)
+    /// - **Inter-op threads**: Set to `threads/2` (between operations, minimum 1)
+    /// - **threads = 0**: Both values set to 0 for auto-detection
+    ///
+    /// # Performance Guidelines
+    /// - **CPU cores**: Generally use physical core count (not hyperthreads)
+    /// - **ISNet models**: Benefits from 4-8 threads
+    /// - **BiRefNet models**: Benefits from 8-16 threads
+    /// - **Memory bound**: More threads may not help beyond 8-12
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::RemovalConfig;
+    ///
+    /// // Auto-detect optimal thread count
+    /// let config = RemovalConfig::builder()
+    ///     .num_threads(0)
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Use 8 threads total (8 intra, 4 inter)
+    /// let config = RemovalConfig::builder()
+    ///     .num_threads(8)
+    ///     .build()
+    ///     .unwrap();
+    /// ```
     #[must_use] pub fn num_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self.config.inter_threads = if threads > 0 { (threads / 2).max(1) } else { 0 };
         self
     }
 
-    /// Build the configuration
+    /// Build and validate the configuration
+    ///
+    /// Constructs the final `RemovalConfig` and runs validation to ensure
+    /// all parameters are within acceptable ranges.
+    ///
+    /// # Returns
+    /// `Ok(RemovalConfig)` if all parameters are valid, otherwise returns
+    /// `Err(BgRemovalError)` with a detailed validation error message.
+    ///
+    /// # Validation Performed
+    /// - JPEG and WebP quality values are 0-100
+    /// - Thread counts are non-negative
+    /// - All configuration combinations are logically consistent
+    ///
+    /// # Examples
+    /// ```rust
+    /// use bg_remove_core::{RemovalConfig, ExecutionProvider};
+    ///
+    /// // Valid configuration
+    /// let config = RemovalConfig::builder()
+    ///     .execution_provider(ExecutionProvider::Auto)
+    ///     .jpeg_quality(90)
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// // Invalid configuration (quality > 100)
+    /// let result = RemovalConfig::builder()
+    ///     .jpeg_quality(150)
+    ///     .build();
+    /// assert!(result.is_err());
+    /// ```
     pub fn build(self) -> crate::Result<RemovalConfig> {
         let config = self.config;
         config.validate()?;
