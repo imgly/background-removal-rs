@@ -31,10 +31,7 @@ If an issue needs further information we can create an issue markdown for this p
 - [ ] iOS Platform Build
 - [ ] Android Platform Build
 - [ ] NodeJS Platform build
-- [x] Add comprehensive documentation after multi-model refactoring - COMPLETED: Added comprehensive docs to all public functions with examples, performance metrics, and usage patterns 📅 2025-06-12 23:30
 - [-] Compile individual binaries for each model in the models directory instead of feature flags - Runtime model selection with feature flags is more flexible 📅 2025-06-12 10:35
-- [x] Allow to specify the model folder to use in the cli as alternative and allow embedding multiple models and choosing one. 📅 2025-06-12 10:30
-- [x] Metal MPS performance is way to slow. Are we sure we are running on the GPU on Apple Macs? - RESOLVED: CoreML works well with FP32 models (43% faster) but poorly with FP16 models (7% faster). Need to default to FP32 for CoreML. 📅 2025-06-12 22:08
 - [ ] Is there a difference if we apply a sigmoid to the alpha channel estimate?
 - [ ] We might want to jailroot the AI and thus let it run without us having to accept everything #YOLOMODE
 - [ ] Birefnet fp16 variant is missing (https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/tree/main/onnx)
@@ -42,6 +39,9 @@ If an issue needs further information we can create an issue markdown for this p
 
 ## Closed Issues
 
+- [x] Add comprehensive documentation after multi-model refactoring - COMPLETED: Added comprehensive docs to all public functions with examples, performance metrics, and usage patterns 📅 2025-06-12 23:30
+- [x] Allow to specify the model folder to use in the cli as alternative and allow embedding multiple models and choosing one. 📅 2025-06-12 10:30
+- [x] Metal MPS performance is way to slow. Are we sure we are running on the GPU on Apple Macs? - RESOLVED: CoreML works well with FP32 models (43% faster) but poorly with FP16 models (7% faster). Need to default to FP32 for CoreML. 📅 2025-06-12 22:08
 - [x] Not sure if core-ml is used without feature flag 📅 2025-06-11 13:31
 - [x] the tests seem to reference wrong files 📅 2025-06-11 13:46
 - [x] Benchmarks skip all 📅 2025-06-11 13:45
