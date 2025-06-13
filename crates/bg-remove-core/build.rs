@@ -174,6 +174,9 @@ fn get_embedded_models() -> Vec<(String, String, String)> {
     if cfg!(feature = "embed-birefnet-fp32") {
         models.push(("birefnet-fp32".to_string(), "birefnet_portrait".to_string(), "fp32".to_string()));
     }
+    if cfg!(feature = "embed-birefnet-lite-fp32") {
+        models.push(("birefnet-lite-fp32".to_string(), "birefnet_lite".to_string(), "fp32".to_string()));
+    }
     
     models
 }

@@ -24,11 +24,13 @@ embed-isnet-fp16 = []
 embed-isnet-fp32 = []
 embed-birefnet-fp16 = []
 embed-birefnet-fp32 = []
+embed-birefnet-lite-fp32 = []
 
 # Convenience groups
 embed-all-isnet = ["embed-isnet-fp16", "embed-isnet-fp32"]
 embed-all-birefnet = ["embed-birefnet-fp16", "embed-birefnet-fp32"]
-embed-all = ["embed-all-isnet", "embed-all-birefnet"]
+embed-all-birefnet-lite = ["embed-birefnet-lite-fp32"]
+embed-all = ["embed-all-isnet", "embed-all-birefnet", "embed-all-birefnet-lite"]
 
 # Development features
 benchmark-details = []    # Enable detailed benchmark output
