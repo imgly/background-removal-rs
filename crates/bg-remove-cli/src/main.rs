@@ -3,7 +3,7 @@
 //! Command-line interface for removing backgrounds from images using `ISNet` models.
 
 use anyhow::{Context, Result};
-use bg_remove_core::config::BackgroundColor;
+use bg_remove_core::config::{BackgroundColor, ColorManagementConfig};
 use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig, remove_background_with_model, get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -84,6 +84,26 @@ struct Cli {
     /// Model variant (fp16, fp32). Defaults to fp16
     #[arg(long)]
     variant: Option<String>,
+
+    /// Preserve ICC color profiles from input images (enabled by default)
+    #[arg(long, default_value_t = true)]
+    preserve_color_profile: bool,
+
+    /// Disable ICC color profile preservation
+    #[arg(long, conflicts_with = "preserve_color_profile")]
+    no_preserve_color_profile: bool,
+
+    /// Force sRGB output regardless of input color profile
+    #[arg(long)]
+    force_srgb: bool,
+
+    /// Embed color profile in output when supported by format (enabled by default)
+    #[arg(long, default_value_t = true)]
+    embed_profile: bool,
+
+    /// Disable embedding color profiles in output
+    #[arg(long, conflicts_with = "embed_profile")]
+    no_embed_profile: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -288,6 +308,12 @@ async fn main() -> Result<()> {
         } else {
             0
         })
+        .color_management(ColorManagementConfig {
+            preserve_color_profile: cli.preserve_color_profile && !cli.no_preserve_color_profile,
+            force_srgb_output: cli.force_srgb,
+            fallback_to_srgb: true, // Always fallback to sRGB for safety
+            embed_profile_in_output: cli.embed_profile && !cli.no_embed_profile,
+        })
         .build()
         .context("Invalid configuration")?;
 
@@ -325,6 +351,10 @@ async fn main() -> Result<()> {
             config.background_color.r, config.background_color.g, config.background_color.b);
         log::debug!("Quality settings: jpeg={}, webp={}", 
             config.jpeg_quality, config.webp_quality);
+        log::debug!("Color management: preserve={}, force_srgb={}, embed={}", 
+            config.color_management.preserve_color_profile,
+            config.color_management.force_srgb_output,
+            config.color_management.embed_profile_in_output);
     }
 
     // Process input
@@ -477,9 +507,15 @@ async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig, m
         Some(target) => {
             // Output to file
             let output_path = PathBuf::from(target);
-            result
-                .save(&output_path, config.output_format, config.jpeg_quality)
-                .context("Failed to save result")?;
+            if config.color_management.preserve_color_profile {
+                result
+                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result with color profile")?;
+            } else {
+                result
+                    .save(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result")?;
+            }
             info!("Image saved to: {}", output_path.display());
         },
         None => {
@@ -522,33 +558,45 @@ async fn process_single_file(
         Some(target) => {
             // Output to specific file - use timed save for detailed logging
             let output_path = PathBuf::from(target);
-            match config.output_format {
-                OutputFormat::Png => {
-                    result
-                        .save_png_timed(&output_path)
-                        .context("Failed to save result")?;
-                },
-                _ => {
-                    result
-                        .save(&output_path, config.output_format, config.jpeg_quality)
-                        .context("Failed to save result")?;
-                },
+            if config.color_management.preserve_color_profile {
+                result
+                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result with color profile")?;
+            } else {
+                match config.output_format {
+                    OutputFormat::Png => {
+                        result
+                            .save_png_timed(&output_path)
+                            .context("Failed to save result")?;
+                    },
+                    _ => {
+                        result
+                            .save(&output_path, config.output_format, config.jpeg_quality)
+                            .context("Failed to save result")?;
+                    },
+                }
             }
         },
         None => {
             // Generate default output filename - use timed save for detailed logging
             let output_path = generate_output_path(input_path, config.output_format);
-            match config.output_format {
-                OutputFormat::Png => {
-                    result
-                        .save_png_timed(&output_path)
-                        .context("Failed to save result")?;
-                },
-                _ => {
-                    result
-                        .save(&output_path, config.output_format, config.jpeg_quality)
-                        .context("Failed to save result")?;
-                },
+            if config.color_management.preserve_color_profile {
+                result
+                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result with color profile")?;
+            } else {
+                match config.output_format {
+                    OutputFormat::Png => {
+                        result
+                            .save_png_timed(&output_path)
+                            .context("Failed to save result")?;
+                    },
+                    _ => {
+                        result
+                            .save(&output_path, config.output_format, config.jpeg_quality)
+                            .context("Failed to save result")?;
+                    },
+                }
             }
         },
     }
@@ -608,16 +656,31 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &Model
 
         match remove_background_with_model(&input_file, config, model_spec).await {
             Ok(mut result) => {
-                let save_result = match config.output_format {
-                    OutputFormat::Png => result.save_png_timed(&output_file),
-                    _ => result.save(&output_file, config.output_format, config.jpeg_quality),
+                // Save with automatic color profile handling (enabled by default)
+                let save_result = if config.color_management.preserve_color_profile {
+                    // Use ICC profile-aware saving when preservation is enabled
+                    match config.output_format {
+                        OutputFormat::Png => result.save_with_color_profile(&output_file, config.output_format, config.jpeg_quality),
+                        _ => result.save_with_color_profile(&output_file, config.output_format, config.jpeg_quality),
+                    }
+                } else {
+                    // Use regular saving without color profile handling
+                    match config.output_format {
+                        OutputFormat::Png => result.save_png_timed(&output_file),
+                        _ => result.save(&output_file, config.output_format, config.jpeg_quality),
+                    }
                 };
 
                 match save_result {
                     Ok(()) => {
                         processed_count += 1;
                         if cli.verbose {
-                            info!("Processed: {}", input_file.display());
+                            if let Some(profile) = result.get_color_profile() {
+                                info!("Processed: {} - Color Profile: {} ({} bytes)", 
+                                    input_file.display(), profile.color_space, profile.data_size());
+                            } else {
+                                info!("Processed: {} - No color profile", input_file.display());
+                            }
                         }
                     },
                     Err(e) => {

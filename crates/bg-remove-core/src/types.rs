@@ -7,6 +7,88 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// ICC color profile information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColorProfile {
+    /// Raw ICC profile data
+    pub icc_data: Option<Vec<u8>>,
+    /// Detected color space
+    pub color_space: ColorSpace,
+}
+
+impl ColorProfile {
+    /// Create a new color profile
+    pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
+        Self {
+            icc_data,
+            color_space,
+        }
+    }
+
+    /// Create a color profile from raw ICC data
+    pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
+        let color_space = Self::detect_color_space_from_data(&icc_data);
+        Self {
+            icc_data: Some(icc_data),
+            color_space,
+        }
+    }
+
+    /// Detect color space from ICC profile data using basic heuristics
+    fn detect_color_space_from_data(icc_data: &[u8]) -> ColorSpace {
+        let data_str = String::from_utf8_lossy(icc_data);
+        
+        if data_str.contains("sRGB") || data_str.contains("srgb") {
+            ColorSpace::Srgb
+        } else if data_str.contains("Adobe RGB") || data_str.contains("ADBE") {
+            ColorSpace::AdobeRgb
+        } else if data_str.contains("Display P3") || data_str.contains("APPL") {
+            ColorSpace::DisplayP3
+        } else if data_str.contains("ProPhoto") || data_str.contains("ROMM") {
+            ColorSpace::ProPhotoRgb
+        } else {
+            ColorSpace::Unknown("ICC Present".to_string())
+        }
+    }
+
+    /// Get the size of ICC profile data in bytes
+    pub fn data_size(&self) -> usize {
+        self.icc_data.as_ref().map_or(0, |data| data.len())
+    }
+
+    /// Check if this color profile has ICC data
+    pub fn has_color_profile(&self) -> bool {
+        self.icc_data.is_some()
+    }
+}
+
+/// Color space enumeration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColorSpace {
+    /// Standard RGB color space (sRGB)
+    Srgb,
+    /// Adobe RGB color space (wider gamut)
+    AdobeRgb,
+    /// Apple Display P3 color space
+    DisplayP3,
+    /// ProPhoto RGB color space (very wide gamut)
+    ProPhotoRgb,
+    /// Unknown or unsupported color space
+    Unknown(String),
+}
+
+impl std::fmt::Display for ColorSpace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColorSpace::Srgb => write!(f, "sRGB"),
+            ColorSpace::AdobeRgb => write!(f, "Adobe RGB"),
+            ColorSpace::DisplayP3 => write!(f, "Display P3"),
+            ColorSpace::ProPhotoRgb => write!(f, "ProPhoto RGB"),
+            ColorSpace::Unknown(desc) => write!(f, "Unknown ({})", desc),
+        }
+    }
+}
+
 /// Result of a background removal operation
 #[derive(Debug, Clone)]
 pub struct RemovalResult {
@@ -24,6 +106,9 @@ pub struct RemovalResult {
 
     /// Original input path (for logging purposes)
     pub input_path: Option<String>,
+
+    /// ICC color profile from the original image
+    pub color_profile: Option<ColorProfile>,
 }
 
 impl RemovalResult {
@@ -40,6 +125,7 @@ impl RemovalResult {
             original_dimensions,
             metadata,
             input_path: None,
+            color_profile: None,
         }
     }
 
@@ -57,6 +143,44 @@ impl RemovalResult {
             original_dimensions,
             metadata,
             input_path: Some(input_path),
+            color_profile: None,
+        }
+    }
+
+    /// Create a new removal result with color profile
+    #[must_use] pub fn with_color_profile(
+        image: DynamicImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        metadata: ProcessingMetadata,
+        color_profile: Option<ColorProfile>,
+    ) -> Self {
+        Self {
+            image,
+            mask,
+            original_dimensions,
+            metadata,
+            input_path: None,
+            color_profile,
+        }
+    }
+
+    /// Create a new removal result with input path and color profile
+    #[must_use] pub fn with_input_path_and_profile(
+        image: DynamicImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        metadata: ProcessingMetadata,
+        input_path: String,
+        color_profile: Option<ColorProfile>,
+    ) -> Self {
+        Self {
+            image,
+            mask,
+            original_dimensions,
+            metadata,
+            input_path: Some(input_path),
+            color_profile,
         }
     }
 
@@ -129,17 +253,26 @@ impl RemovalResult {
     }
 
     /// Save in the specified format
+    /// 
+    /// Automatically uses color profile-aware saving when color profiles are available.
+    /// For legacy compatibility, this method preserves existing behavior while enabling
+    /// color profile embedding when possible.
     pub fn save<P: AsRef<Path>>(&self, path: P, format: OutputFormat, quality: u8) -> Result<()> {
-        match format {
-            OutputFormat::Png => self.save_png(path),
-            OutputFormat::Jpeg => self.save_jpeg(path, quality),
-            OutputFormat::WebP => self.save_webp(path, quality),
-            OutputFormat::Rgba8 => {
-                // For RGBA8 format, save the raw RGBA bytes
-                let rgba_image = self.image.to_rgba8();
-                std::fs::write(path, rgba_image.as_raw())?;
-                Ok(())
-            },
+        // Use color profile-aware saving if available, otherwise fallback to standard saving
+        if self.has_color_profile() {
+            self.save_with_color_profile(path, format, quality)
+        } else {
+            match format {
+                OutputFormat::Png => self.save_png(path),
+                OutputFormat::Jpeg => self.save_jpeg(path, quality),
+                OutputFormat::WebP => self.save_webp(path, quality),
+                OutputFormat::Rgba8 => {
+                    // For RGBA8 format, save the raw RGBA bytes
+                    let rgba_image = self.image.to_rgba8();
+                    std::fs::write(path, rgba_image.as_raw())?;
+                    Ok(())
+                },
+            }
         }
     }
 
@@ -319,13 +452,155 @@ impl RemovalResult {
         summary
     }
 
+    /// Save the result with ICC color profile preservation when supported
+    ///
+    /// Attempts to preserve the original ICC color profile in the output image
+    /// when supported by the target format. Falls back to standard saving
+    /// if color profile embedding is not supported or disabled.
+    ///
+    /// # Supported Formats for ICC Profiles
+    /// - **PNG**: Planned support (requires implementation)
+    /// - **JPEG**: Planned support (requires implementation)  
+    /// - **WebP**: Not supported in current implementation
+    /// - **RGBA8**: Not applicable (raw bytes)
+    ///
+    /// # Arguments
+    /// * `path` - Output file path
+    /// * `format` - Output image format
+    /// * `quality` - Quality setting for lossy formats (0-100)
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background, OutputFormat};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::builder()
+    ///     .preserve_color_profile(true)
+    ///     .embed_profile_in_output(true)
+    ///     .build()?;
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// // Save with color profile preservation
+    /// result.save_with_color_profile("output.png", OutputFormat::Png, 0)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Supported Formats
+    /// - **PNG**: Embeds ICC profiles using iCCP chunks (✅ implemented)
+    /// - **JPEG**: Embeds ICC profiles using APP2 markers (✅ implemented)
+    /// - **WebP**: Not yet supported (falls back to standard save)
+    /// - **RGBA8**: Not applicable (raw format, falls back to standard save)
+    ///
+    /// # Implementation Details
+    /// - PNG embedding uses the `png` crate's built-in iCCP support
+    /// - JPEG embedding uses custom APP2 marker implementation
+    /// - Large profiles are automatically split across multiple JPEG segments
+    /// - Profile validation and error handling ensure data integrity
+    pub fn save_with_color_profile<P: AsRef<Path>>(
+        &self,
+        path: P,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<()> {
+        use crate::color_profile::ProfileEmbedder;
+        
+        // Check if we have a color profile to embed
+        if let Some(ref profile) = self.color_profile {
+            log::info!(
+                "Embedding ICC color profile ({}, {} bytes) in output image",
+                profile.color_space,
+                profile.data_size()
+            );
+            
+            // Convert OutputFormat to ImageFormat for ProfileEmbedder
+            let image_format = match format {
+                OutputFormat::Png => image::ImageFormat::Png,
+                OutputFormat::Jpeg => image::ImageFormat::Jpeg,
+                OutputFormat::WebP => image::ImageFormat::WebP,
+                OutputFormat::Rgba8 => {
+                    log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
+                    return self.save(path, format, quality);
+                },
+            };
+            
+            // Use ProfileEmbedder to save with ICC profile
+            ProfileEmbedder::embed_in_output(&self.image, profile, path, image_format, quality)
+        } else {
+            // No color profile to embed, use standard saving
+            log::debug!("No ICC color profile available, using standard save");
+            self.save(path, format, quality)
+        }
+    }
+
+    /// Get the ICC color profile if available
+    ///
+    /// Returns the ICC color profile that was extracted from the original input image,
+    /// if color profile preservation was enabled during processing.
+    ///
+    /// # Returns
+    /// - `Some(ColorProfile)` - ICC profile extracted from input image
+    /// - `None` - No color profile available (not preserved or not present in input)
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::builder()
+    ///     .preserve_color_profile(true)
+    ///     .build()?;
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// if let Some(profile) = result.get_color_profile() {
+    ///     println!("Original color space: {}", profile.color_space);
+    ///     println!("Profile size: {} bytes", profile.data_size());
+    /// } else {
+    ///     println!("No color profile available");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_color_profile(&self) -> Option<&ColorProfile> {
+        self.color_profile.as_ref()
+    }
+
+    /// Check if the result has an ICC color profile
+    ///
+    /// Returns `true` if an ICC color profile was preserved from the input image.
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// if result.has_color_profile() {
+    ///     // Use color-profile-aware saving
+    ///     result.save_with_color_profile("output.png", config.output_format, 0)?;
+    /// } else {
+    ///     // Standard saving
+    ///     result.save_png("output.png")?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn has_color_profile(&self) -> bool {
+        self.color_profile.is_some()
+    }
+
     /// Encode as WebP (placeholder implementation)
-    fn encode_webp(&self, _quality: u8) -> Result<Vec<u8>> {
-        // This would need proper WebP encoding implementation
-        // For now, return an error indicating it's not implemented
-        Err(crate::error::BgRemovalError::processing(
-            "WebP encoding not yet implemented",
-        ))
+    fn encode_webp(&self, quality: u8) -> Result<Vec<u8>> {
+        // Convert to RGB (WebP crate doesn't support RGBA)
+        let rgb_image = self.image.to_rgb8();
+        
+        // Encode to WebP
+        let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
+        let webp_data = encoder.encode(quality as f32);
+        
+        Ok(webp_data.to_vec())
     }
 }
 
@@ -640,6 +915,9 @@ pub struct ProcessingMetadata {
     /// Memory usage peak (bytes)
     pub peak_memory_bytes: u64,
 
+    /// ICC color profile from input image  
+    pub color_profile: Option<ColorProfile>,
+
     // Legacy timing fields for backward compatibility
     /// Time taken for inference (milliseconds) - DEPRECATED: use `timings.inference_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -668,6 +946,7 @@ impl ProcessingMetadata {
             input_format: "unknown".to_string(),
             output_format: "png".to_string(),
             peak_memory_bytes: 0,
+            color_profile: None,
             // Legacy fields set to None by default
             inference_time_ms: None,
             preprocessing_time_ms: None,

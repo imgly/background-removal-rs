@@ -54,6 +54,12 @@ serde_json = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 
+# ICC profile embedding dependencies
+flate2 = "1.0"      # Deflate compression for PNG iCCP chunks
+crc32fast = "1.4"   # CRC32 calculation for PNG chunks
+png = "0.17"        # Direct PNG manipulation for iCCP chunks
+webp = "0.3"        # WebP encoding/decoding for ICCP chunks
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
