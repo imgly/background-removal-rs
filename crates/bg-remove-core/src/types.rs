@@ -517,10 +517,7 @@ impl RemovalResult {
             let image_format = match format {
                 OutputFormat::Png => image::ImageFormat::Png,
                 OutputFormat::Jpeg => image::ImageFormat::Jpeg,
-                OutputFormat::WebP => {
-                    log::warn!("WebP ICC profile embedding not yet supported, saving without profile");
-                    return self.save(path, format, quality);
-                },
+                OutputFormat::WebP => image::ImageFormat::WebP,
                 OutputFormat::Rgba8 => {
                     log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
                     return self.save(path, format, quality);
@@ -595,12 +592,15 @@ impl RemovalResult {
     }
 
     /// Encode as WebP (placeholder implementation)
-    fn encode_webp(&self, _quality: u8) -> Result<Vec<u8>> {
-        // This would need proper WebP encoding implementation
-        // For now, return an error indicating it's not implemented
-        Err(crate::error::BgRemovalError::processing(
-            "WebP encoding not yet implemented",
-        ))
+    fn encode_webp(&self, quality: u8) -> Result<Vec<u8>> {
+        // Convert to RGB (WebP crate doesn't support RGBA)
+        let rgb_image = self.image.to_rgb8();
+        
+        // Encode to WebP
+        let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
+        let webp_data = encoder.encode(quality as f32);
+        
+        Ok(webp_data.to_vec())
     }
 }
 

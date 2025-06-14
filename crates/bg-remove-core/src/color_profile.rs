@@ -101,11 +101,25 @@ impl ProfileExtractor {
         Ok(None)
     }
 
-    /// Extract ICC profile from WebP image (placeholder implementation)
-    fn extract_from_webp<P: AsRef<Path>>(_path: P) -> Result<Option<ColorProfile>> {
-        // WebP ICC profile extraction not implemented yet
-        // Would require WebP-specific decoder with ICC support
-        Ok(None)
+    /// Extract ICC profile from WebP image
+    fn extract_from_webp<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
+        use crate::webp_encoder::WebPIccEncoder;
+        
+        let path = path.as_ref();
+        let webp_data = std::fs::read(path).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to read WebP file {}: {}", path.display(), e))
+        })?;
+        
+        match WebPIccEncoder::extract_icc_profile(&webp_data)? {
+            Some(icc_data) => {
+                log::debug!("Extracted ICC profile from WebP: {} bytes", icc_data.len());
+                Ok(Some(ColorProfile::from_icc_data(icc_data)))
+            }
+            None => {
+                log::debug!("No ICC profile found in WebP file");
+                Ok(None)
+            }
+        }
     }
 }
 
@@ -119,8 +133,9 @@ impl ProfileEmbedder {
     /// Supports PNG (via iCCP chunks) and JPEG (via APP2 markers) formats.
     ///
     /// # Supported Formats
-    /// - **PNG**: Embeds using iCCP chunks via the `png` crate
+    /// - **PNG**: Embeds using custom iCCP chunks 
     /// - **JPEG**: Embeds using APP2 markers with custom encoder
+    /// - **WebP**: Embeds using ICCP chunks in RIFF container
     /// - **Other formats**: Returns error (not supported)
     ///
     /// # Arguments
@@ -154,7 +169,7 @@ impl ProfileEmbedder {
         format: image::ImageFormat,
         quality: u8,
     ) -> Result<()> {
-        use crate::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder};
+        use crate::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder, webp_encoder::WebPIccEncoder};
         
         match format {
             image::ImageFormat::Png => {
@@ -163,9 +178,12 @@ impl ProfileEmbedder {
             image::ImageFormat::Jpeg => {
                 JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
             },
+            image::ImageFormat::WebP => {
+                WebPIccEncoder::encode_with_profile(image, profile, output_path, quality)
+            },
             _ => {
                 Err(BgRemovalError::processing(format!(
-                    "ICC profile embedding not supported for format: {:?}. Supported formats: PNG, JPEG",
+                    "ICC profile embedding not supported for format: {:?}. Supported formats: PNG, JPEG, WebP",
                     format
                 )))
             }

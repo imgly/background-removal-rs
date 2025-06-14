@@ -40,12 +40,14 @@ pub mod jpeg_encoder;
 pub mod models;
 pub mod png_encoder;
 pub mod types;
+pub mod webp_encoder;
 
 // Public API exports
 pub use backends::{MockBackend, OnnxBackend};
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use jpeg_encoder::JpegIccEncoder;
 pub use png_encoder::PngIccEncoder;
+pub use webp_encoder::WebPIccEncoder;
 pub use config::{ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
