@@ -40,6 +40,7 @@ If an issue needs further information we can create an issue markdown for this p
 
 ## Closed Issues
 
+- [x] ICC color profile preservation - COMPLETED: Implemented comprehensive ICC color profile preservation across PNG, JPEG, and WebP formats with professional-grade color management. Includes custom iCCP chunk creation, APP2 marker embedding, and RIFF ICCP chunk support. Organized into dedicated encoders module with full CLI integration and backward compatibility. 📅 2025-06-14 18:30
 - [x] Docker-based cross-compilation system - COMPLETED: Implemented comprehensive cross-compilation system with target triplet naming, supporting aarch64-unknown-linux-gnu and x86_64-unknown-linux-gnu. Fixed Docker platform warnings and added multi-target build support. 📅 2025-06-13 10:20
 - [x] Add comprehensive documentation after multi-model refactoring - COMPLETED: Added comprehensive docs to all public functions with examples, performance metrics, and usage patterns 📅 2025-06-12 23:30
 - [x] Allow to specify the model folder to use in the cli as alternative and allow embedding multiple models and choosing one. 📅 2025-06-12 10:30
