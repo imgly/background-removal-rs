@@ -127,6 +127,65 @@ impl BackgroundColor {
     }
 }
 
+/// Color management configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColorManagementConfig {
+    /// Preserve ICC color profiles from input images
+    pub preserve_color_profile: bool,
+    
+    /// Force sRGB output regardless of input profile
+    pub force_srgb_output: bool,
+    
+    /// Fallback to sRGB when color space detection fails
+    pub fallback_to_srgb: bool,
+    
+    /// Embed color profile in output (when supported by format)
+    pub embed_profile_in_output: bool,
+}
+
+impl Default for ColorManagementConfig {
+    fn default() -> Self {
+        Self {
+            preserve_color_profile: true,
+            force_srgb_output: false,
+            fallback_to_srgb: true,
+            embed_profile_in_output: true,
+        }
+    }
+}
+
+impl ColorManagementConfig {
+    /// Create a configuration that preserves color profiles
+    pub fn preserve() -> Self {
+        Self {
+            preserve_color_profile: true,
+            force_srgb_output: false,
+            fallback_to_srgb: true,
+            embed_profile_in_output: true,
+        }
+    }
+    
+    /// Create a configuration that ignores color profiles (legacy behavior)
+    pub fn ignore() -> Self {
+        Self {
+            preserve_color_profile: false,
+            force_srgb_output: false,
+            fallback_to_srgb: true,
+            embed_profile_in_output: false,
+        }
+    }
+    
+    /// Create a configuration that forces sRGB output
+    pub fn force_srgb() -> Self {
+        Self {
+            preserve_color_profile: true,
+            force_srgb_output: true,
+            fallback_to_srgb: true,
+            embed_profile_in_output: true,
+        }
+    }
+}
+
 /// Configuration for background removal operations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovalConfig {
@@ -153,6 +212,9 @@ pub struct RemovalConfig {
 
     /// Number of inter-op threads for inference (0 = auto)
     pub inter_threads: usize,
+
+    /// Color management configuration
+    pub color_management: ColorManagementConfig,
 }
 
 impl Default for RemovalConfig {
@@ -166,6 +228,7 @@ impl Default for RemovalConfig {
             debug: false,
             intra_threads: 0, // Auto-detect optimal intra-op threads
             inter_threads: 0, // Auto-detect optimal inter-op threads
+            color_management: ColorManagementConfig::default(),
         }
     }
 }
@@ -342,6 +405,30 @@ impl RemovalConfigBuilder {
     #[must_use] pub fn num_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self.config.inter_threads = if threads > 0 { (threads / 2).max(1) } else { 0 };
+        self
+    }
+
+    /// Set color management configuration
+    #[must_use] pub fn color_management(mut self, color_management: ColorManagementConfig) -> Self {
+        self.config.color_management = color_management;
+        self
+    }
+
+    /// Enable or disable ICC color profile preservation
+    #[must_use] pub fn preserve_color_profile(mut self, preserve: bool) -> Self {
+        self.config.color_management.preserve_color_profile = preserve;
+        self
+    }
+
+    /// Force sRGB output regardless of input color profile
+    #[must_use] pub fn force_srgb_output(mut self, force: bool) -> Self {
+        self.config.color_management.force_srgb_output = force;
+        self
+    }
+
+    /// Enable or disable embedding ICC profiles in output images
+    #[must_use] pub fn embed_profile_in_output(mut self, embed: bool) -> Self {
+        self.config.color_management.embed_profile_in_output = embed;
         self
     }
 
