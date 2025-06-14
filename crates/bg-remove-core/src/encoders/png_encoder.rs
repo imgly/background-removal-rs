@@ -33,7 +33,7 @@ impl PngIccEncoder {
     /// # Examples
     /// ```rust,no_run
     /// use bg_remove_core::{
-    ///     png_encoder::PngIccEncoder,
+    ///     encoders::png_encoder::PngIccEncoder,
     ///     types::ColorProfile,
     /// };
     /// use image::DynamicImage;

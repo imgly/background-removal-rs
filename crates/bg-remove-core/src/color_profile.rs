@@ -103,7 +103,7 @@ impl ProfileExtractor {
 
     /// Extract ICC profile from WebP image
     fn extract_from_webp<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
-        use crate::webp_encoder::WebPIccEncoder;
+        use crate::encoders::webp_encoder::WebPIccEncoder;
         
         let path = path.as_ref();
         let webp_data = std::fs::read(path).map_err(|e| {
@@ -169,7 +169,7 @@ impl ProfileEmbedder {
         format: image::ImageFormat,
         quality: u8,
     ) -> Result<()> {
-        use crate::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder, webp_encoder::WebPIccEncoder};
+        use crate::encoders::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder, webp_encoder::WebPIccEncoder};
         
         match format {
             image::ImageFormat::Png => {
@@ -203,7 +203,7 @@ impl ProfileEmbedder {
         profile: &ColorProfile,
         output_path: P,
     ) -> Result<()> {
-        use crate::png_encoder::PngIccEncoder;
+        use crate::encoders::png_encoder::PngIccEncoder;
         PngIccEncoder::encode_with_profile(image, profile, output_path)
     }
 
@@ -222,7 +222,7 @@ impl ProfileEmbedder {
         output_path: P,
         quality: u8,
     ) -> Result<()> {
-        use crate::jpeg_encoder::JpegIccEncoder;
+        use crate::encoders::jpeg_encoder::JpegIccEncoder;
         JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
     }
 }

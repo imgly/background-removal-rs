@@ -41,7 +41,7 @@ impl JpegIccEncoder {
     /// # Examples
     /// ```rust,no_run
     /// use bg_remove_core::{
-    ///     jpeg_encoder::JpegIccEncoder,
+    ///     encoders::jpeg_encoder::JpegIccEncoder,
     ///     types::ColorProfile,
     /// };
     /// use image::DynamicImage;
