@@ -2,11 +2,12 @@
 
 use crate::{
     backends::{MockBackend, OnnxBackend},
+    color_profile::ProfileExtractor,
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
     inference::InferenceBackend,
     models::ModelManager,
-    types::{ProcessingMetadata, RemovalResult, SegmentationMask},
+    types::{ColorProfile, ProcessingMetadata, RemovalResult, SegmentationMask},
 };
 use chrono::Utc;
 use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
@@ -95,19 +96,32 @@ impl ImageProcessor {
             model_info
         );
 
-        // 1. Image decode timing
+        // 1. Image decode timing with ICC profile extraction
         let decode_start = Instant::now();
-        let image = self.load_image(input_path)?;
+        let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
         timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
 
-        info!(
-            "[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
-            original_dimensions.0,
-            original_dimensions.1,
-            timings.image_decode_ms
-        );
+        // Log color profile information if found
+        if let Some(ref profile) = color_profile {
+            info!(
+                "[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms - Color Profile: {} ({} bytes)",
+                Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+                original_dimensions.0,
+                original_dimensions.1,
+                timings.image_decode_ms,
+                profile.color_space,
+                profile.data_size()
+            );
+        } else {
+            info!(
+                "[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms - No color profile",
+                Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+                original_dimensions.0,
+                original_dimensions.1,
+                timings.image_decode_ms
+            );
+        }
 
         // 2. Preprocessing timing
         let preprocess_start = Instant::now();
@@ -149,17 +163,19 @@ impl ImageProcessor {
         // Calculate total time
         timings.total_ms = total_start.elapsed().as_millis() as u64;
 
-        // Set metadata with detailed timings
+        // Set metadata with detailed timings and color profile
         metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
+        metadata.color_profile = color_profile.clone();
 
-        Ok(RemovalResult::with_input_path(
+        Ok(RemovalResult::with_input_path_and_profile(
             result_image,
             mask,
             original_dimensions,
             metadata,
             input_path_str,
+            color_profile,
         ))
     }
 
@@ -185,9 +201,9 @@ impl ImageProcessor {
         let mut metadata = ProcessingMetadata::new("MaskApplication".to_string());
         let mut timings = crate::types::ProcessingTimings::new();
 
-        // Image decode timing
+        // Image decode timing with ICC profile extraction
         let decode_start = Instant::now();
-        let image = self.load_image(input_path)?;
+        let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
         timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
 
@@ -214,12 +230,14 @@ impl ImageProcessor {
         metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
+        metadata.color_profile = color_profile.clone();
 
-        Ok(RemovalResult::new(
+        Ok(RemovalResult::with_color_profile(
             result_image,
             resized_mask,
             original_dimensions,
             metadata,
+            color_profile,
         ))
     }
 
@@ -253,10 +271,11 @@ impl ImageProcessor {
         // Calculate total time
         timings.total_ms = total_start.elapsed().as_millis() as u64;
 
-        // Set metadata with detailed timings
+        // Set metadata with detailed timings  
         metadata.set_detailed_timings(timings);
         metadata.input_format = self.detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
+        metadata.color_profile = None; // No color profile available for in-memory images
 
         Ok(RemovalResult::new(
             result_image,
@@ -270,6 +289,21 @@ impl ImageProcessor {
     fn load_image<P: AsRef<Path>>(&self, path: P) -> Result<DynamicImage> {
         let image = image::open(path)?;
         Ok(image)
+    }
+
+    /// Load image with ICC color profile extraction
+    fn load_image_with_profile<P: AsRef<Path>>(&self, path: P) -> Result<(DynamicImage, Option<ColorProfile>)> {
+        // Extract ICC profile first if color management is enabled
+        let profile = if self.config.color_management.preserve_color_profile {
+            ProfileExtractor::extract_from_image(&path)?
+        } else {
+            None
+        };
+        
+        // Load image using high-level function
+        let image = image::open(&path)?;
+        
+        Ok((image, profile))
     }
 
     /// Preprocess image for model inference with aspect ratio preservation
