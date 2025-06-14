@@ -7,6 +7,83 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// ICC color profile information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColorProfile {
+    /// Raw ICC profile data
+    pub icc_data: Option<Vec<u8>>,
+    /// Detected color space
+    pub color_space: ColorSpace,
+}
+
+impl ColorProfile {
+    /// Create a new color profile
+    pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
+        Self {
+            icc_data,
+            color_space,
+        }
+    }
+
+    /// Create a color profile from raw ICC data
+    pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
+        let color_space = Self::detect_color_space_from_data(&icc_data);
+        Self {
+            icc_data: Some(icc_data),
+            color_space,
+        }
+    }
+
+    /// Detect color space from ICC profile data using basic heuristics
+    fn detect_color_space_from_data(icc_data: &[u8]) -> ColorSpace {
+        let data_str = String::from_utf8_lossy(icc_data);
+        
+        if data_str.contains("sRGB") || data_str.contains("srgb") {
+            ColorSpace::Srgb
+        } else if data_str.contains("Adobe RGB") || data_str.contains("ADBE") {
+            ColorSpace::AdobeRgb
+        } else if data_str.contains("Display P3") || data_str.contains("APPL") {
+            ColorSpace::DisplayP3
+        } else if data_str.contains("ProPhoto") || data_str.contains("ROMM") {
+            ColorSpace::ProPhotoRgb
+        } else {
+            ColorSpace::Unknown("ICC Present".to_string())
+        }
+    }
+
+    /// Get the size of ICC profile data in bytes
+    pub fn data_size(&self) -> usize {
+        self.icc_data.as_ref().map_or(0, |data| data.len())
+    }
+}
+
+/// Color space enumeration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColorSpace {
+    /// Standard RGB color space (sRGB)
+    Srgb,
+    /// Adobe RGB color space (wider gamut)
+    AdobeRgb,
+    /// Apple Display P3 color space
+    DisplayP3,
+    /// ProPhoto RGB color space (very wide gamut)
+    ProPhotoRgb,
+    /// Unknown or unsupported color space
+    Unknown(String),
+}
+
+impl std::fmt::Display for ColorSpace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColorSpace::Srgb => write!(f, "sRGB"),
+            ColorSpace::AdobeRgb => write!(f, "Adobe RGB"),
+            ColorSpace::DisplayP3 => write!(f, "Display P3"),
+            ColorSpace::ProPhotoRgb => write!(f, "ProPhoto RGB"),
+            ColorSpace::Unknown(desc) => write!(f, "Unknown ({})", desc),
+        }
+    }
+}
+
 /// Result of a background removal operation
 #[derive(Debug, Clone)]
 pub struct RemovalResult {
@@ -24,6 +101,9 @@ pub struct RemovalResult {
 
     /// Original input path (for logging purposes)
     pub input_path: Option<String>,
+
+    /// ICC color profile from the original image
+    pub color_profile: Option<ColorProfile>,
 }
 
 impl RemovalResult {
@@ -40,6 +120,7 @@ impl RemovalResult {
             original_dimensions,
             metadata,
             input_path: None,
+            color_profile: None,
         }
     }
 
@@ -57,6 +138,44 @@ impl RemovalResult {
             original_dimensions,
             metadata,
             input_path: Some(input_path),
+            color_profile: None,
+        }
+    }
+
+    /// Create a new removal result with color profile
+    #[must_use] pub fn with_color_profile(
+        image: DynamicImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        metadata: ProcessingMetadata,
+        color_profile: Option<ColorProfile>,
+    ) -> Self {
+        Self {
+            image,
+            mask,
+            original_dimensions,
+            metadata,
+            input_path: None,
+            color_profile,
+        }
+    }
+
+    /// Create a new removal result with input path and color profile
+    #[must_use] pub fn with_input_path_and_profile(
+        image: DynamicImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        metadata: ProcessingMetadata,
+        input_path: String,
+        color_profile: Option<ColorProfile>,
+    ) -> Self {
+        Self {
+            image,
+            mask,
+            original_dimensions,
+            metadata,
+            input_path: Some(input_path),
+            color_profile,
         }
     }
 
@@ -640,6 +759,9 @@ pub struct ProcessingMetadata {
     /// Memory usage peak (bytes)
     pub peak_memory_bytes: u64,
 
+    /// ICC color profile from input image  
+    pub color_profile: Option<ColorProfile>,
+
     // Legacy timing fields for backward compatibility
     /// Time taken for inference (milliseconds) - DEPRECATED: use `timings.inference_ms`
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -668,6 +790,7 @@ impl ProcessingMetadata {
             input_format: "unknown".to_string(),
             output_format: "png".to_string(),
             peak_memory_bytes: 0,
+            color_profile: None,
             // Legacy fields set to None by default
             inference_time_ms: None,
             preprocessing_time_ms: None,
