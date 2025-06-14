@@ -55,6 +55,11 @@ impl ColorProfile {
     pub fn data_size(&self) -> usize {
         self.icc_data.as_ref().map_or(0, |data| data.len())
     }
+
+    /// Check if this color profile has ICC data
+    pub fn has_color_profile(&self) -> bool {
+        self.icc_data.is_some()
+    }
 }
 
 /// Color space enumeration

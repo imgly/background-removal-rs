@@ -546,3 +546,6 @@ mod tests {
 
 #[cfg(test)]
 mod timing_tests;
+
+#[cfg(test)]
+mod color_profile_tests;
