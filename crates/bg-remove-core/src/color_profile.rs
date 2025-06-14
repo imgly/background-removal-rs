@@ -113,29 +113,99 @@ impl ProfileExtractor {
 pub struct ProfileEmbedder;
 
 impl ProfileEmbedder {
-    /// Embed ICC profile in output image (placeholder implementation)
+    /// Embed ICC profile in output image
     ///
-    /// This is a placeholder for Phase 4 implementation.
-    /// Current image crate 0.24.9 has limited ICC profile embedding support.
+    /// Embeds ICC color profiles in output images using format-specific encoders.
+    /// Supports PNG (via iCCP chunks) and JPEG (via APP2 markers) formats.
+    ///
+    /// # Supported Formats
+    /// - **PNG**: Embeds using iCCP chunks via the `png` crate
+    /// - **JPEG**: Embeds using APP2 markers with custom encoder
+    /// - **Other formats**: Returns error (not supported)
     ///
     /// # Arguments
     /// * `image` - The image to embed profile in
     /// * `profile` - The ICC profile to embed
     /// * `output_path` - Output file path
     /// * `format` - Output image format
+    /// * `quality` - Quality setting (used for JPEG, 0-100)
     ///
     /// # Returns
-    /// Currently returns an error indicating the feature is not implemented.
-    /// Will be implemented in Phase 4 with proper encoder support.
+    /// Result indicating success or failure of the embedding operation
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{
+    ///     color_profile::ProfileEmbedder,
+    ///     types::ColorProfile,
+    /// };
+    /// use image::{DynamicImage, ImageFormat};
+    ///
+    /// # fn example(image: DynamicImage, profile: ColorProfile) -> bg_remove_core::Result<()> {
+    /// ProfileEmbedder::embed_in_output(&image, &profile, "output.png", ImageFormat::Png, 0)?;
+    /// ProfileEmbedder::embed_in_output(&image, &profile, "output.jpg", ImageFormat::Jpeg, 90)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn embed_in_output<P: AsRef<Path>>(
-        _image: &image::DynamicImage,
-        _profile: &ColorProfile,
-        _output_path: P,
-        _format: image::ImageFormat,
+        image: &image::DynamicImage,
+        profile: &ColorProfile,
+        output_path: P,
+        format: image::ImageFormat,
+        quality: u8,
     ) -> Result<()> {
-        Err(BgRemovalError::processing(
-            "ICC profile embedding not yet implemented - Phase 4 feature"
-        ))
+        use crate::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder};
+        
+        match format {
+            image::ImageFormat::Png => {
+                PngIccEncoder::encode_with_profile(image, profile, output_path)
+            },
+            image::ImageFormat::Jpeg => {
+                JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
+            },
+            _ => {
+                Err(BgRemovalError::processing(format!(
+                    "ICC profile embedding not supported for format: {:?}. Supported formats: PNG, JPEG",
+                    format
+                )))
+            }
+        }
+    }
+
+    /// Embed ICC profile in PNG output
+    ///
+    /// Convenience method for PNG-specific ICC embedding.
+    ///
+    /// # Arguments
+    /// * `image` - The image to embed profile in
+    /// * `profile` - The ICC profile to embed
+    /// * `output_path` - Output PNG file path
+    pub fn embed_in_png<P: AsRef<Path>>(
+        image: &image::DynamicImage,
+        profile: &ColorProfile,
+        output_path: P,
+    ) -> Result<()> {
+        use crate::png_encoder::PngIccEncoder;
+        PngIccEncoder::encode_with_profile(image, profile, output_path)
+    }
+
+    /// Embed ICC profile in JPEG output
+    ///
+    /// Convenience method for JPEG-specific ICC embedding.
+    ///
+    /// # Arguments
+    /// * `image` - The image to embed profile in
+    /// * `profile` - The ICC profile to embed
+    /// * `output_path` - Output JPEG file path
+    /// * `quality` - JPEG quality (0-100)
+    pub fn embed_in_jpeg<P: AsRef<Path>>(
+        image: &image::DynamicImage,
+        profile: &ColorProfile,
+        output_path: P,
+        quality: u8,
+    ) -> Result<()> {
+        use crate::jpeg_encoder::JpegIccEncoder;
+        JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
     }
 }
 

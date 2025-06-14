@@ -486,35 +486,54 @@ impl RemovalResult {
     /// # }
     /// ```
     ///
-    /// # Current Limitations
-    /// In the current implementation (image crate 0.24.9), ICC profile embedding
-    /// is not yet implemented. This method falls back to standard saving and
-    /// logs a warning when color profiles are present but cannot be embedded.
+    /// # Supported Formats
+    /// - **PNG**: Embeds ICC profiles using iCCP chunks (✅ implemented)
+    /// - **JPEG**: Embeds ICC profiles using APP2 markers (✅ implemented)
+    /// - **WebP**: Not yet supported (falls back to standard save)
+    /// - **RGBA8**: Not applicable (raw format, falls back to standard save)
     ///
-    /// # Future Implementation
-    /// Full ICC profile embedding will be implemented in a future version with:
-    /// - Custom PNG encoder with iCCP chunk support
-    /// - Custom JPEG encoder with APP2 ICC_PROFILE marker support
-    /// - Validation and error handling for corrupted profiles
+    /// # Implementation Details
+    /// - PNG embedding uses the `png` crate's built-in iCCP support
+    /// - JPEG embedding uses custom APP2 marker implementation
+    /// - Large profiles are automatically split across multiple JPEG segments
+    /// - Profile validation and error handling ensure data integrity
     pub fn save_with_color_profile<P: AsRef<Path>>(
         &self,
         path: P,
         format: OutputFormat,
         quality: u8,
     ) -> Result<()> {
-        // Check if we have a color profile and if embedding is enabled
+        use crate::color_profile::ProfileEmbedder;
+        
+        // Check if we have a color profile to embed
         if let Some(ref profile) = self.color_profile {
-            // For now, log that we have a profile but can't embed it
-            // TODO: Implement actual ICC profile embedding in Phase 4
-            log::warn!(
-                "ICC color profile detected ({}, {} bytes) but embedding not yet implemented. Saving without profile.",
+            log::info!(
+                "Embedding ICC color profile ({}, {} bytes) in output image",
                 profile.color_space,
                 profile.data_size()
             );
+            
+            // Convert OutputFormat to ImageFormat for ProfileEmbedder
+            let image_format = match format {
+                OutputFormat::Png => image::ImageFormat::Png,
+                OutputFormat::Jpeg => image::ImageFormat::Jpeg,
+                OutputFormat::WebP => {
+                    log::warn!("WebP ICC profile embedding not yet supported, saving without profile");
+                    return self.save(path, format, quality);
+                },
+                OutputFormat::Rgba8 => {
+                    log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
+                    return self.save(path, format, quality);
+                },
+            };
+            
+            // Use ProfileEmbedder to save with ICC profile
+            ProfileEmbedder::embed_in_output(&self.image, profile, path, image_format, quality)
+        } else {
+            // No color profile to embed, use standard saving
+            log::debug!("No ICC color profile available, using standard save");
+            self.save(path, format, quality)
         }
-        
-        // Fall back to standard saving for now
-        self.save(path, format, quality)
     }
 
     /// Get the ICC color profile if available
