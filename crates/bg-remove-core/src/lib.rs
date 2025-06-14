@@ -10,6 +10,7 @@
 //!
 //! - High-performance background removal using `ISNet` models
 //! - Support for multiple image formats (JPEG, PNG, WebP)
+//! - ICC color profile preservation (enabled by default)
 //! - Configurable model precision (FP32, FP16)
 //! - Async and sync API support
 //! - Memory-efficient processing

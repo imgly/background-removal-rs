@@ -253,17 +253,26 @@ impl RemovalResult {
     }
 
     /// Save in the specified format
+    /// 
+    /// Automatically uses color profile-aware saving when color profiles are available.
+    /// For legacy compatibility, this method preserves existing behavior while enabling
+    /// color profile embedding when possible.
     pub fn save<P: AsRef<Path>>(&self, path: P, format: OutputFormat, quality: u8) -> Result<()> {
-        match format {
-            OutputFormat::Png => self.save_png(path),
-            OutputFormat::Jpeg => self.save_jpeg(path, quality),
-            OutputFormat::WebP => self.save_webp(path, quality),
-            OutputFormat::Rgba8 => {
-                // For RGBA8 format, save the raw RGBA bytes
-                let rgba_image = self.image.to_rgba8();
-                std::fs::write(path, rgba_image.as_raw())?;
-                Ok(())
-            },
+        // Use color profile-aware saving if available, otherwise fallback to standard saving
+        if self.has_color_profile() {
+            self.save_with_color_profile(path, format, quality)
+        } else {
+            match format {
+                OutputFormat::Png => self.save_png(path),
+                OutputFormat::Jpeg => self.save_jpeg(path, quality),
+                OutputFormat::WebP => self.save_webp(path, quality),
+                OutputFormat::Rgba8 => {
+                    // For RGBA8 format, save the raw RGBA bytes
+                    let rgba_image = self.image.to_rgba8();
+                    std::fs::write(path, rgba_image.as_raw())?;
+                    Ok(())
+                },
+            }
         }
     }
 

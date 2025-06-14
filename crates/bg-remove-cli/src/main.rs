@@ -85,7 +85,7 @@ struct Cli {
     #[arg(long)]
     variant: Option<String>,
 
-    /// Preserve ICC color profiles from input images
+    /// Preserve ICC color profiles from input images (enabled by default)
     #[arg(long, default_value_t = true)]
     preserve_color_profile: bool,
 
@@ -97,7 +97,7 @@ struct Cli {
     #[arg(long)]
     force_srgb: bool,
 
-    /// Embed color profile in output (when supported by format)
+    /// Embed color profile in output when supported by format (enabled by default)
     #[arg(long, default_value_t = true)]
     embed_profile: bool,
 
@@ -638,14 +638,10 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &Model
 
         match remove_background_with_model(&input_file, config, model_spec).await {
             Ok(mut result) => {
-                // Use color profile-aware saving if color management is enabled
-                let save_result = if config.color_management.embed_profile_in_output && result.has_color_profile() {
-                    result.save_with_color_profile(&output_file, config.output_format, config.jpeg_quality)
-                } else {
-                    match config.output_format {
-                        OutputFormat::Png => result.save_png_timed(&output_file),
-                        _ => result.save(&output_file, config.output_format, config.jpeg_quality),
-                    }
+                // Save with automatic color profile handling (enabled by default)
+                let save_result = match config.output_format {
+                    OutputFormat::Png => result.save_png_timed(&output_file),
+                    _ => result.save(&output_file, config.output_format, config.jpeg_quality),
                 };
 
                 match save_result {

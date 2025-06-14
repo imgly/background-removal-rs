@@ -128,28 +128,31 @@ impl BackgroundColor {
 }
 
 /// Color management configuration
+/// 
+/// By default, ICC color profiles are preserved and embedded for professional color accuracy.
+/// This ensures consistent color reproduction across different devices and applications.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColorManagementConfig {
-    /// Preserve ICC color profiles from input images
+    /// Preserve ICC color profiles from input images (default: true)
     pub preserve_color_profile: bool,
     
-    /// Force sRGB output regardless of input profile
+    /// Force sRGB output regardless of input profile (default: false)
     pub force_srgb_output: bool,
     
-    /// Fallback to sRGB when color space detection fails
+    /// Fallback to sRGB when color space detection fails (default: true)
     pub fallback_to_srgb: bool,
     
-    /// Embed color profile in output (when supported by format)
+    /// Embed color profile in output when supported by format (default: true)
     pub embed_profile_in_output: bool,
 }
 
 impl Default for ColorManagementConfig {
     fn default() -> Self {
         Self {
-            preserve_color_profile: true,
+            preserve_color_profile: true,  // Default: preserve color profiles
             force_srgb_output: false,
             fallback_to_srgb: true,
-            embed_profile_in_output: true,
+            embed_profile_in_output: true, // Default: embed profiles in output
         }
     }
 }
