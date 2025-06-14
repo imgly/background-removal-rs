@@ -30,6 +30,7 @@
 //! ```
 
 pub mod backends;
+pub mod color_profile;
 pub mod config;
 pub mod error;
 pub mod image_processing;
@@ -39,12 +40,13 @@ pub mod types;
 
 // Public API exports
 pub use backends::{MockBackend, OnnxBackend};
-pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
+pub use color_profile::{ProfileEmbedder, ProfileExtractor};
+pub use config::{ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
 pub use models::{get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
-pub use types::{RemovalResult, SegmentationMask};
+pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 
 /// Remove background from an image file with specific model selection
 ///
