@@ -49,10 +49,23 @@ This implementation adds complete ICC color profile support to the background re
   - Quality parameter support
   - Comprehensive error handling
 
-### Format-Specific Encoders
+### Format-Specific Encoders Module
 
-#### 4. **PNG ICC Encoder**
-- **File:** `crates/bg-remove-core/src/png_encoder.rs`
+#### 4. **Encoders Module Organization**
+- **Module:** `crates/bg-remove-core/src/encoders/`
+- **Added:** Dedicated ICC encoders module with comprehensive organization
+- **Structure:**
+  - `mod.rs` - Module documentation and public exports
+  - `png_encoder.rs` - PNG iCCP chunk implementation  
+  - `jpeg_encoder.rs` - JPEG APP2 marker implementation
+  - `webp_encoder.rs` - WebP RIFF ICCP chunk implementation
+- **Benefits:**
+  - Logical grouping of ICC encoding functionality
+  - Clear separation of concerns and better maintainability
+  - Consistent API across all format encoders
+
+#### 5. **PNG ICC Encoder**
+- **File:** `crates/bg-remove-core/src/encoders/png_encoder.rs`
 - **Added:** Complete PNG iCCP chunk implementation
 - **Technical Details:**
   - Manual iCCP chunk creation according to PNG specification
@@ -61,8 +74,8 @@ This implementation adds complete ICC color profile support to the background re
   - PNG file structure parsing and modification
 - **Standards Compliance:** PNG Specification 1.2
 
-#### 5. **JPEG ICC Encoder**
-- **File:** `crates/bg-remove-core/src/jpeg_encoder.rs`
+#### 6. **JPEG ICC Encoder**
+- **File:** `crates/bg-remove-core/src/encoders/jpeg_encoder.rs`
 - **Added:** JPEG APP2 marker implementation
 - **Technical Details:**
   - APP2 marker creation with ICC_PROFILE identifier
@@ -71,8 +84,8 @@ This implementation adds complete ICC color profile support to the background re
   - SOI marker handling and validation
 - **Standards Compliance:** JPEG ICC Profile Specification
 
-#### 6. **WebP ICC Encoder**
-- **File:** `crates/bg-remove-core/src/webp_encoder.rs`
+#### 7. **WebP ICC Encoder**
+- **File:** `crates/bg-remove-core/src/encoders/webp_encoder.rs`
 - **Added:** WebP RIFF ICCP chunk implementation
 - **Technical Details:**
   - RIFF container structure parsing
@@ -83,7 +96,7 @@ This implementation adds complete ICC color profile support to the background re
 
 ### Configuration and CLI Integration
 
-#### 7. **Color Management Configuration**
+#### 8. **Color Management Configuration**
 - **File:** `crates/bg-remove-core/src/config.rs`
 - **Added:** `ColorManagementConfig` structure
 - **Features:**
@@ -92,7 +105,7 @@ This implementation adds complete ICC color profile support to the background re
   - Builder pattern integration
   - Validation and error handling
 
-#### 8. **CLI Color Profile Options**
+#### 9. **CLI Color Profile Options**
 - **File:** `crates/bg-remove-cli/src/main.rs`
 - **Added:** Command-line color profile management
 - **New Options:**
@@ -103,7 +116,7 @@ This implementation adds complete ICC color profile support to the background re
 
 ### Image Processing Pipeline Updates
 
-#### 9. **ICC-Aware Image Processing**
+#### 10. **ICC-Aware Image Processing**
 - **File:** `crates/bg-remove-core/src/image_processing.rs`
 - **Modified:** Core processing pipeline to preserve ICC profiles
 - **Features:**
@@ -112,7 +125,7 @@ This implementation adds complete ICC color profile support to the background re
   - Detailed logging for color profile operations
   - Error handling for profile extraction failures
 
-#### 10. **Enhanced Save Methods**
+#### 11. **Enhanced Save Methods**
 - **File:** `crates/bg-remove-core/src/types.rs`
 - **Added:** `save_with_color_profile()` method
 - **Modified:** CLI integration to use ICC-aware saving
@@ -463,6 +476,29 @@ bg-remove input.jpg output.png
 - CLI option documentation updates
 - Color management workflow guides
 - Professional photography integration examples
+
+## 🏗️ Code Organization
+
+### Module Restructuring
+During development, the ICC encoder implementations were reorganized into a dedicated `encoders` module for improved maintainability and code organization:
+
+- **Before:** Individual encoder files in `src/` root
+  - `src/jpeg_encoder.rs`
+  - `src/png_encoder.rs` 
+  - `src/webp_encoder.rs`
+
+- **After:** Organized `encoders` module structure
+  - `src/encoders/mod.rs` - Module documentation and exports
+  - `src/encoders/jpeg_encoder.rs` - JPEG APP2 implementation
+  - `src/encoders/png_encoder.rs` - PNG iCCP implementation
+  - `src/encoders/webp_encoder.rs` - WebP RIFF ICCP implementation
+
+### Benefits of Reorganization
+- **Logical Grouping:** All ICC encoding functionality in one module
+- **Better Maintainability:** Clear separation of concerns and responsibilities
+- **Consistent API:** Unified interface across all format encoders
+- **Future Extensibility:** Easy to add new format encoders
+- **Backward Compatibility:** Public API unchanged through re-exports
 
 ## ✅ Quality Assurance
 
