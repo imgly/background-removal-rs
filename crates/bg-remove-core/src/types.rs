@@ -438,6 +438,129 @@ impl RemovalResult {
         summary
     }
 
+    /// Save the result with ICC color profile preservation when supported
+    ///
+    /// Attempts to preserve the original ICC color profile in the output image
+    /// when supported by the target format. Falls back to standard saving
+    /// if color profile embedding is not supported or disabled.
+    ///
+    /// # Supported Formats for ICC Profiles
+    /// - **PNG**: Planned support (requires implementation)
+    /// - **JPEG**: Planned support (requires implementation)  
+    /// - **WebP**: Not supported in current implementation
+    /// - **RGBA8**: Not applicable (raw bytes)
+    ///
+    /// # Arguments
+    /// * `path` - Output file path
+    /// * `format` - Output image format
+    /// * `quality` - Quality setting for lossy formats (0-100)
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background, OutputFormat};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::builder()
+    ///     .preserve_color_profile(true)
+    ///     .embed_profile_in_output(true)
+    ///     .build()?;
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// // Save with color profile preservation
+    /// result.save_with_color_profile("output.png", OutputFormat::Png, 0)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Current Limitations
+    /// In the current implementation (image crate 0.24.9), ICC profile embedding
+    /// is not yet implemented. This method falls back to standard saving and
+    /// logs a warning when color profiles are present but cannot be embedded.
+    ///
+    /// # Future Implementation
+    /// Full ICC profile embedding will be implemented in a future version with:
+    /// - Custom PNG encoder with iCCP chunk support
+    /// - Custom JPEG encoder with APP2 ICC_PROFILE marker support
+    /// - Validation and error handling for corrupted profiles
+    pub fn save_with_color_profile<P: AsRef<Path>>(
+        &self,
+        path: P,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<()> {
+        // Check if we have a color profile and if embedding is enabled
+        if let Some(ref profile) = self.color_profile {
+            // For now, log that we have a profile but can't embed it
+            // TODO: Implement actual ICC profile embedding in Phase 4
+            log::warn!(
+                "ICC color profile detected ({}, {} bytes) but embedding not yet implemented. Saving without profile.",
+                profile.color_space,
+                profile.data_size()
+            );
+        }
+        
+        // Fall back to standard saving for now
+        self.save(path, format, quality)
+    }
+
+    /// Get the ICC color profile if available
+    ///
+    /// Returns the ICC color profile that was extracted from the original input image,
+    /// if color profile preservation was enabled during processing.
+    ///
+    /// # Returns
+    /// - `Some(ColorProfile)` - ICC profile extracted from input image
+    /// - `None` - No color profile available (not preserved or not present in input)
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::builder()
+    ///     .preserve_color_profile(true)
+    ///     .build()?;
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// if let Some(profile) = result.get_color_profile() {
+    ///     println!("Original color space: {}", profile.color_space);
+    ///     println!("Profile size: {} bytes", profile.data_size());
+    /// } else {
+    ///     println!("No color profile available");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_color_profile(&self) -> Option<&ColorProfile> {
+        self.color_profile.as_ref()
+    }
+
+    /// Check if the result has an ICC color profile
+    ///
+    /// Returns `true` if an ICC color profile was preserved from the input image.
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use bg_remove_core::{RemovalConfig, remove_background};
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = RemovalConfig::default();
+    /// let result = remove_background("photo.jpg", &config).await?;
+    /// 
+    /// if result.has_color_profile() {
+    ///     // Use color-profile-aware saving
+    ///     result.save_with_color_profile("output.png", config.output_format, 0)?;
+    /// } else {
+    ///     // Standard saving
+    ///     result.save_png("output.png")?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn has_color_profile(&self) -> bool {
+        self.color_profile.is_some()
+    }
+
     /// Encode as WebP (placeholder implementation)
     fn encode_webp(&self, _quality: u8) -> Result<Vec<u8>> {
         // This would need proper WebP encoding implementation
