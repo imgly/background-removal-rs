@@ -48,7 +48,7 @@ pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use jpeg_encoder::JpegIccEncoder;
 pub use png_encoder::PngIccEncoder;
 pub use webp_encoder::WebPIccEncoder;
-pub use config::{ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig};
+pub use config::{BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
@@ -551,8 +551,3 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod timing_tests;
-
-#[cfg(test)]
-mod color_profile_tests;

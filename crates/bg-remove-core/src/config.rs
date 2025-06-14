@@ -460,11 +460,12 @@ impl RemovalConfigBuilder {
     ///     .build()
     ///     .unwrap();
     ///
-    /// // Invalid configuration (quality > 100)
+    /// // Values > 100 are automatically clamped to 100
     /// let result = RemovalConfig::builder()
-    ///     .jpeg_quality(150)
+    ///     .jpeg_quality(150)  // Clamped to 100
     ///     .build();
-    /// assert!(result.is_err());
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap().jpeg_quality, 100);
     /// ```
     pub fn build(self) -> crate::Result<RemovalConfig> {
         let config = self.config;

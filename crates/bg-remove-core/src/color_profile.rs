@@ -274,10 +274,11 @@ mod tests {
             &image,
             &profile, 
             "test.png",
-            image::ImageFormat::Png
+            image::ImageFormat::Png,
+            80
         );
         
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not yet implemented"));
+        assert!(result.unwrap_err().to_string().contains("no data to embed"));
     }
 }
