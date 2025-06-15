@@ -104,6 +104,7 @@ impl ImageProcessor {
     /// - Model inference errors
     /// - ICC color profile extraction failures (if enabled)
     /// - Image processing and mask application errors
+    #[allow(clippy::unused_async)] // Kept async for API consistency
     pub async fn remove_background<P: AsRef<Path>>(
         &mut self,
         input_path: P,
@@ -212,7 +213,7 @@ impl ImageProcessor {
         metadata.set_detailed_timings(timings);
         metadata.input_format = Self::detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
-        metadata.color_profile = color_profile.clone();
+        metadata.color_profile.clone_from(&color_profile);
 
         Ok(RemovalResult::with_input_path_and_profile(
             result_image,
@@ -231,6 +232,7 @@ impl ImageProcessor {
     /// - Model inference errors
     /// - Image preprocessing errors
     /// - Tensor conversion errors
+    #[allow(clippy::unused_async)] // Kept async for API consistency
     pub async fn segment_foreground<P: AsRef<Path>>(
         &mut self,
         input_path: P,
@@ -249,6 +251,7 @@ impl ImageProcessor {
     /// - Mask resizing errors if dimensions don't match
     /// - Image processing and mask application errors
     /// - ICC color profile extraction failures (if enabled)
+    #[allow(clippy::unused_async)] // Kept async for API consistency
     pub async fn apply_mask<P: AsRef<Path>>(
         &self,
         input_path: P,
@@ -287,7 +290,7 @@ impl ImageProcessor {
         metadata.set_detailed_timings(timings);
         metadata.input_format = Self::detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
-        metadata.color_profile = color_profile.clone();
+        metadata.color_profile.clone_from(&color_profile);
 
         Ok(RemovalResult::with_color_profile(
             result_image,
@@ -305,6 +308,7 @@ impl ImageProcessor {
     /// - Image preprocessing errors
     /// - Tensor conversion errors
     /// - Mask processing and application errors
+    #[allow(clippy::needless_pass_by_value)] // DynamicImage is consumed by preprocessing
     pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
         let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());

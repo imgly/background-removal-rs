@@ -145,6 +145,7 @@ impl OnnxBackend {
     }
 
     /// Load and initialize the ONNX model
+    #[allow(clippy::too_many_lines)] // Complex provider configuration logic
     fn load_model(&mut self, config: &RemovalConfig) -> Result<()> {
         // Get or create model manager
         let model_manager = if let Some(ref manager) = self.model_manager {
@@ -362,6 +363,7 @@ impl InferenceBackend for OnnxBackend {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)] // Complex inference with detailed diagnostics
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         use std::time::Instant;
         
