@@ -304,10 +304,14 @@ impl ImageComparison {
             let expected_pixel = expected_rgba.get_pixel(x, y);
 
             // Calculate absolute difference
-            let r_diff = (i16::from(actual_pixel[0]) - i16::from(expected_pixel[0])).unsigned_abs() as u8;
-            let g_diff = (i16::from(actual_pixel[1]) - i16::from(expected_pixel[1])).unsigned_abs() as u8;
-            let b_diff = (i16::from(actual_pixel[2]) - i16::from(expected_pixel[2])).unsigned_abs() as u8;
-            let a_diff = (i16::from(actual_pixel[3]) - i16::from(expected_pixel[3])).unsigned_abs() as u8;
+            let r_diff =
+                (i16::from(actual_pixel[0]) - i16::from(expected_pixel[0])).unsigned_abs() as u8;
+            let g_diff =
+                (i16::from(actual_pixel[1]) - i16::from(expected_pixel[1])).unsigned_abs() as u8;
+            let b_diff =
+                (i16::from(actual_pixel[2]) - i16::from(expected_pixel[2])).unsigned_abs() as u8;
+            let a_diff =
+                (i16::from(actual_pixel[3]) - i16::from(expected_pixel[3])).unsigned_abs() as u8;
 
             // Color-code differences: red for major differences, yellow for minor
             let max_diff = cmp::max(cmp::max(r_diff, g_diff), cmp::max(b_diff, a_diff));
@@ -534,7 +538,8 @@ pub struct ImageAnalysis;
 
 impl ImageAnalysis {
     /// Analyze mask quality (for alpha channel analysis)
-    #[must_use] pub fn analyze_mask_quality(mask: &GrayImage) -> MaskQualityMetrics {
+    #[must_use]
+    pub fn analyze_mask_quality(mask: &GrayImage) -> MaskQualityMetrics {
         let total_pixels = f64::from(mask.width() * mask.height());
         let mut transparent_pixels = 0;
         let mut opaque_pixels = 0;
@@ -564,7 +569,8 @@ impl ImageAnalysis {
     }
 
     /// Check if image has realistic proportions and content
-    #[must_use] pub fn validate_output_realism(image: &DynamicImage) -> RealismScore {
+    #[must_use]
+    pub fn validate_output_realism(image: &DynamicImage) -> RealismScore {
         let rgba = image.to_rgba8();
         let total_pixels = f64::from(image.width() * image.height());
 

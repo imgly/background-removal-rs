@@ -4,7 +4,10 @@
 
 use anyhow::{Context, Result};
 use bg_remove_core::config::{BackgroundColor, ColorManagementConfig};
-use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig, remove_background_with_model, get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
+use bg_remove_core::{
+    get_available_embedded_models, remove_background_with_model, ExecutionProvider, ModelManager,
+    ModelSource, ModelSpec, OutputFormat, RemovalConfig,
+};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info, warn};
@@ -157,20 +160,20 @@ fn parse_model_spec(model_arg: &str) -> ModelSpec {
         } else {
             ModelSource::Embedded(path_part.to_string())
         };
-        
+
         return ModelSpec {
             source,
             variant: Some(variant_part.to_string()),
         };
     }
-    
+
     // No suffix - determine source type
     let source = if Path::new(model_arg).exists() {
         ModelSource::External(PathBuf::from(model_arg))
     } else {
         ModelSource::Embedded(model_arg.to_string())
     };
-    
+
     ModelSpec {
         source,
         variant: None,
@@ -180,12 +183,12 @@ fn parse_model_spec(model_arg: &str) -> ModelSpec {
 /// Resolve the final variant to use based on precedence rules
 #[allow(dead_code)] // TODO: Remove when Phase 2+ is implemented
 fn resolve_variant(
-    model_spec: &ModelSpec, 
+    model_spec: &ModelSpec,
     cli_variant: Option<&str>,
-    available_variants: &[String]
+    available_variants: &[String],
 ) -> Result<String> {
     // Precedence: CLI param > suffix > auto-detection > default
-    
+
     // 1. CLI parameter has highest precedence
     if let Some(variant) = cli_variant {
         if available_variants.contains(&variant.to_string()) {
@@ -198,7 +201,7 @@ fn resolve_variant(
             ));
         }
     }
-    
+
     // 2. Suffix syntax has medium precedence
     if let Some(variant) = &model_spec.variant {
         if available_variants.contains(variant) {
@@ -211,21 +214,21 @@ fn resolve_variant(
             ));
         }
     }
-    
+
     // 3. Auto-detection: prefer fp16, fallback to available
     if available_variants.contains(&"fp16".to_string()) {
         return Ok("fp16".to_string());
     }
-    
+
     if available_variants.contains(&"fp32".to_string()) {
         return Ok("fp32".to_string());
     }
-    
+
     // 4. Use first available variant
     if let Some(first) = available_variants.first() {
         return Ok(first.clone());
     }
-    
+
     Err(anyhow::anyhow!("No variants available for model"))
 }
 
@@ -259,7 +262,7 @@ async fn main() -> Result<()> {
                 "No model specified and no embedded models available. Use --model to specify a model name or path, or build with embed-* features."
             ));
         }
-        
+
         let default_model = &available_embedded[0];
         let model_spec = ModelSpec {
             source: ModelSource::Embedded(default_model.clone()),
@@ -267,7 +270,7 @@ async fn main() -> Result<()> {
         };
         (model_spec, default_model.clone())
     };
-    
+
     info!("Starting background removal CLI");
     if cli.debug {
         info!("🐛 DEBUG MODE: Using mock backend for testing");
@@ -276,15 +279,18 @@ async fn main() -> Result<()> {
         info!("📋 VERBOSE MODE: Detailed logging enabled");
     }
     info!("Input: {input}");
-    info!("Model: {} ({})", model_arg, match &model_spec.source {
-        ModelSource::Embedded(name) => format!("embedded: {}", name),
-        ModelSource::External(path) => format!("external: {}", path.display()),
-    });
+    info!(
+        "Model: {} ({})",
+        model_arg,
+        match &model_spec.source {
+            ModelSource::Embedded(name) => format!("embedded: {name}"),
+            ModelSource::External(path) => format!("external: {}", path.display()),
+        }
+    );
 
-    // Resolve final variant based on CLI parameter precedence 
-    let final_variant = cli.variant.clone()
-        .or_else(|| model_spec.variant.clone());
-    
+    // Resolve final variant based on CLI parameter precedence
+    let final_variant = cli.variant.clone().or_else(|| model_spec.variant.clone());
+
     // Parse background color
     let background_color =
         parse_color(&cli.background_color).context("Invalid background color format")?;
@@ -322,39 +328,56 @@ async fn main() -> Result<()> {
         source: model_spec.source.clone(),
         variant: final_variant.clone(),
     };
-    
+
     // Validate model by attempting to create ModelManager with execution provider optimization
-    let _model_manager = ModelManager::from_spec_with_provider(&final_model_spec, Some(&config.execution_provider))
-        .context("Failed to load specified model")?;
-    
+    let _model_manager =
+        ModelManager::from_spec_with_provider(&final_model_spec, Some(&config.execution_provider))
+            .context("Failed to load specified model")?;
+
     match &final_model_spec.source {
         ModelSource::Embedded(name) => {
-            info!("Using embedded model: {}", name);
+            info!("Using embedded model: {name}");
             if let Some(variant) = &final_variant {
-                info!("Using variant: {}", variant);
+                info!("Using variant: {variant}");
             }
         },
         ModelSource::External(path) => {
             info!("Using external model from: {}", path.display());
             if let Some(variant) = &final_variant {
-                info!("Using variant: {}", variant);
+                info!("Using variant: {variant}");
             }
         },
     }
 
     if cli.verbose {
-        log::debug!("Configuration: execution_provider={:?}, output_format={:?}, debug={}", 
-            config.execution_provider, config.output_format, config.debug);
-        log::debug!("Threading: intra_threads={}, inter_threads={}", 
-            config.intra_threads, config.inter_threads);
-        log::debug!("Background color: RGB({}, {}, {})", 
-            config.background_color.r, config.background_color.g, config.background_color.b);
-        log::debug!("Quality settings: jpeg={}, webp={}", 
-            config.jpeg_quality, config.webp_quality);
-        log::debug!("Color management: preserve={}, force_srgb={}, embed={}", 
+        log::debug!(
+            "Configuration: execution_provider={:?}, output_format={:?}, debug={}",
+            config.execution_provider,
+            config.output_format,
+            config.debug
+        );
+        log::debug!(
+            "Threading: intra_threads={}, inter_threads={}",
+            config.intra_threads,
+            config.inter_threads
+        );
+        log::debug!(
+            "Background color: RGB({}, {}, {})",
+            config.background_color.r,
+            config.background_color.g,
+            config.background_color.b
+        );
+        log::debug!(
+            "Quality settings: jpeg={}, webp={}",
+            config.jpeg_quality,
+            config.webp_quality
+        );
+        log::debug!(
+            "Color management: preserve={}, force_srgb={}, embed={}",
             config.color_management.preserve_color_profile,
             config.color_management.force_srgb_output,
-            config.color_management.embed_profile_in_output);
+            config.color_management.embed_profile_in_output
+        );
     }
 
     // Process input
@@ -392,10 +415,10 @@ fn init_logging(verbose: bool) {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
         .format_timestamp_secs()
         .init();
-    
+
     if verbose {
         log::debug!("Verbose logging enabled - showing DEBUG level messages");
-        log::debug!("Log level: {}", log_level);
+        log::debug!("Log level: {log_level}");
     }
 }
 
@@ -471,7 +494,11 @@ fn parse_color(color_str: &str) -> Result<BackgroundColor> {
 }
 
 /// Process image from stdin
-async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig, model_spec: &ModelSpec) -> Result<usize> {
+async fn process_stdin(
+    output_target: &Option<String>,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<usize> {
     info!("Reading image from stdin");
 
     let image_data = read_stdin()?;
@@ -482,11 +509,11 @@ async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig, m
     let temp_dir = std::env::temp_dir();
     let temp_file = temp_dir.join("stdin_input.tmp");
     std::fs::write(&temp_file, &image_data)?;
-    
+
     let result = remove_background_with_model(&temp_file, config, model_spec)
         .await
         .context("Failed to remove background")?;
-    
+
     // Clean up temp file
     let _ = std::fs::remove_file(&temp_file);
 
@@ -509,7 +536,11 @@ async fn process_stdin(output_target: &Option<String>, config: &RemovalConfig, m
             let output_path = PathBuf::from(target);
             if config.color_management.preserve_color_profile {
                 result
-                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .save_with_color_profile(
+                        &output_path,
+                        config.output_format,
+                        config.jpeg_quality,
+                    )
                     .context("Failed to save result with color profile")?;
             } else {
                 result
@@ -560,7 +591,11 @@ async fn process_single_file(
             let output_path = PathBuf::from(target);
             if config.color_management.preserve_color_profile {
                 result
-                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .save_with_color_profile(
+                        &output_path,
+                        config.output_format,
+                        config.jpeg_quality,
+                    )
                     .context("Failed to save result with color profile")?;
             } else {
                 match config.output_format {
@@ -582,7 +617,11 @@ async fn process_single_file(
             let output_path = generate_output_path(input_path, config.output_format);
             if config.color_management.preserve_color_profile {
                 result
-                    .save_with_color_profile(&output_path, config.output_format, config.jpeg_quality)
+                    .save_with_color_profile(
+                        &output_path,
+                        config.output_format,
+                        config.jpeg_quality,
+                    )
                     .context("Failed to save result with color profile")?;
             } else {
                 match config.output_format {
@@ -605,7 +644,11 @@ async fn process_single_file(
 }
 
 /// Process all images in a directory
-async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &ModelSpec) -> Result<usize> {
+async fn process_directory(
+    cli: &Cli,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<usize> {
     let input = cli
         .input
         .as_ref()
@@ -613,7 +656,8 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &Model
     let input_dir = PathBuf::from(input);
     let output_dir = cli
         .output
-        .as_ref().map_or_else(|| input_dir.clone(), PathBuf::from);
+        .as_ref()
+        .map_or_else(|| input_dir.clone(), PathBuf::from);
 
     // Create output directory if it doesn't exist
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory")?;
@@ -660,8 +704,16 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &Model
                 let save_result = if config.color_management.preserve_color_profile {
                     // Use ICC profile-aware saving when preservation is enabled
                     match config.output_format {
-                        OutputFormat::Png => result.save_with_color_profile(&output_file, config.output_format, config.jpeg_quality),
-                        _ => result.save_with_color_profile(&output_file, config.output_format, config.jpeg_quality),
+                        OutputFormat::Png => result.save_with_color_profile(
+                            &output_file,
+                            config.output_format,
+                            config.jpeg_quality,
+                        ),
+                        _ => result.save_with_color_profile(
+                            &output_file,
+                            config.output_format,
+                            config.jpeg_quality,
+                        ),
                     }
                 } else {
                     // Use regular saving without color profile handling
@@ -676,8 +728,12 @@ async fn process_directory(cli: &Cli, config: &RemovalConfig, model_spec: &Model
                         processed_count += 1;
                         if cli.verbose {
                             if let Some(profile) = result.get_color_profile() {
-                                info!("Processed: {} - Color Profile: {} ({} bytes)", 
-                                    input_file.display(), profile.color_space, profile.data_size());
+                                info!(
+                                    "Processed: {} - Color Profile: {} ({} bytes)",
+                                    input_file.display(),
+                                    profile.color_space,
+                                    profile.data_size()
+                                );
                             } else {
                                 info!("Processed: {} - No color profile", input_file.display());
                             }
@@ -862,7 +918,7 @@ mod tests {
     #[test]
     fn test_resolve_variant() {
         let available = vec!["fp16".to_string(), "fp32".to_string()];
-        
+
         // Test CLI parameter precedence
         let spec = ModelSpec {
             source: ModelSource::Embedded("test".to_string()),

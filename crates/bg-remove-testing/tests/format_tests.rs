@@ -166,9 +166,7 @@ async fn test_image_dimensions_preservation() {
             "Mask height should match output for {input_path}"
         );
 
-        println!(
-            "✅ Dimension preservation test passed: {input_path} ({out_width}x{out_height})"
-        );
+        println!("✅ Dimension preservation test passed: {input_path} ({out_width}x{out_height})");
     }
 }
 
@@ -216,9 +214,7 @@ async fn test_different_aspect_ratios() {
             "Output dimensions should be reasonable"
         );
 
-        println!(
-            "✅ Aspect ratio test passed: {aspect_name} ({width}x{height}) - {input_path}"
-        );
+        println!("✅ Aspect ratio test passed: {aspect_name} ({width}x{height}) - {input_path}");
     }
 }
 

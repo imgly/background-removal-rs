@@ -168,12 +168,14 @@ impl TestFixtures {
     }
 
     /// Get all test cases
-    #[must_use] pub fn get_test_cases(&self) -> &[TestCase] {
+    #[must_use]
+    pub fn get_test_cases(&self) -> &[TestCase] {
         &self.test_cases
     }
 
     /// Get test cases for a specific category
-    #[must_use] pub fn get_test_cases_for_category(&self, category: &str) -> Vec<&TestCase> {
+    #[must_use]
+    pub fn get_test_cases_for_category(&self, category: &str) -> Vec<&TestCase> {
         self.test_cases
             .iter()
             .filter(|tc| tc.category == category)
@@ -198,19 +200,22 @@ impl TestFixtures {
     }
 
     /// Get input image path
-    #[must_use] pub fn get_input_path(&self, test_case: &TestCase) -> PathBuf {
+    #[must_use]
+    pub fn get_input_path(&self, test_case: &TestCase) -> PathBuf {
         self.assets_dir.join("input").join(&test_case.input_file)
     }
 
     /// Get expected output image path
-    #[must_use] pub fn get_expected_path(&self, test_case: &TestCase) -> PathBuf {
+    #[must_use]
+    pub fn get_expected_path(&self, test_case: &TestCase) -> PathBuf {
         self.assets_dir
             .join("expected")
             .join(&test_case.expected_output_file)
     }
 
     /// Get all available categories
-    #[must_use] pub fn get_categories(&self) -> Vec<String> {
+    #[must_use]
+    pub fn get_categories(&self) -> Vec<String> {
         let mut categories: Vec<String> = self
             .test_cases
             .iter()
@@ -222,7 +227,8 @@ impl TestFixtures {
     }
 
     /// Get test case by ID
-    #[must_use] pub fn get_test_case(&self, id: &str) -> Option<&TestCase> {
+    #[must_use]
+    pub fn get_test_case(&self, id: &str) -> Option<&TestCase> {
         self.test_cases.iter().find(|tc| tc.id == id)
     }
 
@@ -262,7 +268,8 @@ impl TestFixtures {
     }
 
     /// Get summary of available test data
-    #[must_use] pub fn get_summary(&self) -> TestDataSummary {
+    #[must_use]
+    pub fn get_summary(&self) -> TestDataSummary {
         let categories = self.get_categories();
         let mut category_counts = HashMap::new();
 
@@ -290,14 +297,16 @@ pub struct ValidationReport {
 }
 
 impl ValidationReport {
-    #[must_use] pub fn is_valid(&self) -> bool {
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
         self.missing_input_files.is_empty()
             && self.missing_expected_files.is_empty()
             && self.invalid_input_files.is_empty()
             && self.invalid_expected_files.is_empty()
     }
 
-    #[must_use] pub fn total_issues(&self) -> usize {
+    #[must_use]
+    pub fn total_issues(&self) -> usize {
         self.missing_input_files.len()
             + self.missing_expected_files.len()
             + self.invalid_input_files.len()

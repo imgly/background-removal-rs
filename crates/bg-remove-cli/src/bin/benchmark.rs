@@ -275,9 +275,7 @@ async fn main() -> Result<()> {
     let iterations = 5; // Number of iterations per test
 
     for (width, height, pattern) in test_cases {
-        println!(
-            "📸 Generating test image: {width}x{height} ({pattern})"
-        );
+        println!("📸 Generating test image: {width}x{height} ({pattern})");
         let test_image = create_test_image(width, height, pattern);
 
         for config in &configs {

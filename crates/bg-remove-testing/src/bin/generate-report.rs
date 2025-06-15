@@ -211,15 +211,16 @@ impl ReportBuilder {
                     match serde_json::from_str::<Vec<TestResult>>(&content) {
                         Ok(timing_results) => {
                             // Find timing data for this test case
-                            timing_results.iter()
+                            timing_results
+                                .iter()
                                 .find(|r| r.test_case.id == test_case.id)
                                 .map(|r| r.processing_time)
                                 .unwrap_or_else(|| std::time::Duration::from_millis(0))
-                        }
-                        Err(_) => std::time::Duration::from_millis(0)
+                        },
+                        Err(_) => std::time::Duration::from_millis(0),
                     }
-                }
-                Err(_) => std::time::Duration::from_millis(0)
+                },
+                Err(_) => std::time::Duration::from_millis(0),
             }
         } else {
             std::time::Duration::from_millis(0) // Unknown from file-based analysis

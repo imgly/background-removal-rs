@@ -165,7 +165,9 @@ impl TestRunner {
         println!();
 
         // Create progress bar
-        let progress_count = test_cases.len().try_into()
+        let progress_count = test_cases
+            .len()
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Too many test cases for progress bar (>u64::MAX)"))?;
         let progress = ProgressBar::new(progress_count);
         progress.set_style(
@@ -201,7 +203,7 @@ impl TestRunner {
         let timing_data_path = self.output_dir.join("timing_data.json");
         let timing_data = serde_json::to_string_pretty(&session.results)?;
         std::fs::write(&timing_data_path, timing_data)?;
-        
+
         if self.args.verbose {
             println!("📊 Saved timing data to: {}", timing_data_path.display());
         }
@@ -295,7 +297,9 @@ impl TestRunner {
             && metrics.edge_accuracy >= self.thresholds.edge_accuracy;
 
         // Calculate average processing time
-        let processing_times_count: u32 = processing_times.len().try_into()
+        let processing_times_count: u32 = processing_times
+            .len()
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Too many processing time samples for u32 division"))?;
         let avg_processing_time =
             processing_times.iter().sum::<std::time::Duration>() / processing_times_count;
@@ -369,9 +373,7 @@ impl TestRunner {
             let category_total = category_results.len();
             let category_rate = (category_passed as f64 / category_total as f64) * 100.0;
 
-            println!(
-                "  {category}: {category_passed}/{category_total} ({category_rate:.1}%)"
-            );
+            println!("  {category}: {category_passed}/{category_total} ({category_rate:.1}%)");
         }
         println!();
 

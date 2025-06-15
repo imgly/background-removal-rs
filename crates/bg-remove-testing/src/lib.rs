@@ -130,7 +130,8 @@ impl Default for TestSession {
 }
 
 impl TestSession {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             session_id: uuid::Uuid::new_v4().to_string(),
             start_time: std::time::SystemTime::now(),
