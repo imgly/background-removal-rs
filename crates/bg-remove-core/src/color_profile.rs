@@ -57,12 +57,12 @@ impl ProfileExtractor {
         let extension = path
             .extension()
             .and_then(|ext| ext.to_str())
-            .map(|s| s.to_lowercase());
+            .map(str::to_lowercase);
 
         match extension.as_deref() {
             Some("jpg" | "jpeg") => Self::extract_from_jpeg(path),
             Some("png") => Self::extract_from_png(path),
-            Some("tiff" | "tif") => Self::extract_from_tiff(path),
+            Some("tiff" | "tif") => Ok(Self::extract_from_tiff(path)),
             Some("webp") => Self::extract_from_webp(path),
             _ => Ok(None), // Unsupported format
         }
@@ -99,10 +99,10 @@ impl ProfileExtractor {
     }
 
     /// Extract ICC profile from TIFF image (placeholder implementation)
-    fn extract_from_tiff<P: AsRef<Path>>(_path: P) -> Result<Option<ColorProfile>> {
+    fn extract_from_tiff<P: AsRef<Path>>(_path: P) -> Option<ColorProfile> {
         // TIFF ICC profile extraction not implemented yet
         // Would require TIFF-specific decoder with ICC support
-        Ok(None)
+        None
     }
 
     /// Extract ICC profile from WebP image

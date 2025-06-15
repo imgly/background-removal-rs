@@ -63,12 +63,22 @@ impl ImageProcessor {
     }
     
     /// Create a new image processor with the given configuration (legacy - uses first available embedded model)
+    ///
+    /// # Errors
+    /// - No embedded models available in the build
+    /// - Backend initialization failures
+    /// - Model loading or validation errors
     pub fn new(config: &RemovalConfig) -> Result<Self> {
         let model_manager = ModelManager::with_embedded()?;
         Self::with_model_manager(config, model_manager)
     }
 
     /// Create processor with custom processing options and model manager
+    ///
+    /// # Errors
+    /// - Backend initialization failures
+    /// - Model loading or validation errors
+    /// - Invalid configuration parameters
     pub fn with_options_and_model(config: &RemovalConfig, options: ProcessingOptions, model_manager: ModelManager) -> Result<Self> {
         let mut processor = Self::with_model_manager(config, model_manager)?;
         processor.options = options;
@@ -76,6 +86,11 @@ impl ImageProcessor {
     }
     
     /// Create processor with custom processing options (legacy - uses first available embedded model)
+    ///
+    /// # Errors
+    /// - No embedded models available in the build
+    /// - Backend initialization failures
+    /// - Model loading or validation errors
     pub fn with_options(config: &RemovalConfig, options: ProcessingOptions) -> Result<Self> {
         let mut processor = Self::new(config)?;
         processor.options = options;
@@ -83,6 +98,12 @@ impl ImageProcessor {
     }
 
     /// Remove background from an image file
+    ///
+    /// # Errors
+    /// - Image loading failures (file not found, invalid format, etc.)
+    /// - Model inference errors
+    /// - ICC color profile extraction failures (if enabled)
+    /// - Image processing and mask application errors
     pub async fn remove_background<P: AsRef<Path>>(
         &mut self,
         input_path: P,
@@ -109,7 +130,10 @@ impl ImageProcessor {
         let decode_start = Instant::now();
         let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
-        timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
+        }
 
         // Log color profile information if found
         if let Some(ref profile) = color_profile {
@@ -135,7 +159,10 @@ impl ImageProcessor {
         // 2. Preprocessing timing
         let preprocess_start = Instant::now();
         let (_processed_image, input_tensor) = self.preprocess_image(&image)?;
-        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        }
 
         info!(
             "[{}Z INFO bg_remove] Preprocessing completed in {}ms",
@@ -146,7 +173,10 @@ impl ImageProcessor {
         // 3. Inference timing (model load happens inside backend initialization if needed)
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        }
 
         info!(
             "[{}Z INFO bg_remove] Inference completed in {}ms",
@@ -161,7 +191,10 @@ impl ImageProcessor {
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        }
 
         info!(
             "[{}Z INFO bg_remove] Postprocessing completed in {}ms",
@@ -170,11 +203,14 @@ impl ImageProcessor {
         );
 
         // Calculate total time
-        timings.total_ms = total_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.total_ms = total_start.elapsed().as_millis() as u64;
+        }
 
         // Set metadata with detailed timings and color profile
         metadata.set_detailed_timings(timings);
-        metadata.input_format = self.detect_image_format(&image);
+        metadata.input_format = Self::detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
         metadata.color_profile = color_profile.clone();
 
@@ -189,11 +225,17 @@ impl ImageProcessor {
     }
 
     /// Extract foreground segmentation mask only
+    ///
+    /// # Errors
+    /// - Image loading failures (file not found, invalid format, etc.)
+    /// - Model inference errors
+    /// - Image preprocessing errors
+    /// - Tensor conversion errors
     pub async fn segment_foreground<P: AsRef<Path>>(
         &mut self,
         input_path: P,
     ) -> Result<SegmentationMask> {
-        let image = self.load_image(input_path)?;
+        let image = Self::load_image(input_path)?;
         let (processed_image, input_tensor) = self.preprocess_image(&image)?;
 
         let output_tensor = self.backend.infer(&input_tensor)?;
@@ -201,6 +243,12 @@ impl ImageProcessor {
     }
 
     /// Apply an existing mask to an image
+    ///
+    /// # Errors
+    /// - Image loading failures (file not found, invalid format, etc.)
+    /// - Mask resizing errors if dimensions don't match
+    /// - Image processing and mask application errors
+    /// - ICC color profile extraction failures (if enabled)
     pub async fn apply_mask<P: AsRef<Path>>(
         &self,
         input_path: P,
@@ -237,7 +285,7 @@ impl ImageProcessor {
         timings.total_ms = total_start.elapsed().as_millis() as u64;
 
         metadata.set_detailed_timings(timings);
-        metadata.input_format = self.detect_image_format(&image);
+        metadata.input_format = Self::detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
         metadata.color_profile = color_profile.clone();
 
@@ -251,6 +299,12 @@ impl ImageProcessor {
     }
 
     /// Process a `DynamicImage` directly for background removal
+    ///
+    /// # Errors
+    /// - Model inference errors
+    /// - Image preprocessing errors
+    /// - Tensor conversion errors
+    /// - Mask processing and application errors
     pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
         let total_start = Instant::now();
         let mut metadata = ProcessingMetadata::new("ISNet".to_string());
@@ -282,7 +336,7 @@ impl ImageProcessor {
 
         // Set metadata with detailed timings  
         metadata.set_detailed_timings(timings);
-        metadata.input_format = self.detect_image_format(&image);
+        metadata.input_format = Self::detect_image_format(&image);
         metadata.output_format = format!("{:?}", self.config.output_format).to_lowercase();
         metadata.color_profile = None; // No color profile available for in-memory images
 
@@ -295,7 +349,7 @@ impl ImageProcessor {
     }
 
     /// Load image from file path
-    fn load_image<P: AsRef<Path>>(&self, path: P) -> Result<DynamicImage> {
+    fn load_image<P: AsRef<Path>>(path: P) -> Result<DynamicImage> {
         let image = image::open(path)?;
         Ok(image)
     }
@@ -457,7 +511,7 @@ impl ImageProcessor {
             OutputFormat::Jpeg => {
                 // Apply background color
                 let bg_color = self.config.background_color;
-                let rgb_image = self.apply_background_color(&rgba_image, bg_color)?;
+                let rgb_image = Self::apply_background_color(&rgba_image, bg_color);
                 Ok(DynamicImage::ImageRgb8(rgb_image))
             },
             OutputFormat::WebP => {
@@ -469,10 +523,9 @@ impl ImageProcessor {
 
     /// Apply background color for formats without alpha support
     fn apply_background_color(
-        &self,
         rgba_image: &RgbaImage,
         bg_color: BackgroundColor,
-    ) -> Result<ImageBuffer<image::Rgb<u8>, Vec<u8>>> {
+    ) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
         let (width, height) = rgba_image.dimensions();
         let mut rgb_image = ImageBuffer::new(width, height);
 
@@ -487,11 +540,11 @@ impl ImageProcessor {
             rgb_image.put_pixel(x, y, image::Rgb([r, g, b]));
         }
 
-        Ok(rgb_image)
+        rgb_image
     }
 
     /// Detect image format from dynamic image
-    fn detect_image_format(&self, image: &DynamicImage) -> String {
+    fn detect_image_format(image: &DynamicImage) -> String {
         match image {
             DynamicImage::ImageRgb8(_) => "rgb8".to_string(),
             DynamicImage::ImageRgba8(_) => "rgba8".to_string(),
