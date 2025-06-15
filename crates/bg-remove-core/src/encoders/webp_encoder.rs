@@ -29,6 +29,12 @@ impl WebPIccEncoder {
     ///
     /// # Returns
     /// Result indicating success or failure of the encoding operation
+    ///
+    /// # Errors
+    /// - Color profile has no ICC data to embed
+    /// - WebP encoding errors from the underlying library
+    /// - File I/O errors when writing the output file
+    /// - Invalid WebP data format when embedding ICC profile
     pub fn encode_with_profile<P: AsRef<Path>>(
         image: &DynamicImage,
         profile: &ColorProfile,
@@ -109,10 +115,12 @@ impl WebPIccEncoder {
             }
 
             // Read chunk header (4 bytes fourcc + 4 bytes size)
-            let chunk_fourcc = &webp_data[pos..pos + 4];
-            let chunk_size = u32::from_le_bytes([
-                webp_data[pos + 4], webp_data[pos + 5], webp_data[pos + 6], webp_data[pos + 7]
-            ]) as usize;
+            let chunk_fourcc = webp_data.get(pos..pos + 4)
+                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC"))?;
+            let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
+                .and_then(|bytes| bytes.try_into().ok())
+                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
+            let chunk_size = u32::from_le_bytes(chunk_size_bytes) as usize;
 
             // Insert ICCP chunk before VP8 or VP8L data
             if (chunk_fourcc == b"VP8 " || chunk_fourcc == b"VP8L") && !iccp_inserted {
@@ -146,13 +154,13 @@ impl WebPIccEncoder {
 
     /// Create ICCP chunk data according to RIFF/WebP specification
     ///
-    /// Format: FourCC "ICCP" + size + ICC profile data + optional padding
+    /// Format: `FourCC` `"ICCP"` + size + ICC profile data + optional padding
     ///
     /// # Arguments
     /// * `icc_data` - Raw ICC profile data
     ///
     /// # Returns
-    /// Complete ICCP chunk including FourCC, size, data, and padding
+    /// Complete `ICCP` chunk including `FourCC`, size, data, and padding
     fn create_iccp_chunk(icc_data: &[u8]) -> Result<Vec<u8>> {
         let mut chunk = Vec::new();
         
@@ -204,10 +212,12 @@ impl WebPIccEncoder {
             }
 
             // Read chunk header
-            let chunk_fourcc = &webp_data[pos..pos + 4];
-            let chunk_size = u32::from_le_bytes([
-                webp_data[pos + 4], webp_data[pos + 5], webp_data[pos + 6], webp_data[pos + 7]
-            ]) as usize;
+            let chunk_fourcc = webp_data.get(pos..pos + 4)
+                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC"))?;
+            let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
+                .and_then(|bytes| bytes.try_into().ok())
+                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
+            let chunk_size = u32::from_le_bytes(chunk_size_bytes) as usize;
 
             if chunk_fourcc == b"ICCP" {
                 // Found ICCP chunk, extract ICC data

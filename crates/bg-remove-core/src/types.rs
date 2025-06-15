@@ -71,7 +71,7 @@ pub enum ColorSpace {
     AdobeRgb,
     /// Apple Display P3 color space
     DisplayP3,
-    /// ProPhoto RGB color space (very wide gamut)
+    /// `ProPhoto` RGB color space (very wide gamut)
     ProPhotoRgb,
     /// Unknown or unsupported color space
     Unknown(String),
@@ -291,7 +291,7 @@ impl RemovalResult {
     /// The returned vector size is `width × height × 4` bytes.
     ///
     /// # Use Cases
-    /// - **Web APIs**: Canvas ImageData, WebGL textures
+    /// - **Web APIs**: Canvas `ImageData`, `WebGL` textures
     /// - **Game engines**: Texture loading, sprite processing
     /// - **Custom processing**: Direct pixel manipulation
     /// - **Memory-efficient**: No intermediate file encoding

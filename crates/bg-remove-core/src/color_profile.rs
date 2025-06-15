@@ -20,8 +20,8 @@ impl ProfileExtractor {
     /// Uses format-specific decoders to access embedded ICC profile data.
     ///
     /// # Supported Formats
-    /// - **JPEG/JPG**: Full ICC profile support via JpegDecoder
-    /// - **PNG**: Full ICC profile support via PngDecoder
+    /// - **JPEG/JPG**: Full ICC profile support via `JpegDecoder`
+    /// - **PNG**: Full ICC profile support via `PngDecoder`
     /// - **Other formats**: Returns None (not supported in current implementation)
     ///
     /// # Arguments

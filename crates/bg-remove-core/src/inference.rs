@@ -41,9 +41,8 @@ impl BackendRegistry {
         };
 
         // Register default backends
-        if let Ok(onnx_backend) = OnnxBackend::new() {
-            registry.register("onnx", Box::new(onnx_backend));
-        }
+        let onnx_backend = OnnxBackend::new();
+        registry.register("onnx", Box::new(onnx_backend));
         registry.register("mock", Box::new(MockBackend::new()));
 
         registry

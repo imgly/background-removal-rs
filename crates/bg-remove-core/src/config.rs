@@ -392,8 +392,8 @@ impl RemovalConfigBuilder {
     ///
     /// # Performance Guidelines
     /// - **CPU cores**: Generally use physical core count (not hyperthreads)
-    /// - **ISNet models**: Benefits from 4-8 threads
-    /// - **BiRefNet models**: Benefits from 8-16 threads
+    /// - **`ISNet` models**: Benefits from 4-8 threads
+    /// - **`BiRefNet` models**: Benefits from 8-16 threads
     /// - **Memory bound**: More threads may not help beyond 8-12
     ///
     /// # Examples

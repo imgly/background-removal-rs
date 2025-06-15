@@ -515,7 +515,7 @@ impl ModelProvider for ExternalModelProvider {
 ///
 /// A `Vec<String>` containing embedded model names like:
 /// - `"isnet-fp16"` - Fast general-purpose model (FP16 precision)
-/// - `"isnet-fp32"` - General-purpose model (FP32 precision, better CoreML performance)
+/// - `"isnet-fp32"` - General-purpose model (FP32 precision, better `CoreML` performance)
 /// - `"birefnet-fp16"` - High-quality portrait model (FP16 precision)
 /// - `"birefnet-fp32"` - High-quality portrait model (FP32 precision)
 /// - `"birefnet-lite-fp32"` - Balanced performance model (FP32 precision)
@@ -523,20 +523,20 @@ impl ModelProvider for ExternalModelProvider {
 /// # Build Dependencies
 ///
 /// The returned list depends on which embedding features were enabled at build time:
-/// - `embed-isnet-fp16` - Includes ISNet FP16 model
-/// - `embed-isnet-fp32` - Includes ISNet FP32 model  
-/// - `embed-birefnet-fp16` - Includes BiRefNet FP16 model
-/// - `embed-birefnet-fp32` - Includes BiRefNet FP32 model
-/// - `embed-birefnet-lite-fp32` - Includes BiRefNet Lite FP32 model
+/// - `embed-isnet-fp16` - Includes `ISNet` FP16 model
+/// - `embed-isnet-fp32` - Includes `ISNet` FP32 model  
+/// - `embed-birefnet-fp16` - Includes `BiRefNet` FP16 model
+/// - `embed-birefnet-fp32` - Includes `BiRefNet` FP32 model
+/// - `embed-birefnet-lite-fp32` - Includes `BiRefNet` Lite FP32 model
 /// - `embed-all` - Includes all available models
 ///
 /// # Performance Characteristics
 ///
-/// - **ISNet models**: Fastest inference, good general-purpose quality
-/// - **BiRefNet models**: Highest quality, slower inference, excellent for portraits
-/// - **BiRefNet Lite**: Balanced speed/quality, good compromise option
-/// - **FP16 models**: Faster on CPU/CUDA, poor CoreML performance
-/// - **FP32 models**: Better CoreML performance, slightly larger size
+/// - **`ISNet` models**: Fastest inference, good general-purpose quality
+/// - **`BiRefNet` models**: Highest quality, slower inference, excellent for portraits
+/// - **`BiRefNet` Lite**: Balanced speed/quality, good compromise option
+/// - **FP16 models**: Faster on CPU/CUDA, poor `CoreML` performance
+/// - **FP32 models**: Better `CoreML` performance, slightly larger size
 ///
 /// # Examples
 ///

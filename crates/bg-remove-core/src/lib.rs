@@ -75,13 +75,13 @@ pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 ///
 /// - **CPU**: 2-5 seconds typical processing time
 /// - **CUDA**: 200-500ms with compatible NVIDIA GPU
-/// - **CoreML**: 100-400ms on Apple Silicon (model-dependent)
+/// - **`CoreML`**: 100-400ms on Apple Silicon (model-dependent)
 ///
 /// # Supported Models
 ///
-/// - **ISNet**: Fast, general-purpose background removal
-/// - **BiRefNet**: High-quality portrait segmentation
-/// - **BiRefNet Lite**: Balanced speed/quality option
+/// - **`ISNet`**: Fast, general-purpose background removal
+/// - **`BiRefNet`**: High-quality portrait segmentation
+/// - **`BiRefNet` Lite**: Balanced speed/quality option
 ///
 /// # Examples
 ///
@@ -101,7 +101,7 @@ pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 /// # }
 /// ```
 ///
-/// ## High-performance with CoreML
+/// ## High-performance with `CoreML`
 /// ```rust,no_run
 /// use bg_remove_core::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, ExecutionProvider};
 ///

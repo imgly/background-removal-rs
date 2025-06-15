@@ -30,6 +30,12 @@ impl PngIccEncoder {
     /// # Returns
     /// Result indicating success or failure of the encoding operation
     ///
+    /// # Errors
+    /// - Color profile has no ICC data to embed
+    /// - PNG encoding errors from the underlying image library
+    /// - File I/O errors when writing the output file
+    /// - Invalid PNG data format when embedding ICC profile
+    ///
     /// # Examples
     /// ```rust,no_run
     /// use bg_remove_core::{
@@ -119,11 +125,13 @@ impl PngIccEncoder {
                 break;
             }
 
-            // Read chunk length and type
-            let chunk_length = u32::from_be_bytes([
-                png_data[pos], png_data[pos + 1], png_data[pos + 2], png_data[pos + 3]
-            ]);
-            let chunk_type = &png_data[pos + 4..pos + 8];
+            // Read chunk length and type  
+            let chunk_length_bytes = png_data.get(pos..pos + 4)
+                .and_then(|bytes| bytes.try_into().ok())
+                .ok_or_else(|| BgRemovalError::processing("Truncated PNG: incomplete chunk length"))?;
+            let chunk_length = u32::from_be_bytes(chunk_length_bytes);
+            let chunk_type = png_data.get(pos + 4..pos + 8)
+                .ok_or_else(|| BgRemovalError::processing("Truncated PNG: incomplete chunk type"))?;
 
             // Insert iCCP chunk before first IDAT chunk
             if chunk_type == b"IDAT" && !iccp_inserted {

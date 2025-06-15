@@ -131,16 +131,12 @@ impl OnnxBackend {
     }
     
     /// Create a new ONNX backend (legacy - uses first available embedded model)
-    /// 
-    /// # Errors
-    /// 
-    /// Currently does not return errors, but returns `Result` for consistency with the trait.
-    pub fn new() -> Result<Self> {
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             session: None,
             model_manager: None,
             initialized: false,
-        })
+        }
     }
     
     /// Set the model manager for this backend
@@ -349,7 +345,7 @@ impl OnnxBackend {
 
 impl Default for OnnxBackend {
     fn default() -> Self {
-        Self::new().expect("Failed to create default OnnxBackend")
+        Self::new()
     }
 }
 
@@ -507,16 +503,14 @@ impl InferenceBackend for OnnxBackend {
         // Use model-specific input shape from model info
         self.model_manager.as_ref()
             .and_then(|manager| manager.get_info().ok())
-            .map(|info| info.input_shape)
-            .unwrap_or((1, 3, 1024, 1024)) // Default fallback
+            .map_or((1, 3, 1024, 1024), |info| info.input_shape) // Default fallback
     }
 
     fn output_shape(&self) -> (usize, usize, usize, usize) {
         // Use model-specific output shape from model info
         self.model_manager.as_ref()
             .and_then(|manager| manager.get_info().ok())
-            .map(|info| info.output_shape)
-            .unwrap_or((1, 1, 1024, 1024)) // Default fallback
+            .map_or((1, 1, 1024, 1024), |info| info.output_shape) // Default fallback
     }
     
     fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig> {

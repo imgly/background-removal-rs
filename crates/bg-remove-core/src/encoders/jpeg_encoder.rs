@@ -1,7 +1,7 @@
 //! JPEG encoder with ICC profile embedding support
 //!
 //! This module provides JPEG encoding with ICC color profile embedding using APP2 markers.
-//! JPEG files embed ICC profiles using the APP2 application marker with the "ICC_PROFILE" identifier.
+//! JPEG files embed ICC profiles using the APP2 application marker with the `ICC_PROFILE` identifier.
 
 use crate::{
     error::{BgRemovalError, Result},
@@ -24,7 +24,7 @@ impl JpegIccEncoder {
     /// # JPEG ICC Profile Format
     /// - APP2 marker (0xFFE2)
     /// - Segment length (2 bytes)
-    /// - ICC_PROFILE identifier (12 bytes: "ICC_PROFILE\0")
+    /// - `ICC_PROFILE` identifier (12 bytes: `"ICC_PROFILE\0"`)
     /// - Sequence number (1 byte: 1-based index)
     /// - Total sequences (1 byte: total number of segments)
     /// - Profile data (remaining bytes in segment)
@@ -37,6 +37,12 @@ impl JpegIccEncoder {
     ///
     /// # Returns
     /// Result indicating success or failure of the encoding operation
+    ///
+    /// # Errors
+    /// - Color profile has no ICC data to embed
+    /// - JPEG encoding errors from the underlying image library
+    /// - File I/O errors when writing the output file
+    /// - Invalid JPEG data format when embedding ICC profile
     ///
     /// # Examples
     /// ```rust,no_run
@@ -96,7 +102,7 @@ impl JpegIccEncoder {
     /// Embed ICC profile into JPEG data using APP2 markers
     fn embed_icc_in_jpeg(jpeg_data: &[u8], icc_data: &[u8]) -> Result<Vec<u8>> {
         // Find SOI (Start of Image) marker
-        if jpeg_data.len() < 2 || jpeg_data[0] != 0xFF || jpeg_data[1] != 0xD8 {
+        if jpeg_data.len() < 2 || jpeg_data.get(0) != Some(&0xFF) || jpeg_data.get(1) != Some(&0xD8) {
             return Err(BgRemovalError::processing("Invalid JPEG: missing SOI marker"));
         }
 

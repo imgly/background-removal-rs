@@ -355,6 +355,7 @@ impl ImageProcessor {
         // Convert to tensor format (NCHW) with normalization
         let mut tensor = Array4::<f32>::zeros((1, 3, target_size as usize, target_size as usize));
 
+        #[allow(clippy::indexing_slicing)] // Safe: tensor dimensions pre-allocated to match canvas size
         for (y, row) in canvas.rows().enumerate() {
             for (x, pixel) in row.enumerate() {
                 // Convert to 0-1 range and apply normalization using generated constants from model.json
