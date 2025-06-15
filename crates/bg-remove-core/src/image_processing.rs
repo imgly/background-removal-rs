@@ -398,6 +398,8 @@ impl ImageProcessor {
     }
 
     /// Preprocess image for model inference with aspect ratio preservation
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // Allow casting for image processing math - precision loss is acceptable for resizing
     fn preprocess_image(&self, image: &DynamicImage) -> Result<(DynamicImage, Array4<f32>)> {
         let preprocessing_config = self.backend.get_preprocessing_config()?;
         let target_size = preprocessing_config.target_size[0];
@@ -466,6 +468,8 @@ impl ImageProcessor {
     }
 
     /// Convert model output tensor to segmentation mask with aspect ratio handling
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // Allow casting for tensor processing math - precision loss is acceptable
     fn tensor_to_mask(
         &self,
         tensor: &Array4<f32>,
@@ -550,6 +554,8 @@ impl ImageProcessor {
     }
 
     /// Apply background color for formats without alpha support
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // Allow casting for color blending math - precision loss is acceptable
     fn apply_background_color(
         rgba_image: &RgbaImage,
         bg_color: BackgroundColor,

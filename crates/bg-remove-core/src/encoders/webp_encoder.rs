@@ -105,7 +105,7 @@ impl WebPIccEncoder {
         pos += 12;
 
         // Create ICCP chunk
-        let iccp_chunk = Self::create_iccp_chunk(icc_data)?;
+        let iccp_chunk = Self::create_iccp_chunk(icc_data);
         let mut iccp_inserted = false;
 
         // Parse and copy chunks, inserting ICCP early in the structure
@@ -161,7 +161,7 @@ impl WebPIccEncoder {
     ///
     /// # Returns
     /// Complete `ICCP` chunk including `FourCC`, size, data, and padding
-    fn create_iccp_chunk(icc_data: &[u8]) -> Result<Vec<u8>> {
+    fn create_iccp_chunk(icc_data: &[u8]) -> Vec<u8> {
         let mut chunk = Vec::new();
         
         // FourCC "ICCP" (4 bytes)
@@ -185,7 +185,7 @@ impl WebPIccEncoder {
             icc_data.len() % 2 != 0
         );
 
-        Ok(chunk)
+        chunk
     }
 
     /// Extract ICC profile from WebP file
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn test_create_iccp_chunk() {
         let test_icc_data = vec![0x01, 0x02, 0x03, 0x04]; // 4 bytes
-        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
+        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data);
         
         // Should be: "ICCP" + size(4) + data(4) = 12 bytes (no padding needed)
         assert_eq!(chunk.len(), 12);
@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn test_create_iccp_chunk_with_padding() {
         let test_icc_data = vec![0x01, 0x02, 0x03]; // 3 bytes (odd)
-        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
+        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data);
         
         // Should be: "ICCP" + size(4) + data(3) + padding(1) = 12 bytes
         assert_eq!(chunk.len(), 12);
