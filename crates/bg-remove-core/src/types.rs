@@ -5,6 +5,7 @@ use chrono::Utc;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
 use log::info;
 use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 use std::path::Path;
 
 /// ICC color profile information
@@ -266,7 +267,7 @@ impl RemovalResult {
     /// - Invalid quality parameter (outside 0-100 range)
     pub fn save_webp<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
         // Note: WebP support depends on image crate features
-        let webp_data = self.encode_webp(quality)?;
+        let webp_data = self.encode_webp(quality);
         std::fs::write(path, webp_data)?;
         Ok(())
     }
@@ -489,19 +490,15 @@ impl RemovalResult {
 
         // Add encode timing if present
         if let Some(encode_ms) = t.image_encode_ms {
-            summary.push_str(&format!(
-                " | Encode: {}ms ({:.1}%)",
-                encode_ms, breakdown.encode_pct
-            ));
+            write!(summary, " | Encode: {}ms ({:.1}%)", encode_ms, breakdown.encode_pct)
+                .expect("Writing to String should never fail");
         }
 
         // Add other/overhead if significant (>1% or >5ms)
         let other_ms = t.other_overhead_ms();
         if other_ms > 5 || breakdown.other_pct > 1.0 {
-            summary.push_str(&format!(
-                " | Other: {}ms ({:.1}%)",
-                other_ms, breakdown.other_pct
-            ));
+            write!(summary, " | Other: {}ms ({:.1}%)", other_ms, breakdown.other_pct)
+                .expect("Writing to String should never fail");
         }
 
         summary
@@ -657,13 +654,7 @@ impl RemovalResult {
     }
 
     /// Encode as WebP (placeholder implementation)
-    ///
-    /// # Errors
-    /// - WebP encoding errors during compression
-    /// - Image conversion errors (RGBA to RGB)
-    /// - Memory allocation errors for output buffer
-    /// - Invalid quality parameter (outside valid range)
-    fn encode_webp(&self, quality: u8) -> Result<Vec<u8>> {
+    fn encode_webp(&self, quality: u8) -> Vec<u8> {
         // Convert to RGB (WebP crate doesn't support RGBA)
         let rgb_image = self.image.to_rgb8();
         
@@ -671,7 +662,7 @@ impl RemovalResult {
         let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
         let webp_data = encoder.encode(f32::from(quality));
         
-        Ok(webp_data.to_vec())
+        webp_data.to_vec()
     }
 }
 
@@ -822,6 +813,7 @@ impl SegmentationMask {
     /// # }
     /// ```
     ///
+    #[must_use]
     pub fn statistics(&self) -> MaskStatistics {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;
@@ -925,11 +917,7 @@ impl ProcessingTimings {
             + self.postprocessing_ms
             + self.image_encode_ms.unwrap_or(0);
 
-        let other_ms = if self.total_ms > measured_time {
-            self.total_ms - measured_time
-        } else {
-            0
-        };
+        let other_ms = self.total_ms.saturating_sub(measured_time);
 
         let model_load_f64 = self.model_load_ms as f64;
         let decode_f64 = self.image_decode_ms as f64;
@@ -959,11 +947,7 @@ impl ProcessingTimings {
             + self.postprocessing_ms
             + self.image_encode_ms.unwrap_or(0);
 
-        if self.total_ms > measured_time {
-            self.total_ms - measured_time
-        } else {
-            0
-        }
+        self.total_ms.saturating_sub(measured_time)
     }
 }
 
@@ -1111,8 +1095,8 @@ mod tests {
         assert_eq!(stats.total_pixels, 4);
         assert_eq!(stats.foreground_pixels, 2);
         assert_eq!(stats.background_pixels, 2);
-        assert_eq!(stats.foreground_ratio, 0.5);
-        assert_eq!(stats.background_ratio, 0.5);
+        assert!((stats.foreground_ratio - 0.5).abs() < f32::EPSILON);
+        assert!((stats.background_ratio - 0.5).abs() < f32::EPSILON);
     }
 
     #[test]

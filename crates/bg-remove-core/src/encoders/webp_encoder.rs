@@ -272,8 +272,8 @@ mod tests {
 
     #[test]
     fn test_webp_icc_encoder_creation() {
-        // Test that we can create the encoder
-        let _encoder = WebPIccEncoder;
+        // Test that we can create the encoder - the struct exists
+        let _ = WebPIccEncoder;
     }
 
     #[test]

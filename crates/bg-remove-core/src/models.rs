@@ -662,6 +662,13 @@ impl ModelManager {
     }
     
     /// Create a new model manager from a model specification with execution provider optimization
+    ///
+    /// # Errors
+    /// - Requested embedded model not found in registry
+    /// - Model path does not exist or is not a directory
+    /// - Missing or invalid model configuration files
+    /// - JSON parsing errors when reading configuration
+    /// - Invalid variant configuration or execution provider settings
     pub fn from_spec_with_provider(
         spec: &ModelSpec, 
         execution_provider: Option<&crate::config::ExecutionProvider>
@@ -697,7 +704,7 @@ impl ModelManager {
     /// - JSON parsing errors when reading `model.json`
     /// - Missing required fields in model configuration (name, variants, preprocessing)
     /// - Requested variant not found in available variants
-    /// - Invalid variant configuration (missing input_shape, output_shape, tensor names)
+    /// - Invalid variant configuration (missing `input_shape`, `output_shape`, tensor names)
     /// - File system I/O errors when accessing model directory or files
     pub fn with_external_model<P: AsRef<Path>>(model_path: P, variant: Option<String>) -> Result<Self> {
         let provider = ExternalModelProvider::new(model_path, variant)?;
@@ -707,6 +714,16 @@ impl ModelManager {
     }
     
     /// Create model manager with external model from folder path and execution provider optimization
+    ///
+    /// # Errors
+    /// - Model path does not exist or is not a directory
+    /// - Missing or invalid `model.json` configuration file in model directory
+    /// - JSON parsing errors when reading `model.json`
+    /// - Missing required fields in model configuration (name, variants, preprocessing)
+    /// - Requested variant not found in available variants
+    /// - Invalid variant configuration (missing `input_shape`, `output_shape`, tensor names)
+    /// - File system I/O errors when accessing model directory or files
+    /// - Execution provider configuration or optimization errors
     pub fn with_external_model_and_provider<P: AsRef<Path>>(
         model_path: P, 
         variant: Option<String>,

@@ -241,8 +241,8 @@ mod tests {
 
     #[test]
     fn test_png_icc_encoder_creation() {
-        // Test that we can create the encoder
-        let _encoder = PngIccEncoder;
+        // Test that we can create the encoder - the struct exists
+        let _ = PngIccEncoder;
     }
 
     #[test]

@@ -650,8 +650,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_image_processor_creation() {
-        let mut config = RemovalConfig::default();
-        config.debug = true; // Use mock backend
+        let config = RemovalConfig {
+            debug: true, // Use mock backend
+            ..Default::default()
+        };
 
         let processor = ImageProcessor::new(&config);
         assert!(processor.is_ok());
@@ -659,8 +661,10 @@ mod tests {
 
     #[test]
     fn test_preprocess_image() {
-        let mut config = RemovalConfig::default();
-        config.debug = true;
+        let config = RemovalConfig {
+            debug: true,
+            ..Default::default()
+        };
 
         let processor = ImageProcessor::new(&config).unwrap();
 
