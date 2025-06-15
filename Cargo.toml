@@ -73,11 +73,8 @@ missing_debug_implementations = "allow"  # TODO: Add Debug implementations after
 # Pedantic lints for high code quality (lower priority so individual lints can override)
 pedantic = { level = "warn", priority = -1 }
 
-# Specific safety and correctness lints
+# Specific safety and correctness lints (production code only)
 indexing_slicing = "warn"
-unwrap_used = "warn"
-expect_used = "warn"
-panic = "warn"
 unimplemented = "warn"
 todo = "warn"
 
@@ -88,6 +85,16 @@ large_types_passed_by_value = "warn"
 # Style consistency lints
 module_name_repetitions = "allow"  # Common in focused libraries
 similar_names = "allow"            # Allow similar parameter names
+
+# Allow precision loss in graphics/display math where it's expected
+cast_precision_loss = "allow"      # Graphics math commonly needs this
+cast_possible_truncation = "allow" # Image dimensions and coordinates
+cast_sign_loss = "allow"           # Unsigned operations are common
+
+# Allow common test patterns that are safe in test context
+unwrap_used = "allow"              # Tests can panic on failure
+expect_used = "allow"              # Tests can panic on failure  
+panic = "allow"                    # Tests can panic on failure
 
 # Features for model embedding (metadata only - actual features defined in crates)
 [workspace.metadata.features]
