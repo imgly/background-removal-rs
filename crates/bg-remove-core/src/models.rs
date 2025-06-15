@@ -248,7 +248,7 @@ impl ExternalModelProvider {
         // Check required top-level fields (description is optional for backward compatibility)
         let required_fields = ["name", "variants", "preprocessing"];
         for field in required_fields {
-            if !config.get(field).is_some() {
+            if config.get(field).is_none() {
                 return Err(crate::error::BgRemovalError::invalid_config(
                     format!("Missing required field '{field}' in model.json")
                 ));
@@ -269,7 +269,7 @@ impl ExternalModelProvider {
         for (variant_name, variant_config) in variants_obj {
             let required_variant_fields = ["input_shape", "output_shape", "input_name", "output_name"];
             for field in required_variant_fields {
-                if !variant_config.get(field).is_some() {
+                if variant_config.get(field).is_none() {
                     return Err(crate::error::BgRemovalError::invalid_config(
                         format!("Missing required field '{field}' in variant '{variant_name}'")
                     ));
@@ -296,7 +296,7 @@ impl ExternalModelProvider {
             if available_variants.contains(&variant) {
                 // Check if this variant is compatible with the execution provider
                 if let Some(provider) = execution_provider {
-                    Self::warn_if_incompatible(config, &variant, provider);
+                    Self::warn_if_incompatible(config, &variant, *provider);
                 }
                 return Ok(variant);
             }
@@ -308,7 +308,7 @@ impl ExternalModelProvider {
         // Auto-detection using provider_recommendations from model.json
         if let Some(provider) = execution_provider {
             if let Some(recommendations) = config.get("provider_recommendations") {
-                let provider_name = Self::execution_provider_to_string(provider);
+                let provider_name = Self::execution_provider_to_string(*provider);
                 
                 // First try the specific provider recommendation
                 if let Some(recommended_variant) = recommendations.get(&provider_name) {
@@ -370,7 +370,7 @@ impl ExternalModelProvider {
         ))
     }
     
-    fn execution_provider_to_string(provider: &crate::config::ExecutionProvider) -> String {
+    fn execution_provider_to_string(provider: crate::config::ExecutionProvider) -> String {
         match provider {
             crate::config::ExecutionProvider::Cpu => "cpu".to_string(),
             crate::config::ExecutionProvider::Cuda => "cuda".to_string(),
@@ -379,7 +379,7 @@ impl ExternalModelProvider {
         }
     }
     
-    fn warn_if_incompatible(config: &serde_json::Value, variant: &str, provider: &crate::config::ExecutionProvider) {
+    fn warn_if_incompatible(config: &serde_json::Value, variant: &str, provider: crate::config::ExecutionProvider) {
         if let Some(variants) = config.get("variants") {
             if let Some(variant_config) = variants.get(variant) {
                 if let Some(compatible_providers) = variant_config.get("compatible_providers") {

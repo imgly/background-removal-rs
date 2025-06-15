@@ -100,7 +100,8 @@ impl WebPIccEncoder {
         let mut result = Vec::new();
         let mut pos = 0;
 
-        // Copy RIFF header (12 bytes: "RIFF" + size + "WEBP")
+        // Copy RIFF header (12 bytes: "RIFF" + size + "WEBP") - validated above
+        #[allow(clippy::indexing_slicing)] // Safe: validated above to have 12 bytes
         result.extend_from_slice(&webp_data[0..12]);
         pos += 12;
 
@@ -134,9 +135,11 @@ impl WebPIccEncoder {
             if pos + chunk_total_size > webp_data.len() {
                 // Handle case where chunk extends beyond file
                 let remaining = webp_data.len() - pos;
+                #[allow(clippy::indexing_slicing)] // Safe: pos < webp_data.len() from while condition
                 result.extend_from_slice(&webp_data[pos..pos + remaining]);
                 break;
             }
+            #[allow(clippy::indexing_slicing)] // Safe: bounds checked above
             result.extend_from_slice(&webp_data[pos..pos + chunk_total_size]);
             pos += chunk_total_size;
         }
@@ -147,6 +150,7 @@ impl WebPIccEncoder {
 
         // Update the total file size in RIFF header
         let new_file_size = (result.len() - 8) as u32; // Exclude RIFF header itself
+        #[allow(clippy::indexing_slicing)] // Safe: result contains at least 12 bytes from RIFF header
         result[4..8].copy_from_slice(&new_file_size.to_le_bytes());
 
         Ok(result)
@@ -233,6 +237,7 @@ impl WebPIccEncoder {
                     return Err(BgRemovalError::processing("Invalid ICCP chunk size"));
                 }
 
+                #[allow(clippy::indexing_slicing)] // Safe: bounds checked above
                 let icc_data = webp_data[data_start..data_end].to_vec();
                 log::debug!("Extracted ICC profile from WebP ICCP chunk: {} bytes", icc_data.len());
                 return Ok(Some(icc_data));

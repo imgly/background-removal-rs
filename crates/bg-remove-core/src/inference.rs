@@ -11,9 +11,20 @@ use ndarray::Array4;
 /// Trait for inference backends
 pub trait InferenceBackend {
     /// Initialize the backend with the given configuration
+    ///
+    /// # Errors
+    /// - Backend initialization failures
+    /// - Model loading or validation errors
+    /// - Invalid configuration parameters
     fn initialize(&mut self, config: &RemovalConfig) -> Result<()>;
 
     /// Run inference on the input tensor
+    ///
+    /// # Errors
+    /// - Backend not initialized
+    /// - Model inference failures
+    /// - Tensor conversion or processing errors
+    /// - Invalid input tensor dimensions
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>>;
 
     /// Get the expected input shape for this backend
@@ -23,9 +34,17 @@ pub trait InferenceBackend {
     fn output_shape(&self) -> (usize, usize, usize, usize);
     
     /// Get preprocessing configuration for this backend
+    ///
+    /// # Errors
+    /// - Model manager not initialized
+    /// - Invalid or missing preprocessing configuration
     fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig>;
     
     /// Get model information for this backend
+    ///
+    /// # Errors
+    /// - Model manager not initialized
+    /// - Model metadata unavailable or invalid
     fn get_model_info(&self) -> Result<crate::models::ModelInfo>;
 }
 
