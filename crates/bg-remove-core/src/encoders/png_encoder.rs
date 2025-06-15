@@ -104,14 +104,15 @@ impl PngIccEncoder {
     /// PNG data with embedded iCCP chunk
     fn insert_iccp_chunk(png_data: &[u8], icc_data: &[u8], profile_name: &str) -> Result<Vec<u8>> {
         // Validate PNG signature
-        if png_data.len() < 8 || &png_data[0..8] != b"\x89PNG\r\n\x1a\n" {
+        if png_data.len() < 8 || png_data.get(0..8) != Some(b"\x89PNG\r\n\x1a\n") {
             return Err(BgRemovalError::processing("Invalid PNG signature"));
         }
 
         let mut result = Vec::new();
         let mut pos = 0;
 
-        // Copy PNG signature
+        // Copy PNG signature (validated above)
+        #[allow(clippy::indexing_slicing)] // Safe: validated above to have 8 bytes
         result.extend_from_slice(&png_data[0..8]);
         pos += 8;
 
@@ -145,6 +146,7 @@ impl PngIccEncoder {
             if pos + chunk_total_size > png_data.len() {
                 break;
             }
+            #[allow(clippy::indexing_slicing)] // Safe: bounds checked above
             result.extend_from_slice(&png_data[pos..pos + chunk_total_size]);
             pos += chunk_total_size;
 

@@ -114,15 +114,12 @@ impl ProfileExtractor {
             BgRemovalError::processing(format!("Failed to read WebP file {}: {e}", path.display()))
         })?;
         
-        match WebPIccEncoder::extract_icc_profile(&webp_data)? {
-            Some(icc_data) => {
-                log::debug!("Extracted ICC profile from WebP: {} bytes", icc_data.len());
-                Ok(Some(ColorProfile::from_icc_data(icc_data)))
-            }
-            None => {
-                log::debug!("No ICC profile found in WebP file");
-                Ok(None)
-            }
+        if let Some(icc_data) = WebPIccEncoder::extract_icc_profile(&webp_data)? {
+            log::debug!("Extracted ICC profile from WebP: {} bytes", icc_data.len());
+            Ok(Some(ColorProfile::from_icc_data(icc_data)))
+        } else {
+            log::debug!("No ICC profile found in WebP file");
+            Ok(None)
         }
     }
 }

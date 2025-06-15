@@ -102,7 +102,7 @@ impl JpegIccEncoder {
     /// Embed ICC profile into JPEG data using APP2 markers
     fn embed_icc_in_jpeg(jpeg_data: &[u8], icc_data: &[u8]) -> Result<Vec<u8>> {
         // Find SOI (Start of Image) marker
-        if jpeg_data.len() < 2 || jpeg_data.get(0) != Some(&0xFF) || jpeg_data.get(1) != Some(&0xD8) {
+        if jpeg_data.len() < 2 || jpeg_data.first() != Some(&0xFF) || jpeg_data.get(1) != Some(&0xD8) {
             return Err(BgRemovalError::processing("Invalid JPEG: missing SOI marker"));
         }
 
@@ -202,7 +202,7 @@ mod tests {
         
         let segment = segments.first().expect("segments should not be empty");
         // Check APP2 marker
-        assert_eq!(segment.get(0), Some(&0xFF));
+        assert_eq!(segment.first(), Some(&0xFF));
         assert_eq!(segment.get(1), Some(&0xE2));
         
         // Check ICC_PROFILE identifier

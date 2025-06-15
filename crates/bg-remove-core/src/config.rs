@@ -132,6 +132,7 @@ impl BackgroundColor {
 /// By default, ICC color profiles are preserved and embedded for professional color accuracy.
 /// This ensures consistent color reproduction across different devices and applications.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)] // Configuration struct with logical boolean options
 pub struct ColorManagementConfig {
     /// Preserve ICC color profiles from input images (default: true)
     pub preserve_color_profile: bool,

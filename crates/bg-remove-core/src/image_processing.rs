@@ -265,7 +265,10 @@ impl ImageProcessor {
         let decode_start = Instant::now();
         let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
-        timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
+        }
 
         // Mask preprocessing timing (resize if needed)
         let preprocess_start = Instant::now();
@@ -274,7 +277,10 @@ impl ImageProcessor {
         } else {
             mask.resize(image.dimensions().0, image.dimensions().1)?
         };
-        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        }
 
         // No inference for mask application
         timings.inference_ms = 0;
@@ -282,10 +288,16 @@ impl ImageProcessor {
         // Apply mask timing
         let postprocess_start = Instant::now();
         let result_image = self.apply_background_removal(&image, &resized_mask)?;
-        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        }
 
         // Calculate total time
-        timings.total_ms = total_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.total_ms = total_start.elapsed().as_millis() as u64;
+        }
 
         metadata.set_detailed_timings(timings);
         metadata.input_format = Self::detect_image_format(&image);
@@ -322,21 +334,33 @@ impl ImageProcessor {
         // Preprocess image
         let preprocess_start = Instant::now();
         let (_preprocessed_image, input_tensor) = self.preprocess_image(&image)?;
-        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        }
 
         // Run inference
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        }
 
         // Postprocess results
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        }
 
         // Calculate total time
-        timings.total_ms = total_start.elapsed().as_millis() as u64;
+        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
+        {
+            timings.total_ms = total_start.elapsed().as_millis() as u64;
+        }
 
         // Set metadata with detailed timings  
         metadata.set_detailed_timings(timings);

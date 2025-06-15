@@ -93,7 +93,7 @@ impl WebPIccEncoder {
     /// WebP data with embedded ICCP chunk
     fn insert_iccp_chunk(webp_data: &[u8], icc_data: &[u8]) -> Result<Vec<u8>> {
         // Validate RIFF/WebP signature
-        if webp_data.len() < 12 || &webp_data[0..4] != b"RIFF" || &webp_data[8..12] != b"WEBP" {
+        if webp_data.len() < 12 || webp_data.get(0..4) != Some(b"RIFF") || webp_data.get(8..12) != Some(b"WEBP") {
             return Err(BgRemovalError::processing("Invalid WebP/RIFF signature"));
         }
 
@@ -204,7 +204,7 @@ impl WebPIccEncoder {
     /// - Truncated WebP data or malformed chunks
     pub fn extract_icc_profile(webp_data: &[u8]) -> Result<Option<Vec<u8>>> {
         // Validate RIFF/WebP signature
-        if webp_data.len() < 12 || &webp_data[0..4] != b"RIFF" || &webp_data[8..12] != b"WEBP" {
+        if webp_data.len() < 12 || webp_data.get(0..4) != Some(b"RIFF") || webp_data.get(8..12) != Some(b"WEBP") {
             return Err(BgRemovalError::processing("Invalid WebP/RIFF signature"));
         }
 
