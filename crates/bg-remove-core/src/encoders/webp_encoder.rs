@@ -62,7 +62,7 @@ impl WebPIccEncoder {
             
             // Use webp crate for basic encoding
             let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
-            let webp_data = encoder.encode(quality as f32);
+            let webp_data = encoder.encode(f32::from(quality));
             cursor.write_all(&webp_data).map_err(|e| {
                 BgRemovalError::processing(format!("Failed to create WebP buffer: {e}"))
             })?;
@@ -197,6 +197,11 @@ impl WebPIccEncoder {
     ///
     /// # Returns
     /// ICC profile data if found, None if no ICCP chunk present
+    ///
+    /// # Errors
+    /// - Invalid WebP/RIFF file signature
+    /// - Corrupted WebP file structure
+    /// - Truncated WebP data or malformed chunks
     pub fn extract_icc_profile(webp_data: &[u8]) -> Result<Option<Vec<u8>>> {
         // Validate RIFF/WebP signature
         if webp_data.len() < 12 || &webp_data[0..4] != b"RIFF" || &webp_data[8..12] != b"WEBP" {
@@ -261,9 +266,21 @@ mod tests {
         
         // Should be: "ICCP" + size(4) + data(4) = 12 bytes (no padding needed)
         assert_eq!(chunk.len(), 12);
-        assert_eq!(&chunk[0..4], b"ICCP");
-        assert_eq!(u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]), 4);
-        assert_eq!(&chunk[8..12], &test_icc_data);
+        if let Some(identifier) = chunk.get(0..4) {
+            assert_eq!(identifier, b"ICCP");
+        } else {
+            panic!("ICCP identifier not found");
+        }
+        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) = (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7)) {
+            assert_eq!(u32::from_le_bytes([b4, b5, b6, b7]), 4);
+        } else {
+            panic!("Size bytes not found");
+        }
+        if let Some(data) = chunk.get(8..12) {
+            assert_eq!(data, &test_icc_data);
+        } else {
+            panic!("Data section not found");
+        }
     }
 
     #[test]
@@ -273,10 +290,22 @@ mod tests {
         
         // Should be: "ICCP" + size(4) + data(3) + padding(1) = 12 bytes
         assert_eq!(chunk.len(), 12);
-        assert_eq!(&chunk[0..4], b"ICCP");
-        assert_eq!(u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]), 3);
-        assert_eq!(&chunk[8..11], &test_icc_data);
-        assert_eq!(chunk[11], 0); // Padding byte
+        if let Some(identifier) = chunk.get(0..4) {
+            assert_eq!(identifier, b"ICCP");
+        } else {
+            panic!("ICCP identifier not found");
+        }
+        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) = (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7)) {
+            assert_eq!(u32::from_le_bytes([b4, b5, b6, b7]), 3);
+        } else {
+            panic!("Size bytes not found");
+        }
+        if let Some(data) = chunk.get(8..11) {
+            assert_eq!(data, &test_icc_data);
+        } else {
+            panic!("Data section not found");
+        }
+        assert_eq!(chunk.get(11), Some(&0)); // Padding byte
     }
 
     #[test]

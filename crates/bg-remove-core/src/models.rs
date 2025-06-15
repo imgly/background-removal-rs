@@ -227,7 +227,8 @@ impl ExternalModelProvider {
         let resolved_variant = Self::resolve_variant_for_provider(&model_config, variant, execution_provider)?;
         
         // Validate variant exists
-        let variants_obj = model_config["variants"].as_object()
+        let variants_obj = model_config.get("variants")
+            .and_then(|v| v.as_object())
             .ok_or_else(|| crate::error::BgRemovalError::invalid_config("variants section not found or not an object"))?;
         if !variants_obj.contains_key(&resolved_variant) {
             let available: Vec<String> = variants_obj.keys().cloned().collect();
@@ -255,14 +256,15 @@ impl ExternalModelProvider {
         }
         
         // Check variants is an object
-        if !config["variants"].is_object() {
+        if config.get("variants").map_or(true, |v| !v.is_object()) {
             return Err(crate::error::BgRemovalError::invalid_config(
                 "Field 'variants' must be an object"
             ));
         }
         
         // Validate each variant has required fields
-        let variants_obj = config["variants"].as_object()
+        let variants_obj = config.get("variants")
+            .and_then(|v| v.as_object())
             .ok_or_else(|| crate::error::BgRemovalError::invalid_config("variants section not found"))?;
         for (variant_name, variant_config) in variants_obj {
             let required_variant_fields = ["input_shape", "output_shape", "input_name", "output_name"];
@@ -401,7 +403,10 @@ impl ExternalModelProvider {
     }
     
     fn get_variant_config(&self) -> &serde_json::Value {
-        &self.model_config["variants"][&self.variant]
+        self.model_config
+            .get("variants")
+            .and_then(|variants| variants.get(&self.variant))
+            .unwrap_or(&serde_json::Value::Null)
     }
     
     fn get_model_file_path(&self) -> PathBuf {
@@ -431,56 +436,57 @@ impl ModelProvider for ExternalModelProvider {
         
         Ok(ModelInfo {
             name: format!("{}-{}", 
-                self.model_config["name"].as_str().unwrap_or("unknown"), 
+                self.model_config.get("name").and_then(|v| v.as_str()).unwrap_or("unknown"), 
                 self.variant),
             precision: self.variant.clone(),
             size_bytes: model_data.len(),
             input_shape: (
-                variant_config["input_shape"].get(0).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config["input_shape"].get(1).and_then(|v| v.as_u64()).unwrap_or(3) as usize,
-                variant_config["input_shape"].get(2).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-                variant_config["input_shape"].get(3).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config.get("input_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config.get("input_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(3) as usize,
+                variant_config.get("input_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config.get("input_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
             ),
             output_shape: (
-                variant_config["output_shape"].get(0).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config["output_shape"].get(1).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config["output_shape"].get(2).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-                variant_config["output_shape"].get(3).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config.get("output_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config.get("output_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config.get("output_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config.get("output_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
             ),
         })
     }
     
     fn get_preprocessing_config(&self) -> Result<PreprocessingConfig> {
-        let preprocessing = &self.model_config["preprocessing"];
+        let preprocessing = self.model_config.get("preprocessing")
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing preprocessing config"))?;
         
         Ok(PreprocessingConfig {
             target_size: [
-                preprocessing["target_size"].get(0)
+                preprocessing.get("target_size").and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_u64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[0] in preprocessing config"))? as u32,
-                preprocessing["target_size"].get(1)
+                preprocessing.get("target_size").and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_u64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[1] in preprocessing config"))? as u32,
             ],
             normalization_mean: [
-                preprocessing["normalization"]["mean"].get(0)
+                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[0] in preprocessing config"))? as f32,
-                preprocessing["normalization"]["mean"].get(1)
+                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[1] in preprocessing config"))? as f32,
-                preprocessing["normalization"]["mean"].get(2)
+                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(2))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[2] in preprocessing config"))? as f32,
             ],
             normalization_std: [
-                preprocessing["normalization"]["std"].get(0)
+                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[0] in preprocessing config"))? as f32,
-                preprocessing["normalization"]["std"].get(1)
+                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[1] in preprocessing config"))? as f32,
-                preprocessing["normalization"]["std"].get(2)
+                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(2))
                     .and_then(|v| v.as_f64())
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[2] in preprocessing config"))? as f32,
             ],
@@ -675,7 +681,9 @@ impl ModelManager {
             ));
         }
         
-        Self::with_embedded_model(available[0].to_string())
+        Self::with_embedded_model(available.first()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("No embedded models available"))?
+            .to_string())
     }
     
     /// Load model data

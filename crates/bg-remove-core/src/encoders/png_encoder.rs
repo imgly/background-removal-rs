@@ -200,6 +200,7 @@ impl PngIccEncoder {
         let mut chunk = Vec::new();
         
         // Chunk length (4 bytes, big-endian)
+        #[allow(clippy::cast_possible_truncation)] // PNG chunks limited to 2^31-1 bytes
         chunk.extend_from_slice(&(chunk_data.len() as u32).to_be_bytes());
         
         // Chunk type (4 bytes)

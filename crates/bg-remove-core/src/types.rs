@@ -18,7 +18,7 @@ pub struct ColorProfile {
 
 impl ColorProfile {
     /// Create a new color profile
-    pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
+    #[must_use] pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
         Self {
             icc_data,
             color_space,
@@ -26,7 +26,7 @@ impl ColorProfile {
     }
 
     /// Create a color profile from raw ICC data
-    pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
+    #[must_use] pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
         let color_space = Self::detect_color_space_from_data(&icc_data);
         Self {
             icc_data: Some(icc_data),
@@ -52,12 +52,12 @@ impl ColorProfile {
     }
 
     /// Get the size of ICC profile data in bytes
-    pub fn data_size(&self) -> usize {
+    #[must_use] pub fn data_size(&self) -> usize {
         self.icc_data.as_ref().map_or(0, |data| data.len())
     }
 
     /// Check if this color profile has ICC data
-    pub fn has_color_profile(&self) -> bool {
+    #[must_use] pub fn has_color_profile(&self) -> bool {
         self.icc_data.is_some()
     }
 }
@@ -379,6 +379,7 @@ impl RemovalResult {
     }
 
     /// Save and measure encoding time (updates internal timing)
+    #[allow(clippy::cast_precision_loss)] // Acceptable for timing display
     pub fn save_with_timing<P: AsRef<Path>>(
         &mut self,
         path: P,
@@ -561,7 +562,7 @@ impl RemovalResult {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_color_profile(&self) -> Option<&ColorProfile> {
+    #[must_use] pub fn get_color_profile(&self) -> Option<&ColorProfile> {
         self.color_profile.as_ref()
     }
 
@@ -587,7 +588,7 @@ impl RemovalResult {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn has_color_profile(&self) -> bool {
+    #[must_use] pub fn has_color_profile(&self) -> bool {
         self.color_profile.is_some()
     }
 
@@ -598,7 +599,7 @@ impl RemovalResult {
         
         // Encode to WebP
         let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
-        let webp_data = encoder.encode(quality as f32);
+        let webp_data = encoder.encode(f32::from(quality));
         
         Ok(webp_data.to_vec())
     }
@@ -648,9 +649,8 @@ impl SegmentationMask {
         }
 
         for (i, pixel) in image.pixels_mut().enumerate() {
-            if i < self.data.len() {
-                let alpha = self.data[i];
-                pixel[3] = alpha; // Set alpha channel
+            if let Some(alpha) = self.data.get(i) {
+                pixel[3] = *alpha; // Set alpha channel
             }
         }
 
@@ -806,7 +806,9 @@ impl ProcessingTimings {
     }
 
     /// Calculate efficiency metrics
-    #[must_use] pub fn inference_ratio(&self) -> f64 {
+    #[must_use] 
+    #[allow(clippy::cast_precision_loss)] // Acceptable for timing ratios
+    pub fn inference_ratio(&self) -> f64 {
         if self.total_ms == 0 {
             0.0
         } else {
@@ -815,7 +817,9 @@ impl ProcessingTimings {
     }
 
     /// Get breakdown percentages
-    #[must_use] pub fn breakdown_percentages(&self) -> TimingBreakdown {
+    #[must_use] 
+    #[allow(clippy::cast_precision_loss)] // Acceptable for percentage calculations
+    pub fn breakdown_percentages(&self) -> TimingBreakdown {
         if self.total_ms == 0 {
             return TimingBreakdown::default();
         }

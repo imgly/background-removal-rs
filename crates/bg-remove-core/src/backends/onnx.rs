@@ -131,7 +131,7 @@ impl OnnxBackend {
     }
     
     /// Create a new ONNX backend (legacy - uses first available embedded model)
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             session: None,
             model_manager: None,
@@ -298,7 +298,9 @@ impl OnnxBackend {
         log::info!("  - Parallel execution: enabled");
         log::info!("  - Optimization level: Level3");
         log::info!("  - Model: {} ({})", model_info.name, model_info.precision);
-        log::info!("  - Model size: {:.2} MB", (model_info.size_bytes as u64) as f64 / (1024.0 * 1024.0));
+        // Model size in MB (precision loss acceptable for display)
+        let size_mb = (model_info.size_bytes as f64) / (1024.0 * 1024.0);
+        log::info!("  - Model size: {:.2} MB", size_mb);
         
         // Try to get active execution providers (this is diagnostic info)
         // Note: ONNX Runtime doesn't expose this directly, but we can infer from our configuration

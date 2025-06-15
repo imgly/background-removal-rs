@@ -109,6 +109,7 @@ impl JpegIccEncoder {
         let mut result = Vec::new();
         
         // Copy SOI marker
+        #[allow(clippy::indexing_slicing)] // Safe: validated above to have SOI marker
         result.extend_from_slice(&jpeg_data[0..2]);
 
         // Generate ICC APP2 segments
@@ -120,6 +121,7 @@ impl JpegIccEncoder {
         }
 
         // Copy rest of JPEG data (skip SOI)
+        #[allow(clippy::indexing_slicing)] // Safe: validated above to have SOI marker
         result.extend_from_slice(&jpeg_data[2..]);
 
         Ok(result)
@@ -142,10 +144,13 @@ impl JpegIccEncoder {
             ));
         }
         
+        #[allow(clippy::cast_possible_truncation)] // Safe: validated above to be <= 255
         let total_segments = total_segments as u8;
 
         for (chunk_index, icc_chunk) in icc_data.chunks(MAX_ICC_DATA_PER_SEGMENT).enumerate() {
+            #[allow(clippy::cast_possible_truncation)] // Safe: chunk_index < total_segments <= 255
             let sequence_number = (chunk_index + 1) as u8; // 1-based indexing
+            #[allow(clippy::cast_possible_truncation)] // Safe: segment size limited by MAX_ICC_DATA_PER_SEGMENT
             let segment_length = (ICC_IDENTIFIER.len() + 1 + 1 + icc_chunk.len() + 2) as u16;
 
             let mut segment = Vec::new();
@@ -195,17 +200,21 @@ mod tests {
         let segments = segments.unwrap();
         assert_eq!(segments.len(), 1); // Should fit in one segment
         
-        let segment = &segments[0];
+        let segment = segments.first().expect("segments should not be empty");
         // Check APP2 marker
-        assert_eq!(segment[0], 0xFF);
-        assert_eq!(segment[1], 0xE2);
+        assert_eq!(segment.get(0), Some(&0xFF));
+        assert_eq!(segment.get(1), Some(&0xE2));
         
         // Check ICC_PROFILE identifier
-        assert_eq!(&segment[4..16], b"ICC_PROFILE\0");
+        if let Some(identifier) = segment.get(4..16) {
+            assert_eq!(identifier, b"ICC_PROFILE\0");
+        } else {
+            panic!("ICC_PROFILE identifier not found");
+        }
         
         // Check sequence number and total
-        assert_eq!(segment[16], 1); // First segment
-        assert_eq!(segment[17], 1); // Total segments
+        assert_eq!(segment.get(16), Some(&1)); // First segment
+        assert_eq!(segment.get(17), Some(&1)); // Total segments
     }
 
     #[test]
@@ -219,8 +228,8 @@ mod tests {
         
         // Check that sequence numbers are correct
         for (i, segment) in segments.iter().enumerate() {
-            assert_eq!(segment[16], (i + 1) as u8); // Sequence number
-            assert_eq!(segment[17], segments.len() as u8); // Total segments
+            assert_eq!(segment.get(16), Some(&((i + 1) as u8))); // Sequence number
+            assert_eq!(segment.get(17), Some(&(segments.len() as u8))); // Total segments
         }
     }
 

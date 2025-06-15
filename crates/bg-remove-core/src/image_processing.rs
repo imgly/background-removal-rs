@@ -34,6 +34,15 @@ pub struct ImageProcessor {
 
 impl ImageProcessor {
     /// Create a new image processor with the given configuration and model manager
+    ///
+    /// # Arguments
+    /// * `config` - Processing configuration including execution provider and quality settings
+    /// * `model_manager` - Pre-configured model manager with loaded model
+    ///
+    /// # Errors
+    /// - Backend initialization failures
+    /// - Model loading or validation errors
+    /// - Invalid configuration parameters
     pub fn with_model_manager(config: &RemovalConfig, model_manager: ModelManager) -> Result<Self> {
         let mut backend: Box<dyn InferenceBackend> = if config.debug {
             // Use mock backend for debugging - it doesn't need the model manager
