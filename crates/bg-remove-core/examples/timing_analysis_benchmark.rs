@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Comprehensive timing analysis with detailed breakdown and reporting
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("⏱️  Timing Analysis Benchmark");
     println!("============================");
@@ -15,15 +16,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_images = [
         (
             "Small Portrait",
-            "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
+            "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
         ),
         (
             "Medium Product",
-            "crates/bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
+            "../bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
         ),
         (
             "Large Complex",
-            "crates/bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
+            "../bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
         ),
     ];
 

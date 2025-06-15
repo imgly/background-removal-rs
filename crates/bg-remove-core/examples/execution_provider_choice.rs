@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎯 Execution Provider Choice Demo");
     println!("=================================");
 
-    let test_image = "crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
+    let test_image = "../bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
 
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");
@@ -39,7 +39,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let duration = start_time.elapsed();
 
                 println!("   ✅ Success!");
-                println!("   ⏱️  Processing time: {}ms", duration.as_millis());
+                println!(
+                    "   ⏱️  Processing time: {time}ms",
+                    time = duration.as_millis()
+                );
                 println!(
                     "   📊 Foreground ratio: {:.1}%",
                     result.mask.statistics().foreground_ratio * 100.0

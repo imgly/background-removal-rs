@@ -115,6 +115,7 @@ fn calculate_metrics(rust_mask: &[u8], js_mask: &[u8]) -> ComparisonMetrics {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Comprehensive testing and metrics analysis with detailed reporting
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Quantitative Mask Comparison with JavaScript Reference");
     println!("========================================================");
@@ -141,11 +142,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut successful_comparisons = 0;
 
     for (category, image_name) in &test_cases {
-        let input_path = format!(
-            "crates/bg-remove-testing/assets/input/{category}/{image_name}"
-        );
+        let input_path = format!("../bg-remove-testing/assets/input/{category}/{image_name}");
         let js_mask_path = format!(
-            "crates/bg-remove-testing/assets/expected/masks/js_{}_mask.png",
+            "../bg-remove-testing/assets/expected/masks/js_{}_mask.png",
             image_name.trim_end_matches(".jpg")
         );
 
@@ -203,9 +202,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if successful_comparisons > 0 {
         let n = f64::from(successful_comparisons);
-        println!(
-            "📈 Average Metrics Across {successful_comparisons} Images:"
-        );
+        println!("📈 Average Metrics Across {successful_comparisons} Images:");
         println!(
             "   🎯 Pixel Accuracy: {:.1}%",
             (total_metrics.pixel_accuracy / n) * 100.0

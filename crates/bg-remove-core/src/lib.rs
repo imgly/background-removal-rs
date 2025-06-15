@@ -43,8 +43,10 @@ pub mod types;
 // Public API exports
 pub use backends::{MockBackend, OnnxBackend};
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
+pub use config::{
+    BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
+};
 pub use encoders::{JpegIccEncoder, PngIccEncoder, WebPIccEncoder};
-pub use config::{BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
@@ -152,7 +154,8 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     config: &RemovalConfig,
     model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
-    let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))?;
+    let model_manager =
+        ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))?;
     let mut processor = ImageProcessor::with_model_manager(config, model_manager)?;
     processor.remove_background(input_path).await
 }
@@ -294,7 +297,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 ///     .debug(true)
 ///     .build()?;
 /// let result = process_image(img, &config)?;
-/// 
+///
 /// // Get result as bytes for web response
 /// let output_bytes = result.to_bytes(config.output_format, 90)?;
 /// # Ok(())
@@ -308,7 +311,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 ///
 /// # fn example(images: Vec<DynamicImage>) -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
-/// 
+///
 /// for (i, img) in images.into_iter().enumerate() {
 ///     let result = process_image(img, &config)?;
 ///     println!("Image {}: {}", i, result.timing_summary());
@@ -377,11 +380,11 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
 /// let mask = segment_foreground("photo.jpg", &config).await?;
-/// 
+///
 /// // Analyze mask quality
 /// let stats = mask.statistics();
 /// println!("Foreground: {:.1}% of image", stats.foreground_ratio * 100.0);
-/// 
+///
 /// // Save mask for inspection
 /// mask.save_png("mask.png")?;
 /// # Ok(())
@@ -397,12 +400,12 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
 ///     .execution_provider(ExecutionProvider::CoreMl)
 ///     .build()?;
 /// let mask = segment_foreground("portrait.jpg", &config).await?;
-/// 
+///
 /// let stats = mask.statistics();
 /// if stats.foreground_ratio < 0.1 {
 ///     println!("Warning: Very small foreground detected ({:.1}%)", stats.foreground_ratio * 100.0);
 /// }
-/// 
+///
 /// // Resize mask to original image dimensions if needed
 /// let resized_mask = mask.resize(1920, 1080)?;
 /// # Ok(())
@@ -471,10 +474,10 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
-/// 
+///
 /// // Generate mask from one image
 /// let mask = segment_foreground("reference.jpg", &config).await?;
-/// 
+///
 /// // Apply to another similar image
 /// let result = apply_segmentation_mask("target.jpg", &mask, &config).await?;
 /// result.save_png("target_no_bg.png")?;
@@ -488,10 +491,10 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
-/// 
+///
 /// // Generate high-quality mask once
 /// let mask = segment_foreground("template.jpg", &config).await?;
-/// 
+///
 /// // Apply to multiple images quickly
 /// for i in 1..=10 {
 ///     let input = format!("photo_{}.jpg", i);
@@ -509,10 +512,10 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// # async fn example(mask: SegmentationMask) -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
-/// 
+///
 /// // Resize mask to match target image (e.g., 4K image)
 /// let resized_mask = mask.resize(3840, 2160)?;
-/// 
+///
 /// let result = apply_segmentation_mask("high_res.jpg", &resized_mask, &config).await?;
 /// result.save_png("high_res_no_bg.png")?;
 /// # Ok(())
@@ -546,4 +549,3 @@ mod tests {
         // API compiles successfully if we reach this point
     }
 }
-

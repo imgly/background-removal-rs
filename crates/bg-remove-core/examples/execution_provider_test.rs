@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("====================================");
 
     let test_image =
-        "../../crates/bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
+        "../../../bg-remove-testing/assets/input/portraits/portrait_action_motion.jpg";
 
     if !std::path::Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");

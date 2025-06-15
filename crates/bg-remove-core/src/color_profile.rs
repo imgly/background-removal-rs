@@ -30,7 +30,7 @@ impl ProfileExtractor {
     /// # Returns
     /// - `Ok(Some(ColorProfile))` - ICC profile found and extracted
     /// - `Ok(None)` - No ICC profile found or unsupported format
-    /// 
+    ///
     /// # Errors
     /// - File I/O error when reading the image file
     /// - Decoder error when parsing the image format
@@ -42,7 +42,7 @@ impl ProfileExtractor {
     ///
     /// # fn example() -> bg_remove_core::Result<()> {
     /// if let Some(profile) = ProfileExtractor::extract_from_image("photo.jpg")? {
-    ///     println!("Found ICC profile: {} ({} bytes)", 
+    ///     println!("Found ICC profile: {} ({} bytes)",
     ///         profile.color_space, profile.data_size());
     /// } else {
     ///     println!("No ICC profile found");
@@ -52,7 +52,7 @@ impl ProfileExtractor {
     /// ```
     pub fn extract_from_image<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
         let path = path.as_ref();
-        
+
         // Determine format from file extension
         let extension = path
             .extension()
@@ -108,14 +108,17 @@ impl ProfileExtractor {
     /// Extract ICC profile from WebP image
     fn extract_from_webp<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
         use crate::encoders::webp_encoder::WebPIccEncoder;
-        
+
         let path = path.as_ref();
         let webp_data = std::fs::read(path).map_err(|e| {
             BgRemovalError::processing(format!("Failed to read WebP file {}: {e}", path.display()))
         })?;
-        
+
         if let Some(icc_data) = WebPIccEncoder::extract_icc_profile(&webp_data)? {
-            log::debug!("Extracted ICC profile from WebP: {} bytes", icc_data.len());
+            log::debug!(
+                "Extracted ICC profile from WebP: {len} bytes",
+                len = icc_data.len()
+            );
             Ok(Some(ColorProfile::from_icc_data(icc_data)))
         } else {
             log::debug!("No ICC profile found in WebP file");
@@ -134,7 +137,7 @@ impl ProfileEmbedder {
     /// Supports PNG (via iCCP chunks) and JPEG (via APP2 markers) formats.
     ///
     /// # Supported Formats
-    /// - **PNG**: Embeds using custom iCCP chunks 
+    /// - **PNG**: Embeds using custom iCCP chunks
     /// - **JPEG**: Embeds using APP2 markers with custom encoder
     /// - **WebP**: Embeds using ICCP chunks in RIFF container
     /// - **Other formats**: Returns error (not supported)
@@ -176,8 +179,10 @@ impl ProfileEmbedder {
         format: image::ImageFormat,
         quality: u8,
     ) -> Result<()> {
-        use crate::encoders::{png_encoder::PngIccEncoder, jpeg_encoder::JpegIccEncoder, webp_encoder::WebPIccEncoder};
-        
+        use crate::encoders::{
+            jpeg_encoder::JpegIccEncoder, png_encoder::PngIccEncoder, webp_encoder::WebPIccEncoder,
+        };
+
         match format {
             image::ImageFormat::Png => {
                 PngIccEncoder::encode_with_profile(image, profile, output_path)
@@ -282,18 +287,18 @@ mod tests {
     #[test]
     fn test_embedding_not_implemented() {
         use image::DynamicImage;
-        
+
         let image = DynamicImage::new_rgb8(1, 1);
         let profile = ColorProfile::new(None, ColorSpace::Srgb);
-        
+
         let result = ProfileEmbedder::embed_in_output(
             &image,
-            &profile, 
+            &profile,
             "test.png",
             image::ImageFormat::Png,
-            80
+            80,
         );
-        
+
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("no data to embed"));
     }

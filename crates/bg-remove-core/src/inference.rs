@@ -7,7 +7,6 @@ use crate::{
 };
 use ndarray::Array4;
 
-
 /// Trait for inference backends
 pub trait InferenceBackend {
     /// Initialize the backend with the given configuration
@@ -32,14 +31,14 @@ pub trait InferenceBackend {
 
     /// Get the expected output shape for this backend
     fn output_shape(&self) -> (usize, usize, usize, usize);
-    
+
     /// Get preprocessing configuration for this backend
     ///
     /// # Errors
     /// - Model manager not initialized
     /// - Invalid or missing preprocessing configuration
     fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig>;
-    
+
     /// Get model information for this backend
     ///
     /// # Errors
@@ -54,7 +53,8 @@ pub struct BackendRegistry {
 }
 
 impl BackendRegistry {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         let mut registry = Self {
             backends: std::collections::HashMap::new(),
         };

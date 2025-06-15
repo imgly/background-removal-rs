@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==============================================");
 
     let test_image =
-        "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+        "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !std::path::Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");
@@ -46,8 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "output_{}.png",
                     name.to_lowercase()
                         .replace(' ', "_")
-                        .replace('(', "")
-                        .replace(')', "")
+                        .replace(['(', ')'], "")
                 );
                 result.save_png(&output_name)?;
 

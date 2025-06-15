@@ -19,7 +19,8 @@ pub struct ColorProfile {
 
 impl ColorProfile {
     /// Create a new color profile
-    #[must_use] pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
+    #[must_use]
+    pub fn new(icc_data: Option<Vec<u8>>, color_space: ColorSpace) -> Self {
         Self {
             icc_data,
             color_space,
@@ -27,7 +28,8 @@ impl ColorProfile {
     }
 
     /// Create a color profile from raw ICC data
-    #[must_use] pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
+    #[must_use]
+    pub fn from_icc_data(icc_data: Vec<u8>) -> Self {
         let color_space = Self::detect_color_space_from_data(&icc_data);
         Self {
             icc_data: Some(icc_data),
@@ -38,7 +40,7 @@ impl ColorProfile {
     /// Detect color space from ICC profile data using basic heuristics
     fn detect_color_space_from_data(icc_data: &[u8]) -> ColorSpace {
         let data_str = String::from_utf8_lossy(icc_data);
-        
+
         if data_str.contains("sRGB") || data_str.contains("srgb") {
             ColorSpace::Srgb
         } else if data_str.contains("Adobe RGB") || data_str.contains("ADBE") {
@@ -53,12 +55,14 @@ impl ColorProfile {
     }
 
     /// Get the size of ICC profile data in bytes
-    #[must_use] pub fn data_size(&self) -> usize {
+    #[must_use]
+    pub fn data_size(&self) -> usize {
         self.icc_data.as_ref().map_or(0, Vec::len)
     }
 
     /// Check if this color profile has ICC data
-    #[must_use] pub fn has_color_profile(&self) -> bool {
+    #[must_use]
+    pub fn has_color_profile(&self) -> bool {
         self.icc_data.is_some()
     }
 }
@@ -114,7 +118,8 @@ pub struct RemovalResult {
 
 impl RemovalResult {
     /// Create a new removal result
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -131,7 +136,8 @@ impl RemovalResult {
     }
 
     /// Create a new removal result with input path
-    #[must_use] pub fn with_input_path(
+    #[must_use]
+    pub fn with_input_path(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -149,7 +155,8 @@ impl RemovalResult {
     }
 
     /// Create a new removal result with color profile
-    #[must_use] pub fn with_color_profile(
+    #[must_use]
+    pub fn with_color_profile(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -167,7 +174,8 @@ impl RemovalResult {
     }
 
     /// Create a new removal result with input path and color profile
-    #[must_use] pub fn with_input_path_and_profile(
+    #[must_use]
+    pub fn with_input_path_and_profile(
         image: DynamicImage,
         mask: SegmentationMask,
         original_dimensions: (u32, u32),
@@ -236,9 +244,9 @@ impl RemovalResult {
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(path, image::ImageFormat::Png)?;
-        encode_start.elapsed().as_millis()
-            .try_into()
-            .map_err(|_| crate::error::BgRemovalError::processing("PNG encoding time too large for u64"))
+        encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("PNG encoding time too large for u64")
+        })
     }
 
     /// Save the result as JPEG with background color
@@ -273,7 +281,7 @@ impl RemovalResult {
     }
 
     /// Save in the specified format
-    /// 
+    ///
     /// Automatically uses color profile-aware saving when color profiles are available.
     /// For legacy compatibility, this method preserves existing behavior while enabling
     /// color profile embedding when possible.
@@ -336,10 +344,10 @@ impl RemovalResult {
     /// # fn example(img: DynamicImage) -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
     /// let result = process_image(img, &config)?;
-    /// 
+    ///
     /// let rgba_bytes = result.to_rgba_bytes();
     /// let (width, height) = result.dimensions();
-    /// 
+    ///
     /// // Use with web APIs
     /// // canvas.putImageData(rgba_bytes, width, height);
     /// # Ok(())
@@ -353,10 +361,10 @@ impl RemovalResult {
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
     /// let result = remove_background("input.jpg", &config).await?;
-    /// 
+    ///
     /// let rgba_bytes = result.to_rgba_bytes();
     /// let (width, height) = result.dimensions();
-    /// 
+    ///
     /// // Process each pixel
     /// for chunk in rgba_bytes.chunks(4) {
     ///     let [r, g, b, a] = [chunk[0], chunk[1], chunk[2], chunk[3]];
@@ -365,7 +373,8 @@ impl RemovalResult {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use] pub fn to_rgba_bytes(&self) -> Vec<u8> {
+    #[must_use]
+    pub fn to_rgba_bytes(&self) -> Vec<u8> {
         self.image.to_rgba8().into_raw()
     }
 
@@ -408,12 +417,14 @@ impl RemovalResult {
     }
 
     /// Get image dimensions
-    #[must_use] pub fn dimensions(&self) -> (u32, u32) {
+    #[must_use]
+    pub fn dimensions(&self) -> (u32, u32) {
         self.image.dimensions()
     }
 
     /// Get detailed timing breakdown
-    #[must_use] pub fn timings(&self) -> &ProcessingTimings {
+    #[must_use]
+    pub fn timings(&self) -> &ProcessingTimings {
         &self.metadata.timings
     }
 
@@ -434,9 +445,9 @@ impl RemovalResult {
         let path_str = path.as_ref().display().to_string();
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(&path, format)?;
-        let encode_ms = encode_start.elapsed().as_millis()
-            .try_into()
-            .map_err(|_| crate::error::BgRemovalError::processing("Image encoding time too large for u64"))?;
+        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("Image encoding time too large for u64")
+        })?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -475,7 +486,8 @@ impl RemovalResult {
     }
 
     /// Get timing summary for display
-    #[must_use] pub fn timing_summary(&self) -> String {
+    #[must_use]
+    pub fn timing_summary(&self) -> String {
         let t = &self.metadata.timings;
         let breakdown = t.breakdown_percentages();
 
@@ -490,15 +502,23 @@ impl RemovalResult {
 
         // Add encode timing if present
         if let Some(encode_ms) = t.image_encode_ms {
-            write!(summary, " | Encode: {}ms ({:.1}%)", encode_ms, breakdown.encode_pct)
-                .expect("Writing to String should never fail");
+            write!(
+                summary,
+                " | Encode: {}ms ({:.1}%)",
+                encode_ms, breakdown.encode_pct
+            )
+            .expect("Writing to String should never fail");
         }
 
         // Add other/overhead if significant (>1% or >5ms)
         let other_ms = t.other_overhead_ms();
         if other_ms > 5 || breakdown.other_pct > 1.0 {
-            write!(summary, " | Other: {}ms ({:.1}%)", other_ms, breakdown.other_pct)
-                .expect("Writing to String should never fail");
+            write!(
+                summary,
+                " | Other: {}ms ({:.1}%)",
+                other_ms, breakdown.other_pct
+            )
+            .expect("Writing to String should never fail");
         }
 
         summary
@@ -531,7 +551,7 @@ impl RemovalResult {
     ///     .embed_profile_in_output(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
-    /// 
+    ///
     /// // Save with color profile preservation
     /// result.save_with_color_profile("output.png", OutputFormat::Png, 0)?;
     /// # Ok(())
@@ -566,7 +586,7 @@ impl RemovalResult {
         quality: u8,
     ) -> Result<()> {
         use crate::color_profile::ProfileEmbedder;
-        
+
         // Check if we have a color profile to embed
         if let Some(ref profile) = self.color_profile {
             log::info!(
@@ -574,7 +594,7 @@ impl RemovalResult {
                 profile.color_space,
                 profile.data_size()
             );
-            
+
             // Convert OutputFormat to ImageFormat for ProfileEmbedder
             let image_format = match format {
                 OutputFormat::Png => image::ImageFormat::Png,
@@ -585,7 +605,7 @@ impl RemovalResult {
                     return self.save(path, format, quality);
                 },
             };
-            
+
             // Use ProfileEmbedder to save with ICC profile
             ProfileEmbedder::embed_in_output(&self.image, profile, path, image_format, quality)
         } else {
@@ -613,7 +633,7 @@ impl RemovalResult {
     ///     .preserve_color_profile(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
-    /// 
+    ///
     /// if let Some(profile) = result.get_color_profile() {
     ///     println!("Original color space: {}", profile.color_space);
     ///     println!("Profile size: {} bytes", profile.data_size());
@@ -623,7 +643,8 @@ impl RemovalResult {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use] pub fn get_color_profile(&self) -> Option<&ColorProfile> {
+    #[must_use]
+    pub fn get_color_profile(&self) -> Option<&ColorProfile> {
         self.color_profile.as_ref()
     }
 
@@ -638,7 +659,7 @@ impl RemovalResult {
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
     /// let result = remove_background("photo.jpg", &config).await?;
-    /// 
+    ///
     /// if result.has_color_profile() {
     ///     // Use color-profile-aware saving
     ///     result.save_with_color_profile("output.png", config.output_format, 0)?;
@@ -649,7 +670,8 @@ impl RemovalResult {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use] pub fn has_color_profile(&self) -> bool {
+    #[must_use]
+    pub fn has_color_profile(&self) -> bool {
         self.color_profile.is_some()
     }
 
@@ -657,11 +679,11 @@ impl RemovalResult {
     fn encode_webp(&self, quality: u8) -> Vec<u8> {
         // Convert to RGB (WebP crate doesn't support RGBA)
         let rgb_image = self.image.to_rgb8();
-        
+
         // Encode to WebP
         let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
         let webp_data = encoder.encode(f32::from(quality));
-        
+
         webp_data.to_vec()
     }
 }
@@ -678,12 +700,14 @@ pub struct SegmentationMask {
 
 impl SegmentationMask {
     /// Create a new segmentation mask
-    #[must_use] pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
+    #[must_use]
+    pub fn new(data: Vec<u8>, dimensions: (u32, u32)) -> Self {
         Self { data, dimensions }
     }
 
     /// Create mask from a grayscale image
-    #[must_use] pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
+    #[must_use]
+    pub fn from_image(image: &ImageBuffer<image::Luma<u8>, Vec<u8>>) -> Self {
         let (width, height) = image.dimensions();
         let data = image.as_raw().clone();
 
@@ -780,13 +804,13 @@ impl SegmentationMask {
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
     /// let mask = segment_foreground("photo.jpg", &config).await?;
-    /// 
+    ///
     /// let stats = mask.statistics();
-    /// println!("Foreground: {:.1}% ({} pixels)", 
-    ///     stats.foreground_ratio * 100.0, 
+    /// println!("Foreground: {:.1}% ({} pixels)",
+    ///     stats.foreground_ratio * 100.0,
     ///     stats.foreground_pixels);
-    /// println!("Background: {:.1}% ({} pixels)", 
-    ///     stats.background_ratio * 100.0, 
+    /// println!("Background: {:.1}% ({} pixels)",
+    ///     stats.background_ratio * 100.0,
     ///     stats.background_pixels);
     /// # Ok(())
     /// # }
@@ -799,9 +823,9 @@ impl SegmentationMask {
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
     /// let mask = segment_foreground("portrait.jpg", &config).await?;
-    /// 
+    ///
     /// let stats = mask.statistics();
-    /// 
+    ///
     /// if stats.foreground_ratio < 0.05 {
     ///     println!("Warning: Very small subject detected");
     /// } else if stats.foreground_ratio > 0.8 {
@@ -878,7 +902,8 @@ pub struct ProcessingTimings {
 }
 
 impl ProcessingTimings {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             model_load_ms: 0,
             image_decode_ms: 0,
@@ -939,7 +964,8 @@ impl ProcessingTimings {
     }
 
     /// Get the "other" overhead time (unaccounted time)
-    #[must_use] pub fn other_overhead_ms(&self) -> u64 {
+    #[must_use]
+    pub fn other_overhead_ms(&self) -> u64 {
         let measured_time = self.model_load_ms
             + self.image_decode_ms
             + self.preprocessing_ms
@@ -1027,7 +1053,8 @@ pub struct ProcessingMetadata {
 
 impl ProcessingMetadata {
     /// Create new processing metadata
-    #[must_use] pub fn new(model_name: String) -> Self {
+    #[must_use]
+    pub fn new(model_name: String) -> Self {
         Self {
             timings: ProcessingTimings::new(),
             model_name,

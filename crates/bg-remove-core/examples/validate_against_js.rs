@@ -49,17 +49,16 @@ struct JavaScriptOutputs {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Comprehensive validation suite with detailed comparison and reporting
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Validating Rust Outputs vs JavaScript Reference");
     println!("==================================================");
 
     // Load JavaScript benchmark data
     let js_benchmark_path =
-        "crates/bg-remove-testing/assets/expected/benchmarks/javascript_baseline.json";
+        "../bg-remove-testing/assets/expected/benchmarks/javascript_baseline.json";
     if !Path::new(js_benchmark_path).exists() {
-        println!(
-            "❌ JavaScript benchmark file not found: {js_benchmark_path}"
-        );
+        println!("❌ JavaScript benchmark file not found: {js_benchmark_path}");
         return Ok(());
     }
 
@@ -109,9 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue; // Skip failed JS tests
             }
 
-            let input_path = format!(
-                "crates/bg-remove-testing/assets/input/{category_name}/{image_name}"
-            );
+            let input_path =
+                format!("../bg-remove-testing/assets/input/{category_name}/{image_name}");
 
             if !Path::new(&input_path).exists() {
                 println!("   ⏭️  Skipping {image_name}: Input file not found");
@@ -178,9 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let speedup = avg_js_time / avg_rust_time;
 
         println!("📊 Validation Summary:");
-        println!(
-            "   ✅ Successful tests: {successful_tests}/{total_tests}"
-        );
+        println!("   ✅ Successful tests: {successful_tests}/{total_tests}");
         println!("   ⏱️  Average Rust time: {avg_rust_time:.0}ms");
         println!("   ⏱️  Average JavaScript time: {avg_js_time:.0}ms");
         println!("   🚀 Rust speedup: {speedup:.1}x");

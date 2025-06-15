@@ -8,10 +8,10 @@ use crate::{
     error::{BgRemovalError, Result},
     types::ColorProfile,
 };
+use flate2::{write::ZlibEncoder, Compression};
 use image::DynamicImage;
-use std::path::Path;
 use std::io::{Cursor, Write};
-use flate2::{Compression, write::ZlibEncoder};
+use std::path::Path;
 
 /// PNG encoder with ICC profile embedding capability
 pub struct PngIccEncoder;
@@ -55,11 +55,12 @@ impl PngIccEncoder {
         output_path: P,
     ) -> Result<()> {
         let output_path = output_path.as_ref();
-        
+
         // Validate ICC profile data
-        let icc_data = profile.icc_data.as_ref().ok_or_else(|| {
-            BgRemovalError::processing("ICC profile has no data to embed")
-        })?;
+        let icc_data = profile
+            .icc_data
+            .as_ref()
+            .ok_or_else(|| BgRemovalError::processing("ICC profile has no data to embed"))?;
 
         log::info!(
             "Embedding ICC color profile in PNG: {} ({} bytes)",
@@ -72,9 +73,11 @@ impl PngIccEncoder {
         {
             let rgba_image = image.to_rgba8();
             let mut cursor = Cursor::new(&mut png_buffer);
-            rgba_image.write_to(&mut cursor, image::ImageFormat::Png).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to create PNG buffer: {e}"))
-            })?;
+            rgba_image
+                .write_to(&mut cursor, image::ImageFormat::Png)
+                .map_err(|e| {
+                    BgRemovalError::processing(format!("Failed to create PNG buffer: {e}"))
+                })?;
         }
 
         // Step 2: Insert iCCP chunk into PNG
@@ -82,11 +85,13 @@ impl PngIccEncoder {
         let png_with_icc = Self::insert_iccp_chunk(&png_buffer, icc_data, &profile_name)?;
 
         // Step 3: Write final PNG to file
-        std::fs::write(output_path, png_with_icc).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write PNG file: {e}"))
-        })?;
+        std::fs::write(output_path, png_with_icc)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write PNG file: {e}")))?;
 
-        log::info!("Successfully created PNG with embedded ICC profile: {}", output_path.display());
+        log::info!(
+            "Successfully created PNG with embedded ICC profile: {}",
+            output_path.display()
+        );
         Ok(())
     }
 
@@ -126,13 +131,17 @@ impl PngIccEncoder {
                 break;
             }
 
-            // Read chunk length and type  
-            let chunk_length_bytes = png_data.get(pos..pos + 4)
+            // Read chunk length and type
+            let chunk_length_bytes = png_data
+                .get(pos..pos + 4)
                 .and_then(|bytes| bytes.try_into().ok())
-                .ok_or_else(|| BgRemovalError::processing("Truncated PNG: incomplete chunk length"))?;
+                .ok_or_else(|| {
+                    BgRemovalError::processing("Truncated PNG: incomplete chunk length")
+                })?;
             let chunk_length = u32::from_be_bytes(chunk_length_bytes);
-            let chunk_type = png_data.get(pos + 4..pos + 8)
-                .ok_or_else(|| BgRemovalError::processing("Truncated PNG: incomplete chunk type"))?;
+            let chunk_type = png_data.get(pos + 4..pos + 8).ok_or_else(|| {
+                BgRemovalError::processing("Truncated PNG: incomplete chunk type")
+            })?;
 
             // Insert iCCP chunk before first IDAT chunk
             if chunk_type == b"IDAT" && !iccp_inserted {
@@ -142,7 +151,8 @@ impl PngIccEncoder {
             }
 
             // Copy current chunk (length + type + data + crc)
-            let chunk_length_usize: usize = chunk_length.try_into()
+            let chunk_length_usize: usize = chunk_length
+                .try_into()
                 .map_err(|_| BgRemovalError::processing("PNG chunk length too large for usize"))?;
             let chunk_total_size = 12 + chunk_length_usize; // 4 + 4 + data + 4
             if pos + chunk_total_size > png_data.len() {
@@ -159,7 +169,9 @@ impl PngIccEncoder {
         }
 
         if !iccp_inserted {
-            return Err(BgRemovalError::processing("Could not find IDAT chunk to insert iCCP"));
+            return Err(BgRemovalError::processing(
+                "Could not find IDAT chunk to insert iCCP",
+            ));
         }
 
         Ok(result)
@@ -178,7 +190,9 @@ impl PngIccEncoder {
     fn create_iccp_chunk(icc_data: &[u8], profile_name: &str) -> Result<Vec<u8>> {
         // Validate profile name
         if profile_name.len() > 79 {
-            return Err(BgRemovalError::processing("ICC profile name too long (max 79 chars)"));
+            return Err(BgRemovalError::processing(
+                "ICC profile name too long (max 79 chars)",
+            ));
         }
 
         // Compress ICC profile data using zlib
@@ -202,19 +216,19 @@ impl PngIccEncoder {
 
         // Create complete chunk: length + type + data + CRC
         let mut chunk = Vec::new();
-        
+
         // Chunk length (4 bytes, big-endian)
-        let chunk_data_len: u32 = chunk_data.len()
-            .try_into()
-            .map_err(|_| BgRemovalError::processing("ICC profile data too large for PNG chunk (>4GB)"))?;
+        let chunk_data_len: u32 = chunk_data.len().try_into().map_err(|_| {
+            BgRemovalError::processing("ICC profile data too large for PNG chunk (>4GB)")
+        })?;
         chunk.extend_from_slice(&chunk_data_len.to_be_bytes());
-        
+
         // Chunk type (4 bytes)
         chunk.extend_from_slice(b"iCCP");
-        
+
         // Chunk data
         chunk.extend_from_slice(&chunk_data);
-        
+
         // CRC32 (4 bytes, big-endian) - calculated over type + data
         let mut crc_data = Vec::new();
         crc_data.extend_from_slice(b"iCCP");
@@ -247,15 +261,15 @@ mod tests {
 
     #[test]
     fn test_encode_with_profile_validates_input() {
-        use image::{RgbaImage, DynamicImage};
-        
+        use image::{DynamicImage, RgbaImage};
+
         // Create a test image
         let img = RgbaImage::new(100, 100);
         let dynamic_img = DynamicImage::ImageRgba8(img);
-        
+
         // Create profile without ICC data
         let profile = ColorProfile::new(None, ColorSpace::Srgb);
-        
+
         // Should fail due to no ICC data
         let result = PngIccEncoder::encode_with_profile(&dynamic_img, &profile, "test.png");
         assert!(result.is_err());

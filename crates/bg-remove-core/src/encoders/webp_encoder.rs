@@ -9,8 +9,8 @@ use crate::{
     types::ColorProfile,
 };
 use image::DynamicImage;
-use std::path::Path;
 use std::io::{Cursor, Write};
+use std::path::Path;
 
 /// WebP encoder with ICC profile embedding capability
 pub struct WebPIccEncoder;
@@ -42,11 +42,12 @@ impl WebPIccEncoder {
         quality: u8,
     ) -> Result<()> {
         let output_path = output_path.as_ref();
-        
+
         // Validate ICC profile data
-        let icc_data = profile.icc_data.as_ref().ok_or_else(|| {
-            BgRemovalError::processing("ICC profile has no data to embed")
-        })?;
+        let icc_data = profile
+            .icc_data
+            .as_ref()
+            .ok_or_else(|| BgRemovalError::processing("ICC profile has no data to embed"))?;
 
         log::info!(
             "Embedding ICC color profile in WebP: {} ({} bytes)",
@@ -59,9 +60,10 @@ impl WebPIccEncoder {
         {
             let rgb_image = image.to_rgb8();
             let mut cursor = Cursor::new(&mut webp_buffer);
-            
+
             // Use webp crate for basic encoding
-            let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
+            let encoder =
+                webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
             let webp_data = encoder.encode(f32::from(quality));
             cursor.write_all(&webp_data).map_err(|e| {
                 BgRemovalError::processing(format!("Failed to create WebP buffer: {e}"))
@@ -72,11 +74,13 @@ impl WebPIccEncoder {
         let webp_with_icc = Self::insert_iccp_chunk(&webp_buffer, icc_data)?;
 
         // Step 3: Write final WebP to file
-        std::fs::write(output_path, webp_with_icc).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write WebP file: {e}"))
-        })?;
+        std::fs::write(output_path, webp_with_icc)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write WebP file: {e}")))?;
 
-        log::info!("Successfully created WebP with embedded ICC profile: {}", output_path.display());
+        log::info!(
+            "Successfully created WebP with embedded ICC profile: {}",
+            output_path.display()
+        );
         Ok(())
     }
 
@@ -93,7 +97,10 @@ impl WebPIccEncoder {
     /// WebP data with embedded ICCP chunk
     fn insert_iccp_chunk(webp_data: &[u8], icc_data: &[u8]) -> Result<Vec<u8>> {
         // Validate RIFF/WebP signature
-        if webp_data.len() < 12 || webp_data.get(0..4) != Some(b"RIFF") || webp_data.get(8..12) != Some(b"WEBP") {
+        if webp_data.len() < 12
+            || webp_data.get(0..4) != Some(b"RIFF")
+            || webp_data.get(8..12) != Some(b"WEBP")
+        {
             return Err(BgRemovalError::processing("Invalid WebP/RIFF signature"));
         }
 
@@ -116,11 +123,15 @@ impl WebPIccEncoder {
             }
 
             // Read chunk header (4 bytes fourcc + 4 bytes size)
-            let chunk_fourcc = webp_data.get(pos..pos + 4)
-                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC"))?;
-            let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
+            let chunk_fourcc = webp_data.get(pos..pos + 4).ok_or_else(|| {
+                BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC")
+            })?;
+            let chunk_size_bytes = webp_data
+                .get(pos + 4..pos + 8)
                 .and_then(|bytes| bytes.try_into().ok())
-                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
+                .ok_or_else(|| {
+                    BgRemovalError::processing("Truncated WebP: incomplete chunk size")
+                })?;
             let chunk_size: usize = u32::from_le_bytes(chunk_size_bytes)
                 .try_into()
                 .map_err(|_| BgRemovalError::processing("WebP chunk size too large for usize"))?;
@@ -129,7 +140,10 @@ impl WebPIccEncoder {
             if (chunk_fourcc == b"VP8 " || chunk_fourcc == b"VP8L") && !iccp_inserted {
                 result.extend_from_slice(&iccp_chunk);
                 iccp_inserted = true;
-                log::debug!("Inserted ICCP chunk before {} chunk", String::from_utf8_lossy(chunk_fourcc));
+                log::debug!(
+                    "Inserted ICCP chunk before {} chunk",
+                    String::from_utf8_lossy(chunk_fourcc)
+                );
             }
 
             // Copy current chunk (header + data + optional padding)
@@ -137,7 +151,8 @@ impl WebPIccEncoder {
             if pos + chunk_total_size > webp_data.len() {
                 // Handle case where chunk extends beyond file
                 let remaining = webp_data.len() - pos;
-                #[allow(clippy::indexing_slicing)] // Safe: pos < webp_data.len() from while condition
+                #[allow(clippy::indexing_slicing)]
+                // Safe: pos < webp_data.len() from while condition
                 result.extend_from_slice(&webp_data[pos..pos + remaining]);
                 break;
             }
@@ -147,14 +162,17 @@ impl WebPIccEncoder {
         }
 
         if !iccp_inserted {
-            return Err(BgRemovalError::processing("Could not find VP8/VP8L chunk to insert ICCP"));
+            return Err(BgRemovalError::processing(
+                "Could not find VP8/VP8L chunk to insert ICCP",
+            ));
         }
 
         // Update the total file size in RIFF header
-        let new_file_size: u32 = (result.len() - 8)
-            .try_into()
-            .map_err(|_| BgRemovalError::processing("WebP file too large for RIFF format (>4GB)"))?;
-        #[allow(clippy::indexing_slicing)] // Safe: result contains at least 12 bytes from RIFF header
+        let new_file_size: u32 = (result.len() - 8).try_into().map_err(|_| {
+            BgRemovalError::processing("WebP file too large for RIFF format (>4GB)")
+        })?;
+        #[allow(clippy::indexing_slicing)]
+        // Safe: result contains at least 12 bytes from RIFF header
         result[4..8].copy_from_slice(&new_file_size.to_le_bytes());
 
         Ok(result)
@@ -174,19 +192,19 @@ impl WebPIccEncoder {
     /// - ICC profile too large for WebP chunk format
     fn create_iccp_chunk(icc_data: &[u8]) -> Result<Vec<u8>> {
         let mut chunk = Vec::new();
-        
+
         // FourCC "ICCP" (4 bytes)
         chunk.extend_from_slice(b"ICCP");
-        
+
         // Chunk size (4 bytes, little-endian) - size of ICC data only
-        let chunk_size: u32 = icc_data.len()
-            .try_into()
-            .map_err(|_| BgRemovalError::processing("ICC profile too large for WebP chunk (>4GB)"))?;
+        let chunk_size: u32 = icc_data.len().try_into().map_err(|_| {
+            BgRemovalError::processing("ICC profile too large for WebP chunk (>4GB)")
+        })?;
         chunk.extend_from_slice(&chunk_size.to_le_bytes());
-        
+
         // ICC profile data
         chunk.extend_from_slice(icc_data);
-        
+
         // Add padding byte if chunk size is odd (RIFF chunks must be word-aligned)
         if icc_data.len() % 2 != 0 {
             chunk.push(0);
@@ -218,7 +236,10 @@ impl WebPIccEncoder {
     /// - Truncated WebP data or malformed chunks
     pub fn extract_icc_profile(webp_data: &[u8]) -> Result<Option<Vec<u8>>> {
         // Validate RIFF/WebP signature
-        if webp_data.len() < 12 || webp_data.get(0..4) != Some(b"RIFF") || webp_data.get(8..12) != Some(b"WEBP") {
+        if webp_data.len() < 12
+            || webp_data.get(0..4) != Some(b"RIFF")
+            || webp_data.get(8..12) != Some(b"WEBP")
+        {
             return Err(BgRemovalError::processing("Invalid WebP/RIFF signature"));
         }
 
@@ -231,11 +252,15 @@ impl WebPIccEncoder {
             }
 
             // Read chunk header
-            let chunk_fourcc = webp_data.get(pos..pos + 4)
-                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC"))?;
-            let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
+            let chunk_fourcc = webp_data.get(pos..pos + 4).ok_or_else(|| {
+                BgRemovalError::processing("Truncated WebP: incomplete chunk fourCC")
+            })?;
+            let chunk_size_bytes = webp_data
+                .get(pos + 4..pos + 8)
                 .and_then(|bytes| bytes.try_into().ok())
-                .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
+                .ok_or_else(|| {
+                    BgRemovalError::processing("Truncated WebP: incomplete chunk size")
+                })?;
             let chunk_size: usize = u32::from_le_bytes(chunk_size_bytes)
                 .try_into()
                 .map_err(|_| BgRemovalError::processing("WebP chunk size too large for usize"))?;
@@ -244,14 +269,17 @@ impl WebPIccEncoder {
                 // Found ICCP chunk, extract ICC data
                 let data_start = pos + 8;
                 let data_end = data_start + chunk_size;
-                
+
                 if data_end > webp_data.len() {
                     return Err(BgRemovalError::processing("Invalid ICCP chunk size"));
                 }
 
                 #[allow(clippy::indexing_slicing)] // Safe: bounds checked above
                 let icc_data = webp_data[data_start..data_end].to_vec();
-                log::debug!("Extracted ICC profile from WebP ICCP chunk: {} bytes", icc_data.len());
+                log::debug!(
+                    "Extracted ICC profile from WebP ICCP chunk: {len} bytes",
+                    len = icc_data.len()
+                );
                 return Ok(Some(icc_data));
             }
 
@@ -280,7 +308,7 @@ mod tests {
     fn test_create_iccp_chunk() {
         let test_icc_data = vec![0x01, 0x02, 0x03, 0x04]; // 4 bytes
         let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
-        
+
         // Should be: "ICCP" + size(4) + data(4) = 12 bytes (no padding needed)
         assert_eq!(chunk.len(), 12);
         if let Some(identifier) = chunk.get(0..4) {
@@ -288,7 +316,9 @@ mod tests {
         } else {
             panic!("ICCP identifier not found");
         }
-        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) = (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7)) {
+        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) =
+            (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7))
+        {
             assert_eq!(u32::from_le_bytes([b4, b5, b6, b7]), 4);
         } else {
             panic!("Size bytes not found");
@@ -304,7 +334,7 @@ mod tests {
     fn test_create_iccp_chunk_with_padding() {
         let test_icc_data = vec![0x01, 0x02, 0x03]; // 3 bytes (odd)
         let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
-        
+
         // Should be: "ICCP" + size(4) + data(3) + padding(1) = 12 bytes
         assert_eq!(chunk.len(), 12);
         if let Some(identifier) = chunk.get(0..4) {
@@ -312,7 +342,9 @@ mod tests {
         } else {
             panic!("ICCP identifier not found");
         }
-        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) = (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7)) {
+        if let (Some(&b4), Some(&b5), Some(&b6), Some(&b7)) =
+            (chunk.get(4), chunk.get(5), chunk.get(6), chunk.get(7))
+        {
             assert_eq!(u32::from_le_bytes([b4, b5, b6, b7]), 3);
         } else {
             panic!("Size bytes not found");
@@ -327,15 +359,15 @@ mod tests {
 
     #[test]
     fn test_encode_with_profile_validates_input() {
-        use image::{RgbImage, DynamicImage};
-        
+        use image::{DynamicImage, RgbImage};
+
         // Create a test image
         let img = RgbImage::new(100, 100);
         let dynamic_img = DynamicImage::ImageRgb8(img);
-        
+
         // Create profile without ICC data
         let profile = ColorProfile::new(None, ColorSpace::Srgb);
-        
+
         // Should fail due to no ICC data
         let result = WebPIccEncoder::encode_with_profile(&dynamic_img, &profile, "test.webp", 80);
         assert!(result.is_err());

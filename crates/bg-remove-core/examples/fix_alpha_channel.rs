@@ -5,14 +5,15 @@ use image::DynamicImage;
 use std::path::Path;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Alpha channel debugging and testing with multiple format outputs
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Fixing Alpha Channel Application");
     println!("==================================");
 
     let test_image =
-        "../crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+        "../../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
     let js_reference =
-        "../crates/bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
+        "../../bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
 
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");
@@ -70,8 +71,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Apply inverted mask
     for (i, pixel) in rgba_image2.pixels_mut().enumerate() {
-        if i < mask_data.len() {
-            let inverted_alpha = 255 - mask_data[i]; // Invert the mask
+        if let Some(&mask_value) = mask_data.get(i) {
+            let inverted_alpha = 255 - mask_value; // Invert the mask
             pixel[3] = inverted_alpha;
         }
     }
@@ -105,8 +106,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Compare distributions
-            let transparent_pixels = js_alpha_values.iter().filter(|&&x| x == 0).count();
-            let opaque_pixels = js_alpha_values.iter().filter(|&&x| x == 255).count();
+            let mut transparent_pixels = 0;
+            let mut opaque_pixels = 0;
+            for &alpha in &js_alpha_values {
+                if alpha == 0 {
+                    transparent_pixels += 1;
+                } else if alpha == 255 {
+                    opaque_pixels += 1;
+                }
+            }
             let partial_pixels = js_alpha_values.len() - transparent_pixels - opaque_pixels;
 
             println!("   JS Transparency distribution:");

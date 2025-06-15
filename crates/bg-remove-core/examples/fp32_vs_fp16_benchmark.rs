@@ -24,6 +24,7 @@ struct BenchmarkResults {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Comprehensive benchmark with detailed analysis and reporting
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏆 FP32 vs FP16 Model Precision Benchmark");
     println!("==========================================");
@@ -32,19 +33,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_images = [
         (
             "Portrait",
-            "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
+            "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
         ),
         (
             "Product",
-            "crates/bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
+            "../bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
         ),
         (
             "Complex",
-            "crates/bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
+            "../bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
         ),
         (
             "Multiple People",
-            "crates/bg-remove-testing/assets/input/portraits/portrait_multiple_people.jpg",
+            "../bg-remove-testing/assets/input/portraits/portrait_multiple_people.jpg",
         ),
     ];
 
@@ -60,7 +61,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    println!("📷 Testing with {} images:", available_images.len());
+    println!(
+        "📷 Testing with {count} images:",
+        count = available_images.len()
+    );
     for (name, _) in &available_images {
         println!("   • {name}");
     }
@@ -94,8 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📈 Comparative Analysis");
     println!("=======================");
 
-    let fp16 = &results[0];
-    let fp32 = &results[1];
+    let (Some(fp16), Some(fp32)) = (results.first(), results.get(1)) else {
+        return Err("Failed to get benchmark results for both precisions".into());
+    };
 
     println!("\n⏱️  Performance Comparison:");
     println!("   Metric                FP16        FP32        Difference");
@@ -182,9 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if performance_diff.abs() < 5.0 {
         // Similar performance - choose based on size
         println!("   ✅ KEEP FP16 as default");
-        println!(
-            "   📝 Reasoning: Similar performance with {size_ratio:.1}x smaller binary size"
-        );
+        println!("   📝 Reasoning: Similar performance with {size_ratio:.1}x smaller binary size");
         println!("   💡 Users prioritizing download speed and storage will benefit");
         println!(
             "   🔧 FP32 can be enabled via --features fp32-model for accuracy-critical use cases"

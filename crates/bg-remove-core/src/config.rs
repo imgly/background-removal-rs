@@ -65,7 +65,7 @@ impl BackgroundColor {
     ///
     /// # Arguments
     /// * `r` - Red component (0-255)
-    /// * `g` - Green component (0-255) 
+    /// * `g` - Green component (0-255)
     /// * `b` - Blue component (0-255)
     ///
     /// # Examples
@@ -74,7 +74,8 @@ impl BackgroundColor {
     /// let purple = BackgroundColor::new(128, 0, 128);
     /// let orange = BackgroundColor::new(255, 165, 0);
     /// ```
-    #[must_use] pub fn new(r: u8, g: u8, b: u8) -> Self {
+    #[must_use]
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
@@ -90,7 +91,8 @@ impl BackgroundColor {
     /// assert_eq!(white.g, 255);
     /// assert_eq!(white.b, 255);
     /// ```
-    #[must_use] pub fn white() -> Self {
+    #[must_use]
+    pub fn white() -> Self {
         Self::new(255, 255, 255)
     }
 
@@ -106,7 +108,8 @@ impl BackgroundColor {
     /// assert_eq!(black.g, 0);
     /// assert_eq!(black.b, 0);
     /// ```
-    #[must_use] pub fn black() -> Self {
+    #[must_use]
+    pub fn black() -> Self {
         Self::new(0, 0, 0)
     }
 
@@ -122,13 +125,14 @@ impl BackgroundColor {
     /// // Used with PNG - color ignored, true transparency
     /// // Used with JPEG - renders as black background
     /// ```
-    #[must_use] pub fn transparent() -> Self {
+    #[must_use]
+    pub fn transparent() -> Self {
         Self::new(0, 0, 0) // Will be ignored for transparent formats
     }
 }
 
 /// Color management configuration
-/// 
+///
 /// By default, ICC color profiles are preserved and embedded for professional color accuracy.
 /// This ensures consistent color reproduction across different devices and applications.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,13 +140,13 @@ impl BackgroundColor {
 pub struct ColorManagementConfig {
     /// Preserve ICC color profiles from input images (default: true)
     pub preserve_color_profile: bool,
-    
+
     /// Force sRGB output regardless of input profile (default: false)
     pub force_srgb_output: bool,
-    
+
     /// Fallback to sRGB when color space detection fails (default: true)
     pub fallback_to_srgb: bool,
-    
+
     /// Embed color profile in output when supported by format (default: true)
     pub embed_profile_in_output: bool,
 }
@@ -150,7 +154,7 @@ pub struct ColorManagementConfig {
 impl Default for ColorManagementConfig {
     fn default() -> Self {
         Self {
-            preserve_color_profile: true,  // Default: preserve color profiles
+            preserve_color_profile: true, // Default: preserve color profiles
             force_srgb_output: false,
             fallback_to_srgb: true,
             embed_profile_in_output: true, // Default: embed profiles in output
@@ -169,7 +173,7 @@ impl ColorManagementConfig {
             embed_profile_in_output: true,
         }
     }
-    
+
     /// Create a configuration that ignores color profiles (legacy behavior)
     #[must_use]
     pub fn ignore() -> Self {
@@ -180,7 +184,7 @@ impl ColorManagementConfig {
             embed_profile_in_output: false,
         }
     }
-    
+
     /// Create a configuration that forces sRGB output
     #[must_use]
     pub fn force_srgb() -> Self {
@@ -271,7 +275,8 @@ impl RemovalConfig {
     ///     .build()
     ///     .unwrap();
     /// ```
-    #[must_use] pub fn builder() -> RemovalConfigBuilder {
+    #[must_use]
+    pub fn builder() -> RemovalConfigBuilder {
         RemovalConfigBuilder::default()
     }
 
@@ -331,49 +336,57 @@ pub struct RemovalConfigBuilder {
 
 impl RemovalConfigBuilder {
     /// Set execution provider
-    #[must_use] pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
+    #[must_use]
+    pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
         self.config.execution_provider = provider;
         self
     }
 
     /// Set output format
-    #[must_use] pub fn output_format(mut self, format: OutputFormat) -> Self {
+    #[must_use]
+    pub fn output_format(mut self, format: OutputFormat) -> Self {
         self.config.output_format = format;
         self
     }
 
     /// Set background color
-    #[must_use] pub fn background_color(mut self, color: BackgroundColor) -> Self {
+    #[must_use]
+    pub fn background_color(mut self, color: BackgroundColor) -> Self {
         self.config.background_color = color;
         self
     }
 
     /// Set JPEG quality
-    #[must_use] pub fn jpeg_quality(mut self, quality: u8) -> Self {
+    #[must_use]
+    pub fn jpeg_quality(mut self, quality: u8) -> Self {
         self.config.jpeg_quality = quality.min(100);
         self
     }
 
     /// Set WebP quality
-    #[must_use] pub fn webp_quality(mut self, quality: u8) -> Self {
+    #[must_use]
+    pub fn webp_quality(mut self, quality: u8) -> Self {
         self.config.webp_quality = quality.min(100);
         self
     }
 
     /// Enable debug mode
-    #[must_use] pub fn debug(mut self, debug: bool) -> Self {
+    #[must_use]
+    pub fn debug(mut self, debug: bool) -> Self {
         self.config.debug = debug;
         self
     }
 
     /// Set number of intra-op threads
-    #[must_use] pub fn intra_threads(mut self, threads: usize) -> Self {
+    #[must_use]
+    pub fn intra_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self
     }
 
     /// Set number of inter-op threads
-    #[must_use] pub fn inter_threads(mut self, threads: usize) -> Self {
+    #[must_use]
+    pub fn inter_threads(mut self, threads: usize) -> Self {
         self.config.inter_threads = threads;
         self
     }
@@ -413,32 +426,37 @@ impl RemovalConfigBuilder {
     ///     .build()
     ///     .unwrap();
     /// ```
-    #[must_use] pub fn num_threads(mut self, threads: usize) -> Self {
+    #[must_use]
+    pub fn num_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self.config.inter_threads = if threads > 0 { (threads / 2).max(1) } else { 0 };
         self
     }
 
     /// Set color management configuration
-    #[must_use] pub fn color_management(mut self, color_management: ColorManagementConfig) -> Self {
+    #[must_use]
+    pub fn color_management(mut self, color_management: ColorManagementConfig) -> Self {
         self.config.color_management = color_management;
         self
     }
 
     /// Enable or disable ICC color profile preservation
-    #[must_use] pub fn preserve_color_profile(mut self, preserve: bool) -> Self {
+    #[must_use]
+    pub fn preserve_color_profile(mut self, preserve: bool) -> Self {
         self.config.color_management.preserve_color_profile = preserve;
         self
     }
 
     /// Force sRGB output regardless of input color profile
-    #[must_use] pub fn force_srgb_output(mut self, force: bool) -> Self {
+    #[must_use]
+    pub fn force_srgb_output(mut self, force: bool) -> Self {
         self.config.color_management.force_srgb_output = force;
         self
     }
 
     /// Enable or disable embedding ICC profiles in output images
-    #[must_use] pub fn embed_profile_in_output(mut self, embed: bool) -> Self {
+    #[must_use]
+    pub fn embed_profile_in_output(mut self, embed: bool) -> Self {
         self.config.color_management.embed_profile_in_output = embed;
         self
     }

@@ -17,7 +17,8 @@ pub struct MockBackend {
 
 impl MockBackend {
     /// Create a new mock backend
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             input_shape: (1, 3, 1024, 1024),
             output_shape: (1, 1, 1024, 1024),
@@ -77,7 +78,7 @@ impl InferenceBackend for MockBackend {
     fn output_shape(&self) -> (usize, usize, usize, usize) {
         self.output_shape
     }
-    
+
     fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig> {
         // Return a default preprocessing config for mock backend
         Ok(crate::models::PreprocessingConfig {
@@ -86,7 +87,7 @@ impl InferenceBackend for MockBackend {
             normalization_std: [0.229, 0.224, 0.225],
         })
     }
-    
+
     fn get_model_info(&self) -> Result<crate::models::ModelInfo> {
         // Return mock model info
         Ok(crate::models::ModelInfo {

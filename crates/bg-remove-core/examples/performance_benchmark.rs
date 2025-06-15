@@ -4,6 +4,7 @@ use bg_remove_core::{remove_background, RemovalConfig};
 use std::time::Instant;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Performance benchmarking with comprehensive timing analysis
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Background Removal Performance Benchmark");
     println!("============================================");
@@ -11,19 +12,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_images = [
         (
             "Portrait Simple",
-            "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
+            "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg",
         ),
         (
             "Portrait Multiple",
-            "crates/bg-remove-testing/assets/input/portraits/portrait_multiple_people.jpg",
+            "../bg-remove-testing/assets/input/portraits/portrait_multiple_people.jpg",
         ),
         (
             "Product White BG",
-            "crates/bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
+            "../bg-remove-testing/assets/input/products/product_clothing_white_bg.jpg",
         ),
         (
             "Complex Group",
-            "crates/bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
+            "../bg-remove-testing/assets/input/complex/complex_group_photo.jpg",
         ),
     ];
 

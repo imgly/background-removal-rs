@@ -6,14 +6,15 @@ use image::DynamicImage;
 use std::path::Path;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Transparency diagnostic tool with detailed testing and output generation
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Transparency Diagnostic Tool");
     println!("==============================");
 
     let test_image =
-        "crates/bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+        "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
     let js_reference =
-        "crates/bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
+        "../bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
 
     if !Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");
@@ -36,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Analyze mask statistics
     let mask_stats = result.mask.statistics();
     println!("📊 Mask Statistics:");
-    println!("   Total pixels: {}", mask_stats.total_pixels);
+    println!("   Total pixels: {total}", total = mask_stats.total_pixels);
     println!(
         "   Foreground: {} ({:.1}%)",
         mask_stats.foreground_pixels,

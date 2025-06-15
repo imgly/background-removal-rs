@@ -125,8 +125,8 @@ fn bench_timing_breakdown(c: &mut Criterion) {
                     #[cfg(feature = "benchmark-details")]
                     {
                         let breakdown = timings.breakdown_percentages();
-                        println!("\n📊 Timing Breakdown for {}:", name);
-                        println!("   • Total: {}ms", timings.total_ms);
+                        println!("\n📊 Timing Breakdown for {name}:");
+                        println!("   • Total: {total}ms", total = timings.total_ms);
                         println!(
                             "   • Decode: {}ms ({:.1}%)",
                             timings.image_decode_ms, breakdown.decode_pct

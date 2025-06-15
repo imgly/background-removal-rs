@@ -5,6 +5,7 @@ use std::path::Path;
 use std::time::Instant;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)] // Comprehensive testing suite with detailed analysis and reporting
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🧪 Comprehensive Test Suite - Improved Preprocessing");
     println!("===================================================");
@@ -24,9 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut quality_metrics = Vec::new();
 
     for (category, image_name) in &test_cases {
-        let input_path = format!(
-            "crates/bg-remove-testing/assets/input/{category}/{image_name}"
-        );
+        let input_path = format!("../bg-remove-testing/assets/input/{category}/{image_name}");
 
         if !Path::new(&input_path).exists() {
             println!("⏭️  Skipping {image_name}: File not found");
