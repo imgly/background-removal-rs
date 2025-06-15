@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_create_large_icc_segments() {
-        let test_icc_data = vec![0u8; 100000]; // 100KB test ICC data (requires multiple segments)
+        let test_icc_data = vec![0u8; 100_000]; // 100KB test ICC data (requires multiple segments)
         let segments = JpegIccEncoder::create_icc_app2_segments(&test_icc_data);
         
         assert!(segments.is_ok());

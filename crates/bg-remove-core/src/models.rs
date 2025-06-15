@@ -253,12 +253,11 @@ impl ExternalModelProvider {
                     Self::warn_if_incompatible(config, &variant, provider);
                 }
                 return Ok(variant);
-            } else {
-                return Err(crate::error::BgRemovalError::invalid_config(
-                    format!("Requested variant '{}' not available. Available variants: {:?}", 
-                        variant, available_variants)
-                ));
             }
+            return Err(crate::error::BgRemovalError::invalid_config(
+                format!("Requested variant '{}' not available. Available variants: {:?}", 
+                    variant, available_variants)
+            ));
         }
         
         // Auto-detection using provider_recommendations from model.json

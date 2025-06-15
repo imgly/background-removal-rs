@@ -56,9 +56,9 @@ impl ProfileExtractor {
             .map(|s| s.to_lowercase());
 
         match extension.as_deref() {
-            Some("jpg") | Some("jpeg") => Self::extract_from_jpeg(path),
+            Some("jpg" | "jpeg") => Self::extract_from_jpeg(path),
             Some("png") => Self::extract_from_png(path),
-            Some("tiff") | Some("tif") => Self::extract_from_tiff(path),
+            Some("tiff" | "tif") => Self::extract_from_tiff(path),
             Some("webp") => Self::extract_from_webp(path),
             _ => Ok(None), // Unsupported format
         }

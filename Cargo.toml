@@ -70,8 +70,8 @@ missing_docs = "allow"               # TODO: Add comprehensive documentation aft
 missing_debug_implementations = "allow"  # TODO: Add Debug implementations after multi-model refactoring
 
 [workspace.lints.clippy]
-# Pedantic lints for high code quality
-pedantic = "warn"
+# Pedantic lints for high code quality (lower priority so individual lints can override)
+pedantic = { level = "warn", priority = -1 }
 
 # Specific safety and correctness lints
 indexing_slicing = "warn"
