@@ -78,7 +78,7 @@ impl JpegIccEncoder {
                 rgb_image.height(),
                 image::ColorType::Rgb8,
             ).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to encode JPEG: {}", e))
+                BgRemovalError::processing(format!("Failed to encode JPEG: {e}"))
             })?;
         }
 
@@ -87,7 +87,7 @@ impl JpegIccEncoder {
 
         // Write final JPEG to file
         std::fs::write(output_path, jpeg_with_icc).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write JPEG file {}: {}", output_path.display(), e))
+            BgRemovalError::processing(format!("Failed to write JPEG file {}: {e}", output_path.display()))
         })?;
 
         Ok(())

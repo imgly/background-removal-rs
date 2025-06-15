@@ -36,18 +36,41 @@ pub struct ModelInfo {
 /// Model provider trait for loading models
 pub trait ModelProvider: std::fmt::Debug {
     /// Load model data as bytes
+    ///
+    /// # Errors
+    /// - Model file not found or inaccessible
+    /// - File I/O errors when reading model data
+    /// - Invalid model file format
     fn load_model_data(&self) -> Result<Vec<u8>>;
     
     /// Get model information
+    ///
+    /// # Errors
+    /// - Model configuration parsing errors
+    /// - Missing required metadata fields
+    /// - Invalid shape or precision information
     fn get_model_info(&self) -> Result<ModelInfo>;
     
     /// Get preprocessing configuration
+    ///
+    /// # Errors
+    /// - Missing preprocessing configuration in model metadata
+    /// - Invalid normalization or target size values
+    /// - JSON parsing errors for external models
     fn get_preprocessing_config(&self) -> Result<PreprocessingConfig>;
     
     /// Get input tensor name
+    ///
+    /// # Errors
+    /// - Missing input tensor name in model configuration
+    /// - Invalid or empty tensor name
     fn get_input_name(&self) -> Result<String>;
     
-    /// Get output tensor name  
+    /// Get output tensor name
+    ///
+    /// # Errors
+    /// - Missing output tensor name in model configuration
+    /// - Invalid or empty tensor name
     fn get_output_name(&self) -> Result<String>;
 }
 
@@ -59,12 +82,16 @@ pub struct EmbeddedModelProvider {
 
 impl EmbeddedModelProvider {
     /// Create provider for specific embedded model
+    ///
+    /// # Errors
+    /// - Requested model not found in embedded registry
+    /// - Model name validation fails
     pub fn new(model_name: String) -> Result<Self> {
         // Validate model exists in registry
         if EmbeddedModelRegistry::get_model(&model_name).is_none() {
             return Err(crate::error::BgRemovalError::invalid_config(
-                format!("Embedded model '{}' not found. Available models: {:?}", 
-                    model_name, EmbeddedModelRegistry::list_available())
+                format!("Embedded model '{model_name}' not found. Available models: {:?}", 
+                    EmbeddedModelRegistry::list_available())
             ));
         }
         
@@ -72,7 +99,7 @@ impl EmbeddedModelProvider {
     }
     
     /// List all available embedded models
-    pub fn list_available() -> &'static [&'static str] {
+    #[must_use] pub fn list_available() -> &'static [&'static str] {
         EmbeddedModelRegistry::list_available()
     }
     
@@ -137,11 +164,24 @@ pub struct ExternalModelProvider {
 
 impl ExternalModelProvider {
     /// Create provider for external model from folder path
+    ///
+    /// # Errors
+    /// - Model path does not exist or is not a directory
+    /// - Missing or invalid model.json configuration file
+    /// - JSON parsing errors in model configuration
+    /// - Requested variant not found in model
     pub fn new<P: AsRef<Path>>(model_path: P, variant: Option<String>) -> Result<Self> {
         Self::new_with_provider(model_path, variant, None)
     }
     
     /// Create provider for external model from folder path with execution provider optimization
+    ///
+    /// # Errors
+    /// - Model path does not exist or is not a directory
+    /// - Missing or invalid model.json configuration file
+    /// - JSON parsing errors in model configuration
+    /// - Requested variant not found in model
+    /// - Invalid execution provider configuration
     pub fn new_with_provider<P: AsRef<Path>>(
         model_path: P, 
         variant: Option<String>,
@@ -172,12 +212,12 @@ impl ExternalModelProvider {
         
         let json_content = fs::read_to_string(&model_json_path)
             .map_err(|e| crate::error::BgRemovalError::invalid_config(
-                format!("Failed to read model.json: {}", e)
+                format!("Failed to read model.json: {e}")
             ))?;
             
         let model_config: serde_json::Value = serde_json::from_str(&json_content)
             .map_err(|e| crate::error::BgRemovalError::invalid_config(
-                format!("Failed to parse model.json: {}", e)
+                format!("Failed to parse model.json: {e}")
             ))?;
         
         // Validate required fields
@@ -187,11 +227,12 @@ impl ExternalModelProvider {
         let resolved_variant = Self::resolve_variant_for_provider(&model_config, variant, execution_provider)?;
         
         // Validate variant exists
-        if !model_config["variants"].as_object().unwrap().contains_key(&resolved_variant) {
-            let available: Vec<String> = model_config["variants"].as_object().unwrap()
-                .keys().map(|k| k.clone()).collect();
+        let variants_obj = model_config["variants"].as_object()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("variants section not found or not an object"))?;
+        if !variants_obj.contains_key(&resolved_variant) {
+            let available: Vec<String> = variants_obj.keys().cloned().collect();
             return Err(crate::error::BgRemovalError::invalid_config(
-                format!("Variant '{}' not found. Available variants: {:?}", resolved_variant, available)
+                format!("Variant '{resolved_variant}' not found. Available variants: {available:?}")
             ));
         }
         
@@ -208,7 +249,7 @@ impl ExternalModelProvider {
         for field in required_fields {
             if !config.get(field).is_some() {
                 return Err(crate::error::BgRemovalError::invalid_config(
-                    format!("Missing required field '{}' in model.json", field)
+                    format!("Missing required field '{field}' in model.json")
                 ));
             }
         }
@@ -221,12 +262,14 @@ impl ExternalModelProvider {
         }
         
         // Validate each variant has required fields
-        for (variant_name, variant_config) in config["variants"].as_object().unwrap() {
+        let variants_obj = config["variants"].as_object()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("variants section not found"))?;
+        for (variant_name, variant_config) in variants_obj {
             let required_variant_fields = ["input_shape", "output_shape", "input_name", "output_name"];
             for field in required_variant_fields {
                 if !variant_config.get(field).is_some() {
                     return Err(crate::error::BgRemovalError::invalid_config(
-                        format!("Missing required field '{}' in variant '{}'", field, variant_name)
+                        format!("Missing required field '{field}' in variant '{variant_name}'")
                     ));
                 }
             }
@@ -242,8 +285,9 @@ impl ExternalModelProvider {
         requested_variant: Option<String>,
         execution_provider: Option<&crate::config::ExecutionProvider>
     ) -> Result<String> {
-        let available_variants: Vec<String> = config["variants"].as_object().unwrap()
-            .keys().map(|k| k.clone()).collect();
+        let available_variants: Vec<String> = config["variants"].as_object()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("variants section not found"))?
+            .keys().cloned().collect();
             
         // If variant explicitly requested, use it (but warn if not optimal)
         if let Some(variant) = requested_variant {
@@ -255,8 +299,7 @@ impl ExternalModelProvider {
                 return Ok(variant);
             }
             return Err(crate::error::BgRemovalError::invalid_config(
-                format!("Requested variant '{}' not available. Available variants: {:?}", 
-                    variant, available_variants)
+                format!("Requested variant '{variant}' not available. Available variants: {available_variants:?}")
             ));
         }
         
@@ -269,7 +312,7 @@ impl ExternalModelProvider {
                 if let Some(recommended_variant) = recommendations.get(&provider_name) {
                     if let Some(variant_str) = recommended_variant.as_str() {
                         if available_variants.contains(&variant_str.to_string()) {
-                            log::info!("🎯 Using model-recommended variant '{}' for {} provider", variant_str, provider_name);
+                            log::info!("🎯 Using model-recommended variant '{variant_str}' for {provider_name} provider");
                             return Ok(variant_str.to_string());
                         }
                     }
@@ -285,7 +328,7 @@ impl ExternalModelProvider {
                             if let Some(coreml_variant) = recommendations.get("coreml") {
                                 if let Some(variant_str) = coreml_variant.as_str() {
                                     if available_variants.contains(&variant_str.to_string()) {
-                                        log::info!("🍎 Auto provider: Using CoreML-optimized variant '{}' (Apple Silicon detected)", variant_str);
+                                        log::info!("🍎 Auto provider: Using CoreML-optimized variant '{variant_str}' (Apple Silicon detected)");
                                         return Ok(variant_str.to_string());
                                     }
                                 }
@@ -297,7 +340,7 @@ impl ExternalModelProvider {
                     if let Some(cpu_variant) = recommendations.get("cpu") {
                         if let Some(variant_str) = cpu_variant.as_str() {
                             if available_variants.contains(&variant_str.to_string()) {
-                                log::info!("🖥️ Auto provider: Using CPU-optimized variant '{}'", variant_str);
+                                log::info!("🖥️ Auto provider: Using CPU-optimized variant '{variant_str}'");
                                 return Ok(variant_str.to_string());
                             }
                         }
@@ -344,10 +387,10 @@ impl ExternalModelProvider {
                             .any(|p| p.as_str() == Some(&provider_name));
                             
                         if !is_compatible {
-                            log::warn!("⚠️ Variant '{}' may not be optimal for {} provider", variant, provider_name);
+                            log::warn!("⚠️ Variant '{variant}' may not be optimal for {provider_name} provider");
                             if let Some(notes) = variant_config.get("performance_notes") {
                                 if let Some(notes_str) = notes.as_str() {
-                                    log::warn!("   Note: {}", notes_str);
+                                    log::warn!("   Note: {notes_str}");
                                 }
                             }
                         }
@@ -378,7 +421,7 @@ impl ModelProvider for ExternalModelProvider {
         
         fs::read(&model_file_path)
             .map_err(|e| crate::error::BgRemovalError::model(
-                format!("Failed to read model file: {}", e)
+                format!("Failed to read model file: {e}")
             ))
     }
     
@@ -387,20 +430,22 @@ impl ModelProvider for ExternalModelProvider {
         let model_data = self.load_model_data()?;
         
         Ok(ModelInfo {
-            name: format!("{}-{}", self.model_config["name"].as_str().unwrap(), self.variant),
+            name: format!("{}-{}", 
+                self.model_config["name"].as_str().unwrap_or("unknown"), 
+                self.variant),
             precision: self.variant.clone(),
             size_bytes: model_data.len(),
             input_shape: (
-                variant_config["input_shape"][0].as_u64().unwrap() as usize,
-                variant_config["input_shape"][1].as_u64().unwrap() as usize,
-                variant_config["input_shape"][2].as_u64().unwrap() as usize,
-                variant_config["input_shape"][3].as_u64().unwrap() as usize,
+                variant_config["input_shape"].get(0).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config["input_shape"].get(1).and_then(|v| v.as_u64()).unwrap_or(3) as usize,
+                variant_config["input_shape"].get(2).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config["input_shape"].get(3).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
             ),
             output_shape: (
-                variant_config["output_shape"][0].as_u64().unwrap() as usize,
-                variant_config["output_shape"][1].as_u64().unwrap() as usize,
-                variant_config["output_shape"][2].as_u64().unwrap() as usize,
-                variant_config["output_shape"][3].as_u64().unwrap() as usize,
+                variant_config["output_shape"].get(0).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config["output_shape"].get(1).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
+                variant_config["output_shape"].get(2).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
+                variant_config["output_shape"].get(3).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
             ),
         })
     }
@@ -410,30 +455,54 @@ impl ModelProvider for ExternalModelProvider {
         
         Ok(PreprocessingConfig {
             target_size: [
-                preprocessing["target_size"][0].as_u64().unwrap() as u32,
-                preprocessing["target_size"][1].as_u64().unwrap() as u32,
+                preprocessing["target_size"].get(0)
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[0] in preprocessing config"))? as u32,
+                preprocessing["target_size"].get(1)
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[1] in preprocessing config"))? as u32,
             ],
             normalization_mean: [
-                preprocessing["normalization"]["mean"][0].as_f64().unwrap() as f32,
-                preprocessing["normalization"]["mean"][1].as_f64().unwrap() as f32,
-                preprocessing["normalization"]["mean"][2].as_f64().unwrap() as f32,
+                preprocessing["normalization"]["mean"].get(0)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[0] in preprocessing config"))? as f32,
+                preprocessing["normalization"]["mean"].get(1)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[1] in preprocessing config"))? as f32,
+                preprocessing["normalization"]["mean"].get(2)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[2] in preprocessing config"))? as f32,
             ],
             normalization_std: [
-                preprocessing["normalization"]["std"][0].as_f64().unwrap() as f32,
-                preprocessing["normalization"]["std"][1].as_f64().unwrap() as f32,
-                preprocessing["normalization"]["std"][2].as_f64().unwrap() as f32,
+                preprocessing["normalization"]["std"].get(0)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[0] in preprocessing config"))? as f32,
+                preprocessing["normalization"]["std"].get(1)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[1] in preprocessing config"))? as f32,
+                preprocessing["normalization"]["std"].get(2)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[2] in preprocessing config"))? as f32,
             ],
         })
     }
     
     fn get_input_name(&self) -> Result<String> {
         let variant_config = self.get_variant_config();
-        Ok(variant_config["input_name"].as_str().unwrap().to_string())
+        let input_name = variant_config["input_name"].as_str()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config(
+                format!("Missing or invalid input_name in variant '{}'", self.variant)
+            ))?;
+        Ok(input_name.to_string())
     }
     
     fn get_output_name(&self) -> Result<String> {
         let variant_config = self.get_variant_config();
-        Ok(variant_config["output_name"].as_str().unwrap().to_string())
+        let output_name = variant_config["output_name"].as_str()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config(
+                format!("Missing or invalid output_name in variant '{}'", self.variant)
+            ))?;
+        Ok(output_name.to_string())
     }
 }
 
@@ -527,12 +596,12 @@ impl ModelProvider for ExternalModelProvider {
 /// If no models are embedded (empty list), you must either:
 /// 1. Rebuild with embedding features: `cargo build --features embed-all`
 /// 2. Use external models with `ModelSource::External(path)`
-pub fn get_available_embedded_models() -> Vec<String> {
+#[must_use] pub fn get_available_embedded_models() -> Vec<String> {
     EmbeddedModelProvider::list_available().iter().map(|s| s.to_string()).collect()
 }
 
 /// Extract precision from model name (e.g., "isnet-fp16" -> "fp16")
-fn extract_precision_from_name(name: &str) -> String {
+#[must_use] fn extract_precision_from_name(name: &str) -> String {
     if name.contains("fp32") {
         "fp32".to_string()
     } else if name.contains("fp16") {

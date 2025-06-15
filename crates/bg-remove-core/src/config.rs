@@ -159,6 +159,7 @@ impl Default for ColorManagementConfig {
 
 impl ColorManagementConfig {
     /// Create a configuration that preserves color profiles
+    #[must_use]
     pub fn preserve() -> Self {
         Self {
             preserve_color_profile: true,
@@ -169,6 +170,7 @@ impl ColorManagementConfig {
     }
     
     /// Create a configuration that ignores color profiles (legacy behavior)
+    #[must_use]
     pub fn ignore() -> Self {
         Self {
             preserve_color_profile: false,
@@ -179,6 +181,7 @@ impl ColorManagementConfig {
     }
     
     /// Create a configuration that forces sRGB output
+    #[must_use]
     pub fn force_srgb() -> Self {
         Self {
             preserve_color_profile: true,
@@ -286,6 +289,10 @@ impl RemovalConfig {
     ///
     /// `Ok(())` if configuration is valid, `Err(BgRemovalError)` with
     /// descriptive message if validation fails.
+    ///
+    /// # Errors
+    /// - Invalid JPEG quality value (must be 0-100)
+    /// - Invalid WebP quality value (must be 0-100)
     ///
     /// # Examples
     ///
@@ -448,6 +455,10 @@ impl RemovalConfigBuilder {
     /// - JPEG and WebP quality values are 0-100
     /// - Thread counts are non-negative
     /// - All configuration combinations are logically consistent
+    ///
+    /// # Errors
+    /// - Invalid JPEG quality value (must be 0-100)
+    /// - Invalid WebP quality value (must be 0-100)
     ///
     /// # Examples
     /// ```rust

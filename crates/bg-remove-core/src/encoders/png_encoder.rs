@@ -67,7 +67,7 @@ impl PngIccEncoder {
             let rgba_image = image.to_rgba8();
             let mut cursor = Cursor::new(&mut png_buffer);
             rgba_image.write_to(&mut cursor, image::ImageFormat::Png).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to create PNG buffer: {}", e))
+                BgRemovalError::processing(format!("Failed to create PNG buffer: {e}"))
             })?;
         }
 
@@ -77,7 +77,7 @@ impl PngIccEncoder {
 
         // Step 3: Write final PNG to file
         std::fs::write(output_path, png_with_icc).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write PNG file: {}", e))
+            BgRemovalError::processing(format!("Failed to write PNG file: {e}"))
         })?;
 
         log::info!("Successfully created PNG with embedded ICC profile: {}", output_path.display());
@@ -174,10 +174,10 @@ impl PngIccEncoder {
         {
             let mut encoder = ZlibEncoder::new(&mut compressed_data, Compression::default());
             encoder.write_all(icc_data).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to compress ICC data: {}", e))
+                BgRemovalError::processing(format!("Failed to compress ICC data: {e}"))
             })?;
             encoder.finish().map_err(|e| {
-                BgRemovalError::processing(format!("Failed to finish ICC compression: {}", e))
+                BgRemovalError::processing(format!("Failed to finish ICC compression: {e}"))
             })?;
         }
 

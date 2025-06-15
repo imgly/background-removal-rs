@@ -30,7 +30,11 @@ impl ProfileExtractor {
     /// # Returns
     /// - `Ok(Some(ColorProfile))` - ICC profile found and extracted
     /// - `Ok(None)` - No ICC profile found or unsupported format
-    /// - `Err(BgRemovalError)` - File I/O error or decoder error
+    /// 
+    /// # Errors
+    /// - File I/O error when reading the image file
+    /// - Decoder error when parsing the image format
+    /// - Invalid ICC profile data
     ///
     /// # Examples
     /// ```rust,no_run
@@ -69,7 +73,7 @@ impl ProfileExtractor {
         let file = File::open(path)?;
         let mut reader = BufReader::new(file);
         let mut decoder = JpegDecoder::new(&mut reader).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to create JPEG decoder: {}", e))
+            BgRemovalError::processing(format!("Failed to create JPEG decoder: {e}"))
         })?;
 
         if let Some(icc_data) = decoder.icc_profile() {
@@ -84,7 +88,7 @@ impl ProfileExtractor {
         let file = File::open(path)?;
         let mut reader = BufReader::new(file);
         let mut decoder = PngDecoder::new(&mut reader).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to create PNG decoder: {}", e))
+            BgRemovalError::processing(format!("Failed to create PNG decoder: {e}"))
         })?;
 
         if let Some(icc_data) = decoder.icc_profile() {
@@ -107,7 +111,7 @@ impl ProfileExtractor {
         
         let path = path.as_ref();
         let webp_data = std::fs::read(path).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to read WebP file {}: {}", path.display(), e))
+            BgRemovalError::processing(format!("Failed to read WebP file {}: {e}", path.display()))
         })?;
         
         match WebPIccEncoder::extract_icc_profile(&webp_data)? {
@@ -148,6 +152,12 @@ impl ProfileEmbedder {
     /// # Returns
     /// Result indicating success or failure of the embedding operation
     ///
+    /// # Errors
+    /// - Unsupported output format (only PNG, JPEG, WebP are supported)
+    /// - File I/O errors when writing the output image
+    /// - Image encoding errors from the underlying format encoders
+    /// - Color profile has no data to embed (empty ICC profile)
+    ///
     /// # Examples
     /// ```rust,no_run
     /// use bg_remove_core::{
@@ -183,8 +193,7 @@ impl ProfileEmbedder {
             },
             _ => {
                 Err(BgRemovalError::processing(format!(
-                    "ICC profile embedding not supported for format: {:?}. Supported formats: PNG, JPEG, WebP",
-                    format
+                    "ICC profile embedding not supported for format: {format:?}. Supported formats: PNG, JPEG, WebP"
                 )))
             }
         }
@@ -198,6 +207,11 @@ impl ProfileEmbedder {
     /// * `image` - The image to embed profile in
     /// * `profile` - The ICC profile to embed
     /// * `output_path` - Output PNG file path
+    ///
+    /// # Errors
+    /// - File I/O errors when writing the PNG file
+    /// - PNG encoding errors from the underlying encoder
+    /// - Color profile has no data to embed (empty ICC profile)
     pub fn embed_in_png<P: AsRef<Path>>(
         image: &image::DynamicImage,
         profile: &ColorProfile,
@@ -216,6 +230,11 @@ impl ProfileEmbedder {
     /// * `profile` - The ICC profile to embed
     /// * `output_path` - Output JPEG file path
     /// * `quality` - JPEG quality (0-100)
+    ///
+    /// # Errors
+    /// - File I/O errors when writing the JPEG file
+    /// - JPEG encoding errors from the underlying encoder
+    /// - Color profile has no data to embed (empty ICC profile)
     pub fn embed_in_jpeg<P: AsRef<Path>>(
         image: &image::DynamicImage,
         profile: &ColorProfile,

@@ -121,6 +121,7 @@ impl OnnxBackend {
     }
 
     /// Create a new ONNX backend with specific model manager
+    #[must_use]
     pub fn with_model_manager(model_manager: ModelManager) -> Self {
         Self {
             session: None,
@@ -130,6 +131,10 @@ impl OnnxBackend {
     }
     
     /// Create a new ONNX backend (legacy - uses first available embedded model)
+    /// 
+    /// # Errors
+    /// 
+    /// Currently does not return errors, but returns `Result` for consistency with the trait.
     pub fn new() -> Result<Self> {
         Ok(Self {
             session: None,
@@ -152,7 +157,7 @@ impl OnnxBackend {
             // Fall back to embedded model if no model manager was set
             let embedded_manager = ModelManager::with_embedded()?;
             self.model_manager = Some(embedded_manager);
-            self.model_manager.as_ref().unwrap()
+            self.model_manager.as_ref().ok_or_else(|| crate::error::BgRemovalError::internal("Model manager unexpectedly missing after insertion"))?
         };
         
         // Load the model data
@@ -172,7 +177,7 @@ impl OnnxBackend {
                 let cuda_provider = CUDAExecutionProvider::default();
                 if OrtExecutionProvider::is_available(&cuda_provider).unwrap_or(false) {
                     log::info!("🚀 CUDA execution provider is available and will be used");
-                    log::debug!("CUDA provider configuration: {:?}", cuda_provider);
+                    log::debug!("CUDA provider configuration: {cuda_provider:?}");
                     providers.push(cuda_provider.build());
                 } else {
                     log::debug!("CUDA execution provider is not available");
@@ -187,13 +192,13 @@ impl OnnxBackend {
                     log::info!("CoreML provider details:");
                     log::info!("  - This will use Apple Neural Engine and GPU acceleration");
                     log::info!("  - Expected significant performance improvement on Apple Silicon");
-                    log::info!("  - Provider configuration: {:?}", coreml_provider);
+                    log::info!("  - Provider configuration: {coreml_provider:?}");
                     
                     // Add CoreML-specific configuration for better performance
                     let coreml_provider = CoreMLExecutionProvider::default()
                         .with_subgraphs(true); // Enable subgraphs for better performance
                     
-                    log::debug!("Enhanced CoreML provider config: {:?}", coreml_provider);
+                    log::debug!("Enhanced CoreML provider config: {coreml_provider:?}");
                     providers.push(coreml_provider.build());
                 } else {
                     log::warn!("🚫 CoreML execution provider is not available");
@@ -239,13 +244,13 @@ impl OnnxBackend {
                     log::info!("CoreML provider details:");
                     log::info!("  - Will use Apple Neural Engine and GPU acceleration");
                     log::info!("  - This should provide significant speedup on Apple Silicon");
-                    log::info!("  - Base provider config: {:?}", coreml_provider);
+                    log::info!("  - Base provider config: {coreml_provider:?}");
                     
                     // Enhanced CoreML configuration for better performance
                     let enhanced_coreml_provider = CoreMLExecutionProvider::default()
                         .with_subgraphs(true); // Enable subgraphs for better performance
                     
-                    log::info!("Enhanced CoreML provider config: {:?}", enhanced_coreml_provider);
+                    log::info!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
                     session_builder.with_execution_providers([enhanced_coreml_provider.build()])?
                 } else {
                     log::error!("🚫 CoreML execution provider requested but not available!");
@@ -289,7 +294,7 @@ impl OnnxBackend {
             .commit_from_memory(&model_data)?;
 
         // Log comprehensive configuration details and verify active providers
-        let model_info = self.model_manager.as_ref().unwrap().get_info()?;
+        let model_info = self.model_manager.as_ref().ok_or_else(|| crate::error::BgRemovalError::internal("Model manager not initialized"))?.get_info()?;
         log::info!("✅ ONNX Runtime session created successfully");
         log::info!("Session configuration:");
         log::info!("  - Requested provider: {:?}", config.execution_provider);
@@ -297,7 +302,7 @@ impl OnnxBackend {
         log::info!("  - Parallel execution: enabled");
         log::info!("  - Optimization level: Level3");
         log::info!("  - Model: {} ({})", model_info.name, model_info.precision);
-        log::info!("  - Model size: {:.2} MB", model_info.size_bytes as f64 / (1024.0 * 1024.0));
+        log::info!("  - Model size: {:.2} MB", (model_info.size_bytes as u64) as f64 / (1024.0 * 1024.0));
         
         // Try to get active execution providers (this is diagnostic info)
         // Note: ONNX Runtime doesn't expose this directly, but we can infer from our configuration
@@ -392,7 +397,7 @@ impl InferenceBackend for OnnxBackend {
         let input_name = model_manager.get_input_name()?;
         let output_name = model_manager.get_output_name()?;
         
-        log::debug!("  📋 Using tensor names: input='{}', output='{}'", input_name, output_name);
+        log::debug!("  📋 Using tensor names: input='{input_name}', output='{output_name}'");
         
         // Convert to SessionInputs format expected by ORT
         let inputs = vec![(input_name.as_str(), input_value)];
@@ -402,7 +407,7 @@ impl InferenceBackend for OnnxBackend {
         log::debug!("  🧠 Starting core ONNX inference...");
         
         let outputs = session.run(inputs)
-            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{}'. Original error: {e}", input_name)))?;
+            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{input_name}'. Original error: {e}")))?;
         
         let core_inference_time = core_inference_start.elapsed();
         log::info!("  ⚡ Core inference: {:.2}ms", core_inference_time.as_secs_f64() * 1000.0);
@@ -422,7 +427,7 @@ impl InferenceBackend for OnnxBackend {
         let output_tensor = if let Some(named_output) = outputs.get(output_name.as_str()) {
             named_output.try_extract_array::<f32>().map_err(|e| {
                 crate::error::BgRemovalError::processing(format!(
-                    "Failed to extract named output tensor '{}': {}", output_name, e
+                    "Failed to extract named output tensor '{output_name}': {e}"
                 ))
             })?
         } else {
@@ -434,7 +439,7 @@ impl InferenceBackend for OnnxBackend {
                     .ok_or_else(|| crate::error::BgRemovalError::processing("First output key not found"))?
                     .try_extract_array::<f32>().map_err(|e| {
                         crate::error::BgRemovalError::processing(format!(
-                            "Failed to extract fallback output tensor: {}", e
+                            "Failed to extract fallback output tensor: {e}"
                         ))
                     })?
             } else {
@@ -454,7 +459,7 @@ impl InferenceBackend for OnnxBackend {
         let result = if output_shape.len() == 4 {
             let output_array = Array4::from_shape_vec(
                 (
-                    output_shape.get(0).copied().unwrap_or(1),
+                    output_shape.first().copied().unwrap_or(1),
                     output_shape.get(1).copied().unwrap_or(1),
                     output_shape.get(2).copied().unwrap_or(1),
                     output_shape.get(3).copied().unwrap_or(1),

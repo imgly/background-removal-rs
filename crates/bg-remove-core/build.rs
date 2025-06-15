@@ -49,11 +49,11 @@ pub struct PreprocessingConfig {
 pub struct EmbeddedModelRegistry;
 
 impl EmbeddedModelRegistry {
-    pub fn get_model(_name: &str) -> Option<EmbeddedModelData> {
+    #[must_use] pub fn get_model(_name: &str) -> Option<EmbeddedModelData> {
         None // No embedded models
     }
     
-    pub fn list_available() -> &'static [&'static str] {
+    #[must_use] pub fn list_available() -> &'static [&'static str] {
         &[] // Empty list
     }
 }
@@ -114,7 +114,7 @@ pub struct PreprocessingConfig {
         let function_name = format!("load_{}", model_id.replace('-', "_"));
         
         generated_code.push_str(&format!("
-fn {}() -> EmbeddedModelData {{
+#[must_use] fn {}() -> EmbeddedModelData {{
     EmbeddedModelData {{
         name: \"{}\".to_string(),
         model_data: include_bytes!(\"{}\").to_vec(),
@@ -157,7 +157,7 @@ fn {}() -> EmbeddedModelData {{
     // Generate registry implementation
     generated_code += "pub struct EmbeddedModelRegistry;\n\n";
     generated_code += "impl EmbeddedModelRegistry {\n";
-    generated_code += "    pub fn get_model(name: &str) -> Option<EmbeddedModelData> {\n";
+    generated_code += "    #[must_use] pub fn get_model(name: &str) -> Option<EmbeddedModelData> {\n";
     generated_code += "        match name {\n";
     
     for (model_id, _, _) in &embedded_models {
@@ -170,7 +170,7 @@ fn {}() -> EmbeddedModelData {{
     generated_code += "    }\n";
     
     // Generate list_available function
-    generated_code += "    \n    pub fn list_available() -> &'static [&'static str] {\n";
+    generated_code += "    \n    #[must_use] pub fn list_available() -> &'static [&'static str] {\n";
     generated_code += "        &[";
     for (i, (model_id, _, _)) in embedded_models.iter().enumerate() {
         if i > 0 { generated_code += ", "; }

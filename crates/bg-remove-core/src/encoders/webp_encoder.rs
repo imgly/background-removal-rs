@@ -58,7 +58,7 @@ impl WebPIccEncoder {
             let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
             let webp_data = encoder.encode(quality as f32);
             cursor.write_all(&webp_data).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to create WebP buffer: {}", e))
+                BgRemovalError::processing(format!("Failed to create WebP buffer: {e}"))
             })?;
         }
 
@@ -67,7 +67,7 @@ impl WebPIccEncoder {
 
         // Step 3: Write final WebP to file
         std::fs::write(output_path, webp_with_icc).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write WebP file: {}", e))
+            BgRemovalError::processing(format!("Failed to write WebP file: {e}"))
         })?;
 
         log::info!("Successfully created WebP with embedded ICC profile: {}", output_path.display());

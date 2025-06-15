@@ -84,7 +84,7 @@ impl std::fmt::Display for ColorSpace {
             ColorSpace::AdobeRgb => write!(f, "Adobe RGB"),
             ColorSpace::DisplayP3 => write!(f, "Display P3"),
             ColorSpace::ProPhotoRgb => write!(f, "ProPhoto RGB"),
-            ColorSpace::Unknown(desc) => write!(f, "Unknown ({})", desc),
+            ColorSpace::Unknown(desc) => write!(f, "Unknown ({desc})"),
         }
     }
 }
