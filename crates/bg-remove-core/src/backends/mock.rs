@@ -59,8 +59,10 @@ impl InferenceBackend for MockBackend {
                         + (center - bottom).abs())
                         / 4.0;
 
-                    // Create a reasonable mock mask
-                    output[[batch, 0, y, x]] = if edge_strength > 0.1 { 1.0 } else { 0.0 };
+                    // Create a reasonable mock mask - use safe indexing
+                    if let Some(elem) = output.get_mut([batch, 0, y, x]) {
+                        *elem = if edge_strength > 0.1 { 1.0 } else { 0.0 };
+                    }
                 }
             }
         }

@@ -419,16 +419,29 @@ impl InferenceBackend for OnnxBackend {
 
         // Extract output tensor using model-specific output tensor name
         let output_extraction_start = Instant::now();
-        let output_tensor = if let Ok(output) = outputs[output_name.as_str()].try_extract_array::<f32>() {
-            output
-        } else if let Ok(output) = outputs[0].try_extract_array::<f32>() {
+        let output_tensor = if let Some(named_output) = outputs.get(output_name.as_str()) {
+            named_output.try_extract_array::<f32>().map_err(|e| {
+                crate::error::BgRemovalError::processing(format!(
+                    "Failed to extract named output tensor '{}': {}", output_name, e
+                ))
+            })?
+        } else {
             // Try first output if named access fails
             log::debug!("  📋 Used fallback output tensor access (index 0)");
-            output
-        } else {
-            return Err(crate::error::BgRemovalError::processing(
-                "Failed to extract output tensor from ONNX model",
-            ));
+            let keys: Vec<_> = outputs.keys().collect();
+            if let Some(first_key) = keys.first() {
+                outputs.get(first_key)
+                    .ok_or_else(|| crate::error::BgRemovalError::processing("First output key not found"))?
+                    .try_extract_array::<f32>().map_err(|e| {
+                        crate::error::BgRemovalError::processing(format!(
+                            "Failed to extract fallback output tensor: {}", e
+                        ))
+                    })?
+            } else {
+                return Err(crate::error::BgRemovalError::processing(
+                    "No output tensors found",
+                ));
+            }
         };
         let output_extraction_time = output_extraction_start.elapsed();
         log::debug!("  ⏱️ Output extraction: {:.2}ms", output_extraction_time.as_secs_f64() * 1000.0);
@@ -441,10 +454,10 @@ impl InferenceBackend for OnnxBackend {
         let result = if output_shape.len() == 4 {
             let output_array = Array4::from_shape_vec(
                 (
-                    output_shape[0],
-                    output_shape[1],
-                    output_shape[2],
-                    output_shape[3],
+                    output_shape.get(0).copied().unwrap_or(1),
+                    output_shape.get(1).copied().unwrap_or(1),
+                    output_shape.get(2).copied().unwrap_or(1),
+                    output_shape.get(3).copied().unwrap_or(1),
                 ),
                 output_data.into_raw_vec_and_offset().0,
             )
