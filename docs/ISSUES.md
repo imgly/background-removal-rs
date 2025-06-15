@@ -20,18 +20,24 @@ If an issue needs further information we can create an issue markdown for this p
 
 
 ## Open Issues
-
+- [ ] Refactor provider availability checking to OnnxBackend::list_providers() #architecture #refactoring [📋 provider-availability-refactoring](./issues/provider-availability-refactoring.md)
+- [ ] Package for Release 
+- [ ] Write article about the creation and the steps of the library
+- [ ] build tool to convert history into markdown
+- [ ] Use tracing crate in libraries and tracing-subscriberó
+- [ ] Make Model Loading async and inference load also.
 - [ ] Backends like ort should move to a Wasi NN compat style
 - [ ] Idea – Compile with MCP tool/call interface and create platform specific language wrappers with MCP client (even cli)
-- [ ] Implement C-lib as universal interface for all platforms
 - [ ] Ort support more backends like candle, tract etc., these my be implemented.
 - [ ] JSON Schema for the User facing API
 - [ ] MCP Interface
+- [ ] FFI Interface
 - [ ] Emscripten Platform build
 - [ ] Wasi1p Platform Build
 - [ ] iOS Platform Build
 - [ ] Android Platform Build
 - [ ] NodeJS Platform build
+- [ ] Flutter Platform build
 - [-] Compile individual binaries for each model in the models directory instead of feature flags - Runtime model selection with feature flags is more flexible 📅 2025-06-12 10:35
 - [ ] Is there a difference if we apply a sigmoid to the alpha channel estimate?
 - [ ] We might want to jailroot the AI and thus let it run without us having to accept everything #YOLOMODE

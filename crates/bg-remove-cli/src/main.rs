@@ -424,7 +424,7 @@ fn write_stdout(data: &[u8]) -> Result<()> {
 
 /// Display execution provider diagnostics
 fn show_provider_diagnostics() -> Result<()> {
-    use bg_remove_core::inference::check_provider_availability;
+    use bg_remove_core::backends::OnnxBackend;
 
     println!("🔍 ONNX Runtime Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -436,7 +436,7 @@ fn show_provider_diagnostics() -> Result<()> {
     println!("💻 System: {cpu_count} CPU cores detected");
 
     // Check provider availability
-    let providers = check_provider_availability();
+    let providers = OnnxBackend::list_providers();
 
     for (name, available, description) in providers {
         let status = if available {
