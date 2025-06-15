@@ -300,8 +300,8 @@ impl OnnxBackend {
         log::info!("  - Optimization level: Level3");
         log::info!("  - Model: {} ({})", model_info.name, model_info.precision);
         // Model size in MB (precision loss acceptable for display)
-        #[allow(clippy::cast_precision_loss)]
-        let size_mb = (model_info.size_bytes as f64) / (1024.0 * 1024.0);
+        #[allow(clippy::cast_precision_loss)] // Precision loss acceptable for logging display
+        let size_mb = model_info.size_bytes as f64 / (1024.0 * 1024.0);
         log::info!("  - Model size: {size_mb:.2} MB");
         
         // Try to get active execution providers (this is diagnostic info)

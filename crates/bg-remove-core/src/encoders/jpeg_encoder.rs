@@ -144,14 +144,19 @@ impl JpegIccEncoder {
             ));
         }
         
-        #[allow(clippy::cast_possible_truncation)] // Safe: validated above to be <= 255
-        let total_segments = total_segments as u8;
+        let total_segments: u8 = total_segments
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("ICC profile too large - requires more than 255 JPEG segments"))?;
 
         for (chunk_index, icc_chunk) in icc_data.chunks(MAX_ICC_DATA_PER_SEGMENT).enumerate() {
-            #[allow(clippy::cast_possible_truncation)] // Safe: chunk_index < total_segments <= 255
-            let sequence_number = (chunk_index + 1) as u8; // 1-based indexing
-            #[allow(clippy::cast_possible_truncation)] // Safe: segment size limited by MAX_ICC_DATA_PER_SEGMENT
-            let segment_length = (ICC_IDENTIFIER.len() + 1 + 1 + icc_chunk.len() + 2) as u16;
+            let sequence_number: u8 = (chunk_index + 1)
+                .try_into()
+                .map_err(|_| BgRemovalError::processing("JPEG segment sequence number too large for u8"))?;
+            
+            let segment_length_usize = ICC_IDENTIFIER.len() + 1 + 1 + icc_chunk.len() + 2;
+            let segment_length: u16 = segment_length_usize
+                .try_into()
+                .map_err(|_| BgRemovalError::processing("JPEG ICC segment length too large for u16"))?;
 
             let mut segment = Vec::new();
             
@@ -228,8 +233,10 @@ mod tests {
         
         // Check that sequence numbers are correct
         for (i, segment) in segments.iter().enumerate() {
-            assert_eq!(segment.get(16), Some(&((i + 1) as u8))); // Sequence number
-            assert_eq!(segment.get(17), Some(&(segments.len() as u8))); // Total segments
+            let sequence_num: u8 = (i + 1).try_into().expect("Test segment index should fit in u8");
+            let total_segments: u8 = segments.len().try_into().expect("Test segment count should fit in u8");
+            assert_eq!(segment.get(16), Some(&sequence_num)); // Sequence number
+            assert_eq!(segment.get(17), Some(&total_segments)); // Total segments
         }
     }
 

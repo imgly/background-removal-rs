@@ -440,18 +440,28 @@ impl ModelProvider for ExternalModelProvider {
                 self.variant),
             precision: self.variant.clone(),
             size_bytes: model_data.len(),
-            input_shape: (
-                variant_config.get("input_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config.get("input_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(3) as usize,
-                variant_config.get("input_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-                variant_config.get("input_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-            ),
-            output_shape: (
-                variant_config.get("output_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config.get("output_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(1) as usize,
-                variant_config.get("output_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-                variant_config.get("output_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024) as usize,
-            ),
+            input_shape: {
+                let dim0 = variant_config.get("input_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 0 too large for usize"))?;
+                let dim1 = variant_config.get("input_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(3)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 1 too large for usize"))?;
+                let dim2 = variant_config.get("input_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 2 too large for usize"))?;
+                let dim3 = variant_config.get("input_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 3 too large for usize"))?;
+                (dim0, dim1, dim2, dim3)
+            },
+            output_shape: {
+                let dim0 = variant_config.get("output_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 0 too large for usize"))?;
+                let dim1 = variant_config.get("output_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(1)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 1 too large for usize"))?;
+                let dim2 = variant_config.get("output_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 2 too large for usize"))?;
+                let dim3 = variant_config.get("output_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                    .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 3 too large for usize"))?;
+                (dim0, dim1, dim2, dim3)
+            },
         })
     }
     
@@ -460,36 +470,49 @@ impl ModelProvider for ExternalModelProvider {
             .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing preprocessing config"))?;
         
         Ok(PreprocessingConfig {
-            target_size: [
-                preprocessing.get("target_size").and_then(|arr| arr.get(0))
+            target_size: {
+                let size0_u64 = preprocessing.get("target_size").and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[0] in preprocessing config"))? as u32,
-                preprocessing.get("target_size").and_then(|arr| arr.get(1))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[0] in preprocessing config"))?;
+                let size1_u64 = preprocessing.get("target_size").and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[1] in preprocessing config"))? as u32,
-            ],
-            normalization_mean: [
-                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(0))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[1] in preprocessing config"))?;
+                
+                let size0 = size0_u64.try_into()
+                    .map_err(|_| crate::error::BgRemovalError::invalid_config("Target size[0] too large for u32"))?;
+                let size1 = size1_u64.try_into()
+                    .map_err(|_| crate::error::BgRemovalError::invalid_config("Target size[1] too large for u32"))?;
+                
+                [size0, size1]
+            },
+            normalization_mean: {
+                let mean0_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[0] in preprocessing config"))? as f32,
-                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(1))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[0] in preprocessing config"))?;
+                let mean1_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[1] in preprocessing config"))? as f32,
-                preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(2))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[1] in preprocessing config"))?;
+                let mean2_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(2))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[2] in preprocessing config"))? as f32,
-            ],
-            normalization_std: [
-                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(0))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[2] in preprocessing config"))?;
+                
+                // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
+                [mean0_f64 as f32, mean1_f64 as f32, mean2_f64 as f32]
+            },
+            normalization_std: {
+                let std0_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(0))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[0] in preprocessing config"))? as f32,
-                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(1))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[0] in preprocessing config"))?;
+                let std1_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(1))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[1] in preprocessing config"))? as f32,
-                preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(2))
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[1] in preprocessing config"))?;
+                let std2_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(2))
                     .and_then(|v| v.as_f64())
-                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[2] in preprocessing config"))? as f32,
-            ],
+                    .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[2] in preprocessing config"))?;
+                
+                // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
+                [std0_f64 as f32, std1_f64 as f32, std2_f64 as f32]
+            },
         })
     }
     

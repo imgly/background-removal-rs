@@ -131,10 +131,9 @@ impl ImageProcessor {
         let decode_start = Instant::now();
         let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
-        }
+        timings.image_decode_ms = decode_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Image decode time too large for u64"))?;
 
         // Log color profile information if found
         if let Some(ref profile) = color_profile {
@@ -160,10 +159,9 @@ impl ImageProcessor {
         // 2. Preprocessing timing
         let preprocess_start = Instant::now();
         let (_processed_image, input_tensor) = self.preprocess_image(&image)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Preprocessing time too large for u64"))?;
 
         info!(
             "[{}Z INFO bg_remove] Preprocessing completed in {}ms",
@@ -174,10 +172,9 @@ impl ImageProcessor {
         // 3. Inference timing (model load happens inside backend initialization if needed)
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.inference_ms = inference_start.elapsed().as_millis() as u64;
-        }
+        timings.inference_ms = inference_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Inference time too large for u64"))?;
 
         info!(
             "[{}Z INFO bg_remove] Inference completed in {}ms",
@@ -192,10 +189,9 @@ impl ImageProcessor {
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Postprocessing time too large for u64"))?;
 
         info!(
             "[{}Z INFO bg_remove] Postprocessing completed in {}ms",
@@ -204,10 +200,9 @@ impl ImageProcessor {
         );
 
         // Calculate total time
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.total_ms = total_start.elapsed().as_millis() as u64;
-        }
+        timings.total_ms = total_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Total processing time too large for u64"))?;
 
         // Set metadata with detailed timings and color profile
         metadata.set_detailed_timings(timings);
@@ -265,10 +260,9 @@ impl ImageProcessor {
         let decode_start = Instant::now();
         let (image, color_profile) = self.load_image_with_profile(input_path)?;
         let original_dimensions = image.dimensions();
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.image_decode_ms = decode_start.elapsed().as_millis() as u64;
-        }
+        timings.image_decode_ms = decode_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Image decode time too large for u64"))?;
 
         // Mask preprocessing timing (resize if needed)
         let preprocess_start = Instant::now();
@@ -277,10 +271,9 @@ impl ImageProcessor {
         } else {
             mask.resize(image.dimensions().0, image.dimensions().1)?
         };
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Mask preprocessing time too large for u64"))?;
 
         // No inference for mask application
         timings.inference_ms = 0;
@@ -288,16 +281,14 @@ impl ImageProcessor {
         // Apply mask timing
         let postprocess_start = Instant::now();
         let result_image = self.apply_background_removal(&image, &resized_mask)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Mask application time too large for u64"))?;
 
         // Calculate total time
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.total_ms = total_start.elapsed().as_millis() as u64;
-        }
+        timings.total_ms = total_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Total mask application time too large for u64"))?;
 
         metadata.set_detailed_timings(timings);
         metadata.input_format = Self::detect_image_format(&image);
@@ -334,33 +325,29 @@ impl ImageProcessor {
         // Preprocess image
         let preprocess_start = Instant::now();
         let (_preprocessed_image, input_tensor) = self.preprocess_image(&image)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Image preprocessing time too large for u64"))?;
 
         // Run inference
         let inference_start = Instant::now();
         let output_tensor = self.backend.infer(&input_tensor)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.inference_ms = inference_start.elapsed().as_millis() as u64;
-        }
+        timings.inference_ms = inference_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Direct image inference time too large for u64"))?;
 
         // Postprocess results
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
         let result_image = self.apply_background_removal(&image, &mask)?;
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
-        }
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Direct image postprocessing time too large for u64"))?;
 
         // Calculate total time
-        #[allow(clippy::cast_possible_truncation)] // Safe: timing values won't exceed u64
-        {
-            timings.total_ms = total_start.elapsed().as_millis() as u64;
-        }
+        timings.total_ms = total_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Total direct image processing time too large for u64"))?;
 
         // Set metadata with detailed timings  
         metadata.set_detailed_timings(timings);
@@ -409,12 +396,27 @@ impl ImageProcessor {
         let (orig_width, orig_height) = rgb_image.dimensions();
 
         // Calculate aspect ratio preserving dimensions
-        let scale = (target_size as f32).min(
-            (target_size as f32 / orig_width as f32).min(target_size as f32 / orig_height as f32),
+        // Note: u32 to f32 conversion is safe for reasonable image dimensions
+        let target_size_f32 = target_size as f32;
+        let orig_width_f32 = orig_width as f32;
+        let orig_height_f32 = orig_height as f32;
+        
+        let scale = target_size_f32.min(
+            (target_size_f32 / orig_width_f32).min(target_size_f32 / orig_height_f32),
         );
 
-        let new_width = (orig_width as f32 * scale) as u32;
-        let new_height = (orig_height as f32 * scale) as u32;
+        let new_width_f32 = (orig_width_f32 * scale).round();
+        let new_height_f32 = (orig_height_f32 * scale).round();
+        
+        if new_width_f32 < 0.0 || new_width_f32 > u32::MAX as f32 {
+            return Err(crate::error::BgRemovalError::processing("Calculated new width out of valid range"));
+        }
+        if new_height_f32 < 0.0 || new_height_f32 > u32::MAX as f32 {
+            return Err(crate::error::BgRemovalError::processing("Calculated new height out of valid range"));
+        }
+        
+        let new_width = new_width_f32 as u32;
+        let new_height = new_height_f32 as u32;
 
         // Resize image maintaining aspect ratio
         let resized = image::imageops::resize(
@@ -446,7 +448,9 @@ impl ImageProcessor {
         }
 
         // Convert to tensor format (NCHW) with normalization
-        let mut tensor = Array4::<f32>::zeros((1, 3, target_size as usize, target_size as usize));
+        let target_size_usize = target_size.try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Target size too large for usize conversion in tensor allocation"))?;
+        let mut tensor = Array4::<f32>::zeros((1, 3, target_size_usize, target_size_usize));
 
         #[allow(clippy::indexing_slicing)] // Safe: tensor dimensions pre-allocated to match canvas size
         for (y, row) in canvas.rows().enumerate() {
@@ -488,23 +492,56 @@ impl ImageProcessor {
         let (orig_width, orig_height) = original_size;
 
         // Calculate the scale and padding used during preprocessing
-        let scale = (model_size as f32).min(
-            (model_size as f32 / orig_width as f32).min(model_size as f32 / orig_height as f32),
+        // Note: u32 to f32 conversion is safe for reasonable image dimensions
+        let model_size_f32 = model_size as f32;
+        let orig_width_f32 = orig_width as f32;
+        let orig_height_f32 = orig_height as f32;
+        
+        let scale = model_size_f32.min(
+            (model_size_f32 / orig_width_f32).min(model_size_f32 / orig_height_f32),
         );
 
-        let scaled_width = (orig_width as f32 * scale) as u32;
-        let scaled_height = (orig_height as f32 * scale) as u32;
+        let scaled_width_f32 = (orig_width_f32 * scale).round();
+        let scaled_height_f32 = (orig_height_f32 * scale).round();
+        
+        if scaled_width_f32 < 0.0 || scaled_width_f32 > u32::MAX as f32 {
+            return Err(crate::error::BgRemovalError::processing("Calculated scaled width out of valid range"));
+        }
+        if scaled_height_f32 < 0.0 || scaled_height_f32 > u32::MAX as f32 {
+            return Err(crate::error::BgRemovalError::processing("Calculated scaled height out of valid range"));
+        }
+        
+        let scaled_width = scaled_width_f32 as u32;
+        let scaled_height = scaled_height_f32 as u32;
         let offset_x = (model_size - scaled_width) / 2;
         let offset_y = (model_size - scaled_height) / 2;
 
         // Extract the relevant portion of the mask (crop out black padding)
-        let mut cropped_mask_data = Vec::with_capacity((scaled_width * scaled_height) as usize);
+        let mask_capacity = scaled_width.checked_mul(scaled_height)
+            .and_then(|size| size.try_into().ok())
+            .ok_or_else(|| crate::error::BgRemovalError::processing("Mask data size too large for Vec allocation"))?;
+        let mut cropped_mask_data = Vec::with_capacity(mask_capacity);
 
         for y in offset_y..(offset_y + scaled_height) {
             for x in offset_x..(offset_x + scaled_width) {
-                if y < height as u32 && x < width as u32 {
-                    let raw_value = tensor[[0, 0, y as usize, x as usize]];
-                    let pixel_value = (raw_value * 255.0).clamp(0.0, 255.0) as u8;
+                let height_u32 = height.try_into()
+                    .map_err(|_| crate::error::BgRemovalError::processing("Tensor height too large for u32 comparison"))?;
+                let width_u32 = width.try_into()
+                    .map_err(|_| crate::error::BgRemovalError::processing("Tensor width too large for u32 comparison"))?;
+                
+                if y < height_u32 && x < width_u32 {
+                    let y_usize = y.try_into()
+                        .map_err(|_| crate::error::BgRemovalError::processing("Y coordinate too large for tensor indexing"))?;
+                    let x_usize = x.try_into()
+                        .map_err(|_| crate::error::BgRemovalError::processing("X coordinate too large for tensor indexing"))?;
+                    
+                    let raw_value = tensor[[0, 0, y_usize, x_usize]];
+                    let clamped_value = (raw_value * 255.0).clamp(0.0, 255.0).round();
+                    let pixel_value = if clamped_value.is_finite() && (0.0..=255.0).contains(&clamped_value) {
+                        clamped_value as u8
+                    } else {
+                        return Err(crate::error::BgRemovalError::processing("Mask pixel value out of u8 range"));
+                    };
                     cropped_mask_data.push(pixel_value);
                 } else {
                     cropped_mask_data.push(0u8); // Black padding areas
@@ -543,7 +580,7 @@ impl ImageProcessor {
             OutputFormat::Jpeg => {
                 // Apply background color
                 let bg_color = self.config.background_color;
-                let rgb_image = Self::apply_background_color(&rgba_image, bg_color);
+                let rgb_image = Self::apply_background_color(&rgba_image, bg_color)?;
                 Ok(DynamicImage::ImageRgb8(rgb_image))
             },
             OutputFormat::WebP => {
@@ -554,12 +591,10 @@ impl ImageProcessor {
     }
 
     /// Apply background color for formats without alpha support
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    // Allow casting for color blending math - precision loss is acceptable
     fn apply_background_color(
         rgba_image: &RgbaImage,
         bg_color: BackgroundColor,
-    ) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
+    ) -> Result<ImageBuffer<image::Rgb<u8>, Vec<u8>>> {
         let (width, height) = rgba_image.dimensions();
         let mut rgb_image = ImageBuffer::new(width, height);
 
@@ -567,14 +602,27 @@ impl ImageProcessor {
             let alpha = f32::from(pixel[3]) / 255.0;
             let inv_alpha = 1.0 - alpha;
 
-            let r = (f32::from(pixel[0]) * alpha + f32::from(bg_color.r) * inv_alpha) as u8;
-            let g = (f32::from(pixel[1]) * alpha + f32::from(bg_color.g) * inv_alpha) as u8;
-            let b = (f32::from(pixel[2]) * alpha + f32::from(bg_color.b) * inv_alpha) as u8;
+            let r_blend = (f32::from(pixel[0]) * alpha + f32::from(bg_color.r) * inv_alpha).round().clamp(0.0, 255.0);
+            let g_blend = (f32::from(pixel[1]) * alpha + f32::from(bg_color.g) * inv_alpha).round().clamp(0.0, 255.0);
+            let b_blend = (f32::from(pixel[2]) * alpha + f32::from(bg_color.b) * inv_alpha).round().clamp(0.0, 255.0);
+            
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Validated via clamp and finite check
+            let r = if r_blend.is_finite() { r_blend as u8 } else { 
+                return Err(crate::error::BgRemovalError::processing("Red color blend result out of u8 range")); 
+            };
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Validated via clamp and finite check
+            let g = if g_blend.is_finite() { g_blend as u8 } else { 
+                return Err(crate::error::BgRemovalError::processing("Green color blend result out of u8 range")); 
+            };
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Validated via clamp and finite check
+            let b = if b_blend.is_finite() { b_blend as u8 } else { 
+                return Err(crate::error::BgRemovalError::processing("Blue color blend result out of u8 range")); 
+            };
 
             rgb_image.put_pixel(x, y, image::Rgb([r, g, b]));
         }
 
-        rgb_image
+        Ok(rgb_image)
     }
 
     /// Detect image format from dynamic image

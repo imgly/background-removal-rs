@@ -106,7 +106,7 @@ impl WebPIccEncoder {
         pos += 12;
 
         // Create ICCP chunk
-        let iccp_chunk = Self::create_iccp_chunk(icc_data);
+        let iccp_chunk = Self::create_iccp_chunk(icc_data)?;
         let mut iccp_inserted = false;
 
         // Parse and copy chunks, inserting ICCP early in the structure
@@ -121,7 +121,9 @@ impl WebPIccEncoder {
             let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
                 .and_then(|bytes| bytes.try_into().ok())
                 .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
-            let chunk_size = u32::from_le_bytes(chunk_size_bytes) as usize;
+            let chunk_size: usize = u32::from_le_bytes(chunk_size_bytes)
+                .try_into()
+                .map_err(|_| BgRemovalError::processing("WebP chunk size too large for usize"))?;
 
             // Insert ICCP chunk before VP8 or VP8L data
             if (chunk_fourcc == b"VP8 " || chunk_fourcc == b"VP8L") && !iccp_inserted {
@@ -149,7 +151,9 @@ impl WebPIccEncoder {
         }
 
         // Update the total file size in RIFF header
-        let new_file_size = (result.len() - 8) as u32; // Exclude RIFF header itself
+        let new_file_size: u32 = (result.len() - 8)
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("WebP file too large for RIFF format (>4GB)"))?;
         #[allow(clippy::indexing_slicing)] // Safe: result contains at least 12 bytes from RIFF header
         result[4..8].copy_from_slice(&new_file_size.to_le_bytes());
 
@@ -165,14 +169,20 @@ impl WebPIccEncoder {
     ///
     /// # Returns
     /// Complete `ICCP` chunk including `FourCC`, size, data, and padding
-    fn create_iccp_chunk(icc_data: &[u8]) -> Vec<u8> {
+    ///
+    /// # Errors
+    /// - ICC profile too large for WebP chunk format
+    fn create_iccp_chunk(icc_data: &[u8]) -> Result<Vec<u8>> {
         let mut chunk = Vec::new();
         
         // FourCC "ICCP" (4 bytes)
         chunk.extend_from_slice(b"ICCP");
         
         // Chunk size (4 bytes, little-endian) - size of ICC data only
-        chunk.extend_from_slice(&(icc_data.len() as u32).to_le_bytes());
+        let chunk_size: u32 = icc_data.len()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("ICC profile too large for WebP chunk (>4GB)"))?;
+        chunk.extend_from_slice(&chunk_size.to_le_bytes());
         
         // ICC profile data
         chunk.extend_from_slice(icc_data);
@@ -189,7 +199,7 @@ impl WebPIccEncoder {
             icc_data.len() % 2 != 0
         );
 
-        chunk
+        Ok(chunk)
     }
 
     /// Extract ICC profile from WebP file
@@ -226,7 +236,9 @@ impl WebPIccEncoder {
             let chunk_size_bytes = webp_data.get(pos + 4..pos + 8)
                 .and_then(|bytes| bytes.try_into().ok())
                 .ok_or_else(|| BgRemovalError::processing("Truncated WebP: incomplete chunk size"))?;
-            let chunk_size = u32::from_le_bytes(chunk_size_bytes) as usize;
+            let chunk_size: usize = u32::from_le_bytes(chunk_size_bytes)
+                .try_into()
+                .map_err(|_| BgRemovalError::processing("WebP chunk size too large for usize"))?;
 
             if chunk_fourcc == b"ICCP" {
                 // Found ICCP chunk, extract ICC data
@@ -267,7 +279,7 @@ mod tests {
     #[test]
     fn test_create_iccp_chunk() {
         let test_icc_data = vec![0x01, 0x02, 0x03, 0x04]; // 4 bytes
-        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data);
+        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
         
         // Should be: "ICCP" + size(4) + data(4) = 12 bytes (no padding needed)
         assert_eq!(chunk.len(), 12);
@@ -291,7 +303,7 @@ mod tests {
     #[test]
     fn test_create_iccp_chunk_with_padding() {
         let test_icc_data = vec![0x01, 0x02, 0x03]; // 3 bytes (odd)
-        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data);
+        let chunk = WebPIccEncoder::create_iccp_chunk(&test_icc_data).unwrap();
         
         // Should be: "ICCP" + size(4) + data(3) + padding(1) = 12 bytes
         assert_eq!(chunk.len(), 12);

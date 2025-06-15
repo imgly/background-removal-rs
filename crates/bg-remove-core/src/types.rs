@@ -229,7 +229,9 @@ impl RemovalResult {
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(path, image::ImageFormat::Png)?;
-        Ok(encode_start.elapsed().as_millis() as u64)
+        encode_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("PNG encoding time too large for u64"))
     }
 
     /// Save the result as JPEG with background color
@@ -388,7 +390,9 @@ impl RemovalResult {
         let path_str = path.as_ref().display().to_string();
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(&path, format)?;
-        let encode_ms = encode_start.elapsed().as_millis() as u64;
+        let encode_ms = encode_start.elapsed().as_millis()
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::processing("Image encoding time too large for u64"))?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -735,18 +739,18 @@ impl SegmentationMask {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use] pub fn statistics(&self) -> MaskStatistics {
+    pub fn statistics(&self) -> Result<MaskStatistics> {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;
         let background_pixels = total_pixels - foreground_pixels;
 
-        MaskStatistics {
+        Ok(MaskStatistics {
             total_pixels: total_pixels as usize,
             foreground_pixels: foreground_pixels as usize,
             background_pixels: background_pixels as usize,
             foreground_ratio: foreground_pixels / total_pixels,
             background_ratio: background_pixels / total_pixels,
-        }
+        })
     }
 
     /// Save mask as PNG
@@ -806,19 +810,19 @@ impl ProcessingTimings {
     }
 
     /// Calculate efficiency metrics
-    #[must_use] 
-    #[allow(clippy::cast_precision_loss)] // Acceptable for timing ratios
+    #[must_use]
     pub fn inference_ratio(&self) -> f64 {
         if self.total_ms == 0 {
             0.0
         } else {
-            self.inference_ms as f64 / self.total_ms as f64
+            let inference_f64 = self.inference_ms as f64;
+            let total_f64 = self.total_ms as f64;
+            inference_f64 / total_f64
         }
     }
 
     /// Get breakdown percentages
-    #[must_use] 
-    #[allow(clippy::cast_precision_loss)] // Acceptable for percentage calculations
+    #[must_use]
     pub fn breakdown_percentages(&self) -> TimingBreakdown {
         if self.total_ms == 0 {
             return TimingBreakdown::default();
@@ -838,14 +842,22 @@ impl ProcessingTimings {
             0
         };
 
+        let model_load_f64 = self.model_load_ms as f64;
+        let decode_f64 = self.image_decode_ms as f64;
+        let preprocessing_f64 = self.preprocessing_ms as f64;
+        let inference_f64 = self.inference_ms as f64;
+        let postprocessing_f64 = self.postprocessing_ms as f64;
+        let encode_f64 = self.image_encode_ms.unwrap_or(0) as f64;
+        let other_f64 = other_ms as f64;
+
         TimingBreakdown {
-            model_load_pct: (self.model_load_ms as f64 / total) * 100.0,
-            decode_pct: (self.image_decode_ms as f64 / total) * 100.0,
-            preprocessing_pct: (self.preprocessing_ms as f64 / total) * 100.0,
-            inference_pct: (self.inference_ms as f64 / total) * 100.0,
-            postprocessing_pct: (self.postprocessing_ms as f64 / total) * 100.0,
-            encode_pct: (self.image_encode_ms.unwrap_or(0) as f64 / total) * 100.0,
-            other_pct: (other_ms as f64 / total) * 100.0,
+            model_load_pct: (model_load_f64 / total) * 100.0,
+            decode_pct: (decode_f64 / total) * 100.0,
+            preprocessing_pct: (preprocessing_f64 / total) * 100.0,
+            inference_pct: (inference_f64 / total) * 100.0,
+            postprocessing_pct: (postprocessing_f64 / total) * 100.0,
+            encode_pct: (encode_f64 / total) * 100.0,
+            other_pct: (other_f64 / total) * 100.0,
         }
     }
 
@@ -1006,7 +1018,7 @@ mod tests {
         let data = vec![255, 255, 0, 0]; // 2 foreground, 2 background
         let mask = SegmentationMask::new(data, (2, 2));
 
-        let stats = mask.statistics();
+        let stats = mask.statistics().unwrap();
         assert_eq!(stats.total_pixels, 4);
         assert_eq!(stats.foreground_pixels, 2);
         assert_eq!(stats.background_pixels, 2);

@@ -165,7 +165,9 @@ impl TestRunner {
         println!();
 
         // Create progress bar
-        let progress = ProgressBar::new(test_cases.len() as u64);
+        let progress_count = test_cases.len().try_into()
+            .map_err(|_| anyhow::anyhow!("Too many test cases for progress bar (>u64::MAX)"))?;
+        let progress = ProgressBar::new(progress_count);
         progress.set_style(
             ProgressStyle::default_bar()
                 .template(
@@ -293,8 +295,10 @@ impl TestRunner {
             && metrics.edge_accuracy >= self.thresholds.edge_accuracy;
 
         // Calculate average processing time
+        let processing_times_count: u32 = processing_times.len().try_into()
+            .map_err(|_| anyhow::anyhow!("Too many processing time samples for u32 division"))?;
         let avg_processing_time =
-            processing_times.iter().sum::<std::time::Duration>() / processing_times.len() as u32;
+            processing_times.iter().sum::<std::time::Duration>() / processing_times_count;
 
         let _total_time = start_time.elapsed();
 

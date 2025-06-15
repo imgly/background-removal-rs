@@ -142,7 +142,9 @@ impl PngIccEncoder {
             }
 
             // Copy current chunk (length + type + data + crc)
-            let chunk_total_size = 12 + chunk_length as usize; // 4 + 4 + data + 4
+            let chunk_length_usize: usize = chunk_length.try_into()
+                .map_err(|_| BgRemovalError::processing("PNG chunk length too large for usize"))?;
+            let chunk_total_size = 12 + chunk_length_usize; // 4 + 4 + data + 4
             if pos + chunk_total_size > png_data.len() {
                 break;
             }
@@ -202,8 +204,10 @@ impl PngIccEncoder {
         let mut chunk = Vec::new();
         
         // Chunk length (4 bytes, big-endian)
-        #[allow(clippy::cast_possible_truncation)] // PNG chunks limited to 2^31-1 bytes
-        chunk.extend_from_slice(&(chunk_data.len() as u32).to_be_bytes());
+        let chunk_data_len: u32 = chunk_data.len()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("ICC profile data too large for PNG chunk (>4GB)"))?;
+        chunk.extend_from_slice(&chunk_data_len.to_be_bytes());
         
         // Chunk type (4 bytes)
         chunk.extend_from_slice(b"iCCP");
