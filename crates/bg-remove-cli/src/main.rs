@@ -20,9 +20,9 @@ use std::time::Instant;
 #[command(author, version, about, long_about = None)]
 #[command(name = "bg-remove")]
 struct Cli {
-    /// Input image file or directory (use "-" for stdin)
+    /// Input image files or directories (use "-" for stdin)
     #[arg(value_name = "INPUT", required_unless_present = "show_providers")]
-    input: Option<String>,
+    input: Vec<String>,
 
     /// Output file or directory (use "-" for stdout)
     #[arg(short, long, value_name = "OUTPUT")]
@@ -244,10 +244,9 @@ async fn main() -> Result<()> {
         return show_provider_diagnostics();
     }
 
-    let input = cli
-        .input
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Input is required"))?;
+    if cli.input.is_empty() {
+        return Err(anyhow::anyhow!("At least one input is required"));
+    }
 
     // Parse model parameter or use default embedded model
     let (model_spec, model_arg) = if let Some(model_arg) = &cli.model {
@@ -278,7 +277,7 @@ async fn main() -> Result<()> {
     if cli.verbose {
         info!("📋 VERBOSE MODE: Detailed logging enabled");
     }
-    info!("Input: {input}");
+    info!("Input(s): {}", cli.input.join(", "));
     info!(
         "Model: {} ({})",
         model_arg,
@@ -380,23 +379,9 @@ async fn main() -> Result<()> {
         );
     }
 
-    // Process input
+    // Process inputs (can be files, directories, or stdin)
     let start_time = Instant::now();
-    let processed_count = if input == "-" {
-        // Read from stdin
-        process_stdin(&cli.output, &config, &final_model_spec).await?
-    } else {
-        let input_path = PathBuf::from(input);
-        if input_path.is_file() {
-            process_single_file(&input_path, &cli.output, &config, &final_model_spec).await?
-        } else if input_path.is_dir() {
-            process_directory(&cli, &config, &final_model_spec).await?
-        } else {
-            return Err(anyhow::anyhow!(
-                "Input path does not exist or is not accessible"
-            ));
-        }
-    };
+    let processed_count = process_inputs(&cli, &config, &final_model_spec).await?;
 
     let total_time = start_time.elapsed();
     info!(
@@ -493,6 +478,118 @@ fn parse_color(color_str: &str) -> Result<BackgroundColor> {
     Ok(BackgroundColor::new(r, g, b))
 }
 
+/// Process multiple inputs efficiently with shared model loading
+async fn process_inputs(
+    cli: &Cli,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<usize> {
+    // Handle stdin specially (single input)
+    if cli.input.len() == 1 && cli.input[0] == "-" {
+        return process_stdin(&cli.output, config, model_spec).await;
+    }
+
+    // Collect all image files from inputs (files and directories)
+    let mut all_files = Vec::new();
+    
+    for input in &cli.input {
+        let path = PathBuf::from(input);
+        
+        if path.is_file() {
+            // Single file - validate it's an image
+            if is_image_file(&path, &["jpg", "jpeg", "png", "webp", "bmp", "tiff"]) {
+                all_files.push(path);
+            } else {
+                warn!("Skipping non-image file: {}", path.display());
+            }
+        } else if path.is_dir() {
+            // Directory - find all image files
+            let dir_files = find_image_files(&path, cli.recursive, cli.pattern.as_deref())?;
+            all_files.extend(dir_files);
+        } else {
+            return Err(anyhow::anyhow!(
+                "Input path does not exist or is not accessible: {}",
+                path.display()
+            ));
+        }
+    }
+
+    if all_files.is_empty() {
+        warn!("No image files found in the provided inputs");
+        return Ok(0);
+    }
+
+    info!("Found {} image file(s) to process", all_files.len());
+
+    // Create processor once with model pre-loaded for efficiency (massive speedup for batch processing)
+    let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))
+        .context("Failed to load model for batch processing")?;
+    let mut processor = bg_remove_core::ImageProcessor::with_model_manager(config, model_manager)
+        .context("Failed to create image processor for batch processing")?;
+
+    // For multiple files, show progress bar
+    let show_progress = all_files.len() > 1;
+    let progress = if show_progress {
+        let pb = ProgressBar::new(all_files.len() as u64);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .unwrap()
+                .progress_chars("#>-"),
+        );
+        Some(pb)
+    } else {
+        None
+    };
+
+    let mut processed_count = 0;
+    let mut failed_count = 0;
+    let file_count = all_files.len();
+
+    for input_file in all_files {
+        if let Some(ref pb) = progress {
+            pb.set_message(format!("Processing {}", input_file.display()));
+        }
+
+        let output_path = if file_count == 1 {
+            // Single file - use specified output or generate default
+            cli.output.clone()
+        } else {
+            // Multiple files - always generate default names (ignore --output)
+            None
+        };
+
+        match process_single_file_with_processor(&mut processor, &input_file, &output_path, config).await {
+            Ok(_) => {
+                processed_count += 1;
+                if cli.verbose {
+                    info!("✅ Processed: {}", input_file.display());
+                }
+            },
+            Err(e) => {
+                error!("❌ Failed to process {}: {}", input_file.display(), e);
+                failed_count += 1;
+            },
+        }
+
+        if let Some(ref pb) = progress {
+            pb.inc(1);
+        }
+    }
+
+    if let Some(pb) = progress {
+        pb.finish_with_message(format!(
+            "Completed! Processed: {processed_count}, Failed: {failed_count}"
+        ));
+    }
+
+    if failed_count > 0 {
+        warn!("Some files failed to process. Processed: {processed_count}, Failed: {failed_count}");
+    }
+
+    Ok(processed_count)
+}
+
 /// Process image from stdin
 async fn process_stdin(
     output_target: &Option<String>,
@@ -560,15 +657,16 @@ async fn process_stdin(
     Ok(1)
 }
 
-/// Process a single image file
-async fn process_single_file(
+/// Process a single image file with existing processor (for efficiency)
+async fn process_single_file_with_processor(
+    processor: &mut bg_remove_core::ImageProcessor,
     input_path: &Path,
     output_path: &Option<String>,
     config: &RemovalConfig,
-    model_spec: &ModelSpec,
 ) -> Result<usize> {
     let start_time = Instant::now();
-    let mut result = remove_background_with_model(input_path, config, model_spec)
+    
+    let mut result = processor.remove_background(input_path)
         .await
         .context("Failed to remove background")?;
 
@@ -643,123 +741,7 @@ async fn process_single_file(
     Ok(1)
 }
 
-/// Process all images in a directory
-async fn process_directory(
-    cli: &Cli,
-    config: &RemovalConfig,
-    model_spec: &ModelSpec,
-) -> Result<usize> {
-    let input = cli
-        .input
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Input directory required"))?;
-    let input_dir = PathBuf::from(input);
-    let output_dir = cli
-        .output
-        .as_ref()
-        .map_or_else(|| input_dir.clone(), PathBuf::from);
 
-    // Create output directory if it doesn't exist
-    std::fs::create_dir_all(&output_dir).context("Failed to create output directory")?;
-
-    // Find image files
-    let image_files = find_image_files(&input_dir, cli.recursive, cli.pattern.as_deref())?;
-
-    if image_files.is_empty() {
-        warn!("No image files found in directory");
-        return Ok(0);
-    }
-
-    info!("Found {} image files to process", image_files.len());
-
-    // Create progress bar
-    let progress = ProgressBar::new(image_files.len() as u64);
-    progress.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
-    );
-
-    let mut processed_count = 0;
-    let mut failed_count = 0;
-
-    for input_file in image_files {
-        let relative_path = input_file.strip_prefix(&input_dir).unwrap_or(&input_file);
-        let output_file = output_dir.join(relative_path);
-
-        // Ensure output directory exists
-        if let Some(parent) = output_file.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        // Generate output filename with correct extension
-        let output_file = generate_output_path(&output_file, config.output_format);
-
-        progress.set_message(format!("Processing {}", input_file.display()));
-
-        match remove_background_with_model(&input_file, config, model_spec).await {
-            Ok(mut result) => {
-                // Save with automatic color profile handling (enabled by default)
-                let save_result = if config.color_management.preserve_color_profile {
-                    // Use ICC profile-aware saving when preservation is enabled
-                    match config.output_format {
-                        OutputFormat::Png => result.save_with_color_profile(
-                            &output_file,
-                            config.output_format,
-                            config.jpeg_quality,
-                        ),
-                        _ => result.save_with_color_profile(
-                            &output_file,
-                            config.output_format,
-                            config.jpeg_quality,
-                        ),
-                    }
-                } else {
-                    // Use regular saving without color profile handling
-                    match config.output_format {
-                        OutputFormat::Png => result.save_png_timed(&output_file),
-                        _ => result.save(&output_file, config.output_format, config.jpeg_quality),
-                    }
-                };
-
-                match save_result {
-                    Ok(()) => {
-                        processed_count += 1;
-                        if cli.verbose {
-                            if let Some(profile) = result.get_color_profile() {
-                                info!(
-                                    "Processed: {} - Color Profile: {} ({} bytes)",
-                                    input_file.display(),
-                                    profile.color_space,
-                                    profile.data_size()
-                                );
-                            } else {
-                                info!("Processed: {} - No color profile", input_file.display());
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        error!("Failed to save {}: {}", output_file.display(), e);
-                        failed_count += 1;
-                    },
-                }
-            },
-            Err(e) => {
-                error!("Failed to process {}: {}", input_file.display(), e);
-                failed_count += 1;
-            },
-        }
-
-        progress.inc(1);
-    }
-
-    progress.finish_with_message(format!(
-        "Completed! Processed: {processed_count}, Failed: {failed_count}"
-    ));
-
-    Ok(processed_count)
-}
 
 /// Find image files in directory
 fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
