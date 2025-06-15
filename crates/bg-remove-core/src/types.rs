@@ -53,7 +53,7 @@ impl ColorProfile {
 
     /// Get the size of ICC profile data in bytes
     #[must_use] pub fn data_size(&self) -> usize {
-        self.icc_data.as_ref().map_or(0, |data| data.len())
+        self.icc_data.as_ref().map_or(0, Vec::len)
     }
 
     /// Check if this color profile has ICC data
@@ -226,6 +226,12 @@ impl RemovalResult {
     }
 
     /// Save the result as PNG with alpha channel and return encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when writing output file
+    /// - Permission errors or disk space issues
+    /// - PNG encoding errors from underlying image library
+    /// - Timing conversion errors if encoding time exceeds u64 range
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
         let encode_start = std::time::Instant::now();
         self.image.save_with_format(path, image::ImageFormat::Png)?;
@@ -235,6 +241,11 @@ impl RemovalResult {
     }
 
     /// Save the result as JPEG with background color
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - JPEG encoding errors from underlying image library
+    /// - Invalid quality parameter (though already validated in builder)
     pub fn save_jpeg<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
         // Convert to RGB and apply background color for JPEG
         let rgb_image = self.image.to_rgb8();
@@ -247,6 +258,12 @@ impl RemovalResult {
     }
 
     /// Save the result as WebP
+    ///
+    /// # Errors
+    /// - WebP encoding errors during compression
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or disk space issues
+    /// - Invalid quality parameter (outside 0-100 range)
     pub fn save_webp<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
         // Note: WebP support depends on image crate features
         let webp_data = self.encode_webp(quality)?;
@@ -259,6 +276,16 @@ impl RemovalResult {
     /// Automatically uses color profile-aware saving when color profiles are available.
     /// For legacy compatibility, this method preserves existing behavior while enabling
     /// color profile embedding when possible.
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - Image encoding errors specific to the chosen format:
+    ///   - PNG: Compression or metadata errors
+    ///   - JPEG: Invalid quality parameter or RGB conversion errors
+    ///   - WebP: Encoding or compression failures
+    ///   - RGBA8: Raw data writing errors
+    /// - Color profile embedding errors when profiles are present
     pub fn save<P: AsRef<Path>>(&self, path: P, format: OutputFormat, quality: u8) -> Result<()> {
         // Use color profile-aware saving if available, otherwise fallback to standard saving
         if self.has_color_profile() {
@@ -342,6 +369,15 @@ impl RemovalResult {
     }
 
     /// Get the image as encoded bytes in the specified format
+    ///
+    /// # Errors
+    /// - Image encoding errors specific to the chosen format:
+    ///   - PNG: Compression or metadata encoding errors
+    ///   - JPEG: Invalid quality parameter or RGB conversion errors
+    ///   - WebP: Encoding or compression failures (currently falls back to PNG)
+    ///   - RGBA8: Memory allocation errors for raw bytes
+    /// - Memory allocation errors when creating output buffer
+    /// - Image format conversion errors (e.g., RGBA to RGB for JPEG)
     pub fn to_bytes(&self, format: OutputFormat, quality: u8) -> Result<Vec<u8>> {
         match format {
             OutputFormat::Png => {
@@ -381,6 +417,13 @@ impl RemovalResult {
     }
 
     /// Save and measure encoding time (updates internal timing)
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - Image encoding errors specific to the chosen format
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
     #[allow(clippy::cast_precision_loss)] // Acceptable for timing display
     pub fn save_with_timing<P: AsRef<Path>>(
         &mut self,
@@ -419,6 +462,13 @@ impl RemovalResult {
     }
 
     /// Save as PNG and measure encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - PNG encoding errors from underlying image library
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
     pub fn save_png_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.save_with_timing(path, image::ImageFormat::Png)
     }
@@ -502,6 +552,16 @@ impl RemovalResult {
     /// - JPEG embedding uses custom APP2 marker implementation
     /// - Large profiles are automatically split across multiple JPEG segments
     /// - Profile validation and error handling ensure data integrity
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - Image encoding errors specific to the chosen format
+    /// - Color profile embedding errors:
+    ///   - Invalid ICC profile data
+    ///   - Profile too large for format constraints
+    ///   - Format-specific embedding failures
+    /// - Falls back to standard save on profile embedding failures
     pub fn save_with_color_profile<P: AsRef<Path>>(
         &self,
         path: P,
@@ -597,6 +657,12 @@ impl RemovalResult {
     }
 
     /// Encode as WebP (placeholder implementation)
+    ///
+    /// # Errors
+    /// - WebP encoding errors during compression
+    /// - Image conversion errors (RGBA to RGB)
+    /// - Memory allocation errors for output buffer
+    /// - Invalid quality parameter (outside valid range)
     fn encode_webp(&self, quality: u8) -> Result<Vec<u8>> {
         // Convert to RGB (WebP crate doesn't support RGBA)
         let rgb_image = self.image.to_rgb8();
@@ -634,6 +700,11 @@ impl SegmentationMask {
     }
 
     /// Convert mask to a grayscale image
+    ///
+    /// # Errors
+    /// - Processing errors when mask data dimensions don't match expected size
+    /// - Memory allocation errors when creating image buffer
+    /// - Invalid mask data that cannot be converted to a valid image buffer
     pub fn to_image(&self) -> Result<ImageBuffer<image::Luma<u8>, Vec<u8>>> {
         let (width, height) = self.dimensions;
         ImageBuffer::from_raw(width, height, self.data.clone()).ok_or_else(|| {
@@ -642,6 +713,11 @@ impl SegmentationMask {
     }
 
     /// Apply the mask to an RGBA image
+    ///
+    /// # Errors
+    /// - Processing errors when image and mask dimensions don't match
+    /// - Invalid mask data that would cause out-of-bounds access
+    /// - Memory access errors during pixel manipulation
     pub fn apply_to_image(&self, image: &mut ImageBuffer<Rgba<u8>, Vec<u8>>) -> Result<()> {
         let (img_width, img_height) = image.dimensions();
         let (mask_width, mask_height) = self.dimensions;
@@ -662,6 +738,12 @@ impl SegmentationMask {
     }
 
     /// Resize the mask to new dimensions
+    ///
+    /// # Errors
+    /// - Processing errors when converting mask to image format
+    /// - Image processing errors during resize operation
+    /// - Memory allocation errors for new image buffer
+    /// - Invalid dimensions (zero width or height)
     pub fn resize(&self, new_width: u32, new_height: u32) -> Result<SegmentationMask> {
         let current_image = self.to_image()?;
         let resized = image::imageops::resize(
@@ -739,21 +821,28 @@ impl SegmentationMask {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn statistics(&self) -> Result<MaskStatistics> {
+    ///
+    pub fn statistics(&self) -> MaskStatistics {
         let total_pixels = self.data.len() as f32;
         let foreground_pixels = self.data.iter().filter(|&&x| x > 127).count() as f32;
         let background_pixels = total_pixels - foreground_pixels;
 
-        Ok(MaskStatistics {
+        MaskStatistics {
             total_pixels: total_pixels as usize,
             foreground_pixels: foreground_pixels as usize,
             background_pixels: background_pixels as usize,
             foreground_ratio: foreground_pixels / total_pixels,
             background_ratio: background_pixels / total_pixels,
-        })
+        }
     }
 
     /// Save mask as PNG
+    ///
+    /// # Errors
+    /// - Processing errors when converting mask to image format
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - PNG encoding errors from underlying image library
     pub fn save_png<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let image = self.to_image()?;
         image.save_with_format(path, image::ImageFormat::Png)?;
@@ -1018,7 +1107,7 @@ mod tests {
         let data = vec![255, 255, 0, 0]; // 2 foreground, 2 background
         let mask = SegmentationMask::new(data, (2, 2));
 
-        let stats = mask.statistics().unwrap();
+        let stats = mask.statistics();
         assert_eq!(stats.total_pixels, 4);
         assert_eq!(stats.foreground_pixels, 2);
         assert_eq!(stats.background_pixels, 2);

@@ -441,24 +441,24 @@ impl ModelProvider for ExternalModelProvider {
             precision: self.variant.clone(),
             size_bytes: model_data.len(),
             input_shape: {
-                let dim0 = variant_config.get("input_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1)
+                let dim0 = variant_config.get("input_shape").and_then(|arr| arr.get(0)).and_then(serde_json::Value::as_u64).unwrap_or(1)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 0 too large for usize"))?;
-                let dim1 = variant_config.get("input_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(3)
+                let dim1 = variant_config.get("input_shape").and_then(|arr| arr.get(1)).and_then(serde_json::Value::as_u64).unwrap_or(3)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 1 too large for usize"))?;
-                let dim2 = variant_config.get("input_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                let dim2 = variant_config.get("input_shape").and_then(|arr| arr.get(2)).and_then(serde_json::Value::as_u64).unwrap_or(1024)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 2 too large for usize"))?;
-                let dim3 = variant_config.get("input_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                let dim3 = variant_config.get("input_shape").and_then(|arr| arr.get(3)).and_then(serde_json::Value::as_u64).unwrap_or(1024)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Input shape dimension 3 too large for usize"))?;
                 (dim0, dim1, dim2, dim3)
             },
             output_shape: {
-                let dim0 = variant_config.get("output_shape").and_then(|arr| arr.get(0)).and_then(|v| v.as_u64()).unwrap_or(1)
+                let dim0 = variant_config.get("output_shape").and_then(|arr| arr.get(0)).and_then(serde_json::Value::as_u64).unwrap_or(1)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 0 too large for usize"))?;
-                let dim1 = variant_config.get("output_shape").and_then(|arr| arr.get(1)).and_then(|v| v.as_u64()).unwrap_or(1)
+                let dim1 = variant_config.get("output_shape").and_then(|arr| arr.get(1)).and_then(serde_json::Value::as_u64).unwrap_or(1)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 1 too large for usize"))?;
-                let dim2 = variant_config.get("output_shape").and_then(|arr| arr.get(2)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                let dim2 = variant_config.get("output_shape").and_then(|arr| arr.get(2)).and_then(serde_json::Value::as_u64).unwrap_or(1024)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 2 too large for usize"))?;
-                let dim3 = variant_config.get("output_shape").and_then(|arr| arr.get(3)).and_then(|v| v.as_u64()).unwrap_or(1024)
+                let dim3 = variant_config.get("output_shape").and_then(|arr| arr.get(3)).and_then(serde_json::Value::as_u64).unwrap_or(1024)
                     .try_into().map_err(|_| crate::error::BgRemovalError::invalid_config("Output shape dimension 3 too large for usize"))?;
                 (dim0, dim1, dim2, dim3)
             },
@@ -472,10 +472,10 @@ impl ModelProvider for ExternalModelProvider {
         Ok(PreprocessingConfig {
             target_size: {
                 let size0_u64 = preprocessing.get("target_size").and_then(|arr| arr.get(0))
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[0] in preprocessing config"))?;
                 let size1_u64 = preprocessing.get("target_size").and_then(|arr| arr.get(1))
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing target_size[1] in preprocessing config"))?;
                 
                 let size0 = size0_u64.try_into()
@@ -487,13 +487,13 @@ impl ModelProvider for ExternalModelProvider {
             },
             normalization_mean: {
                 let mean0_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(0))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[0] in preprocessing config"))?;
                 let mean1_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(1))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[1] in preprocessing config"))?;
                 let mean2_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("mean")).and_then(|arr| arr.get(2))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization mean[2] in preprocessing config"))?;
                 
                 // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
@@ -501,13 +501,13 @@ impl ModelProvider for ExternalModelProvider {
             },
             normalization_std: {
                 let std0_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(0))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[0] in preprocessing config"))?;
                 let std1_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(1))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[1] in preprocessing config"))?;
                 let std2_f64 = preprocessing.get("normalization").and_then(|norm| norm.get("std")).and_then(|arr| arr.get(2))
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| crate::error::BgRemovalError::invalid_config("Missing normalization std[2] in preprocessing config"))?;
                 
                 // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
@@ -626,7 +626,7 @@ impl ModelProvider for ExternalModelProvider {
 /// 1. Rebuild with embedding features: `cargo build --features embed-all`
 /// 2. Use external models with `ModelSource::External(path)`
 #[must_use] pub fn get_available_embedded_models() -> Vec<String> {
-    EmbeddedModelProvider::list_available().iter().map(|s| s.to_string()).collect()
+    EmbeddedModelProvider::list_available().iter().map(ToString::to_string).collect()
 }
 
 /// Extract precision from model name (e.g., "isnet-fp16" -> "fp16")
@@ -648,6 +648,15 @@ pub struct ModelManager {
 
 impl ModelManager {
     /// Create a new model manager from a model specification
+    ///
+    /// # Errors
+    /// - Embedded model not found in registry if using `ModelSource::Embedded`
+    /// - Model validation failures for embedded models
+    /// - External model path does not exist or is not a directory if using `ModelSource::External`
+    /// - Missing or invalid `model.json` configuration file for external models
+    /// - JSON parsing errors in external model configuration
+    /// - Requested variant not found in external model
+    /// - File system I/O errors when accessing external model files
     pub fn from_spec(spec: &ModelSpec) -> Result<Self> {
         Self::from_spec_with_provider(spec, None)
     }
@@ -668,6 +677,11 @@ impl ModelManager {
     }
     
     /// Create a new model manager with specific embedded model
+    ///
+    /// # Errors
+    /// - Requested embedded model not found in registry
+    /// - Model name validation fails
+    /// - Internal model provider creation errors
     pub fn with_embedded_model(model_name: String) -> Result<Self> {
         let provider = EmbeddedModelProvider::new(model_name)?;
         Ok(Self {
@@ -676,6 +690,15 @@ impl ModelManager {
     }
     
     /// Create model manager with external model from folder path
+    ///
+    /// # Errors
+    /// - Model path does not exist or is not a directory
+    /// - Missing or invalid `model.json` configuration file in model directory
+    /// - JSON parsing errors when reading `model.json`
+    /// - Missing required fields in model configuration (name, variants, preprocessing)
+    /// - Requested variant not found in available variants
+    /// - Invalid variant configuration (missing input_shape, output_shape, tensor names)
+    /// - File system I/O errors when accessing model directory or files
     pub fn with_external_model<P: AsRef<Path>>(model_path: P, variant: Option<String>) -> Result<Self> {
         let provider = ExternalModelProvider::new(model_path, variant)?;
         Ok(Self {
@@ -696,6 +719,11 @@ impl ModelManager {
     }
     
     /// Create model manager with first available embedded model (legacy compatibility)
+    ///
+    /// # Errors
+    /// - No embedded models available (build without embedding features)
+    /// - Model provider creation fails for the first available model
+    /// - Internal registry access errors
     pub fn with_embedded() -> Result<Self> {
         let available = EmbeddedModelProvider::list_available();
         if available.is_empty() {
@@ -704,32 +732,65 @@ impl ModelManager {
             ));
         }
         
-        Self::with_embedded_model(available.first()
-            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("No embedded models available"))?
+        Self::with_embedded_model((*available.first()
+            .ok_or_else(|| crate::error::BgRemovalError::invalid_config("No embedded models available"))?)
             .to_string())
     }
     
     /// Load model data
+    ///
+    /// # Errors
+    /// - Model file not found or inaccessible (for external models)
+    /// - File I/O errors when reading model data
+    /// - Invalid model file format or corrupted data
+    /// - Insufficient permissions to read model file
+    /// - Memory allocation failures for large models
     pub fn load_model(&self) -> Result<Vec<u8>> {
         self.provider.load_model_data()
     }
     
     /// Get model information
+    ///
+    /// # Errors
+    /// - Model configuration parsing errors
+    /// - Missing required metadata fields (name, shapes, precision)
+    /// - Invalid shape or precision information in model config
+    /// - Numeric conversion errors when parsing shape dimensions
+    /// - Model registry access failures for embedded models
     pub fn get_info(&self) -> Result<ModelInfo> {
         self.provider.get_model_info()
     }
     
     /// Get preprocessing configuration
+    ///
+    /// # Errors
+    /// - Missing preprocessing configuration in model metadata
+    /// - Invalid normalization values (mean, std arrays)
+    /// - Invalid or missing target size values
+    /// - JSON parsing errors for external model preprocessing config
+    /// - Numeric conversion errors when parsing float/integer values
     pub fn get_preprocessing_config(&self) -> Result<PreprocessingConfig> {
         self.provider.get_preprocessing_config()
     }
     
     /// Get input tensor name
+    ///
+    /// # Errors
+    /// - Missing input tensor name in model configuration
+    /// - Invalid or empty tensor name
+    /// - Model variant configuration access errors
+    /// - Registry lookup failures for embedded models
     pub fn get_input_name(&self) -> Result<String> {
         self.provider.get_input_name()
     }
     
     /// Get output tensor name
+    ///
+    /// # Errors
+    /// - Missing output tensor name in model configuration
+    /// - Invalid or empty tensor name
+    /// - Model variant configuration access errors
+    /// - Registry lookup failures for embedded models
     pub fn get_output_name(&self) -> Result<String> {
         self.provider.get_output_name()
     }
@@ -747,7 +808,7 @@ mod tests {
         // Registry should work even with no models (empty list)
         // When models are embedded, they should be accessible
         for model_name in available {
-            let provider = EmbeddedModelProvider::new(model_name.to_string()).unwrap();
+            let provider = EmbeddedModelProvider::new((*model_name).to_string()).unwrap();
             let info = provider.get_model_info().unwrap();
             assert!(!info.name.is_empty());
             assert!(!info.precision.is_empty());
