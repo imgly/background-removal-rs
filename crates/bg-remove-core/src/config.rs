@@ -31,6 +31,8 @@ pub enum OutputFormat {
     Jpeg,
     /// WebP with alpha channel transparency
     WebP,
+    /// TIFF with alpha channel transparency and lossless compression
+    Tiff,
     /// Raw RGBA8 pixel data (4 bytes per pixel)
     Rgba8,
 }
