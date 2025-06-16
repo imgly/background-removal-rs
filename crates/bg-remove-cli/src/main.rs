@@ -32,9 +32,9 @@ struct Cli {
     #[arg(short, long, value_enum, default_value_t = CliOutputFormat::Png)]
     format: CliOutputFormat,
 
-    /// Execution provider for ONNX Runtime
-    #[arg(short, long, value_enum, default_value_t = CliExecutionProvider::Auto)]
-    execution_provider: CliExecutionProvider,
+    /// Execution provider in format backend:provider (e.g., onnx:auto, onnx:coreml)
+    #[arg(short, long, default_value = "onnx:auto")]
+    execution_provider: String,
 
     /// JPEG quality (0-100)
     #[arg(long, default_value_t = 90)]
@@ -130,25 +130,24 @@ impl From<CliOutputFormat> for OutputFormat {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum CliExecutionProvider {
-    /// Auto-detect best available provider (CUDA > `CoreML` > CPU)
-    Auto,
-    /// CPU execution (always available)
-    Cpu,
-    /// NVIDIA CUDA GPU acceleration
-    Cuda,
-    /// Apple Silicon GPU acceleration (Metal Performance Shaders)
-    CoreMl,
-}
-
-impl From<CliExecutionProvider> for ExecutionProvider {
-    fn from(cli_provider: CliExecutionProvider) -> Self {
-        match cli_provider {
-            CliExecutionProvider::Auto => ExecutionProvider::Auto,
-            CliExecutionProvider::Cpu => ExecutionProvider::Cpu,
-            CliExecutionProvider::Cuda => ExecutionProvider::Cuda,
-            CliExecutionProvider::CoreMl => ExecutionProvider::CoreMl,
+/// Parse execution provider string in format "backend:provider"
+fn parse_execution_provider(provider_str: &str) -> Result<ExecutionProvider> {
+    if let Some((backend, provider)) = provider_str.split_once(':') {
+        match backend {
+            "onnx" => match provider {
+                "auto" => Ok(ExecutionProvider::Auto),
+                "cpu" => Ok(ExecutionProvider::Cpu),
+                "cuda" => Ok(ExecutionProvider::Cuda),
+                "coreml" => Ok(ExecutionProvider::CoreMl),
+                _ => anyhow::bail!("Unknown ONNX provider: {}", provider),
+            },
+            _ => anyhow::bail!("Unknown backend: {}", backend),
+        }
+    } else {
+        // If no colon, assume it's just "onnx" and default to auto
+        match provider_str {
+            "onnx" => Ok(ExecutionProvider::Auto),
+            _ => anyhow::bail!("Invalid provider format. Use backend:provider (e.g., onnx:auto)"),
         }
     }
 }
@@ -294,9 +293,12 @@ async fn main() -> Result<()> {
     let background_color =
         parse_color(&cli.background_color).context("Invalid background color format")?;
 
+    // Parse execution provider from string format
+    let execution_provider = parse_execution_provider(&cli.execution_provider)?;
+
     // Build configuration first so we can use it for model optimization
     let config = RemovalConfig::builder()
-        .execution_provider(cli.execution_provider.into())
+        .execution_provider(execution_provider)
         .output_format(cli.format.into())
         .background_color(background_color)
         .jpeg_quality(cli.jpeg_quality)
@@ -443,7 +445,7 @@ fn write_stdout(data: &[u8]) -> Result<()> {
 fn show_provider_diagnostics() -> Result<()> {
     use bg_remove_onnx::OnnxBackend;
 
-    println!("🔍 ONNX Runtime Execution Provider Diagnostics");
+    println!("🔍 Backend and Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // System information
@@ -452,6 +454,10 @@ fn show_provider_diagnostics() -> Result<()> {
         .unwrap_or(1);
     println!("💻 System: {cpu_count} CPU cores detected");
 
+    println!("\n🔧 Available Backends:");
+    println!("  • onnx: ONNX Runtime backend (default)");
+
+    println!("\n🚀 ONNX Runtime Execution Providers:");
     // Check provider availability
     let providers = OnnxBackend::list_providers();
 
@@ -461,11 +467,18 @@ fn show_provider_diagnostics() -> Result<()> {
         } else {
             "❌ Not Available"
         };
-        println!("🚀 {name}: {status} - {description}");
+        println!("  • onnx:{name}: {status} - {description}");
     }
 
-    println!("\n💡 Tips:");
-    println!("  • Use --execution-provider auto for best performance");
+    println!("\n💡 Usage Examples:");
+    println!("  --execution-provider onnx:auto    # Auto-select best provider (default)");
+    println!("  --execution-provider onnx:coreml  # Use Apple CoreML (macOS)");
+    println!("  --execution-provider onnx:cuda    # Use NVIDIA CUDA");
+    println!("  --execution-provider onnx:cpu     # Force CPU execution");
+    println!("  --execution-provider onnx         # Same as onnx:auto");
+
+    println!("\n📋 Notes:");
+    println!("  • Default backend is 'onnx' if none specified");
     println!("  • GPU acceleration requires compatible hardware/drivers");
     println!("  • CPU provider is always available as fallback");
 
@@ -968,5 +981,26 @@ mod tests {
         // Test invalid variant error
         let result = resolve_variant(&spec, Some("invalid"), &available);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_execution_provider() {
+        // Test valid backend:provider combinations
+        assert_eq!(parse_execution_provider("onnx:auto").unwrap(), ExecutionProvider::Auto);
+        assert_eq!(parse_execution_provider("onnx:cpu").unwrap(), ExecutionProvider::Cpu);
+        assert_eq!(parse_execution_provider("onnx:cuda").unwrap(), ExecutionProvider::Cuda);
+        assert_eq!(parse_execution_provider("onnx:coreml").unwrap(), ExecutionProvider::CoreMl);
+
+        // Test implicit auto for "onnx" only
+        assert_eq!(parse_execution_provider("onnx").unwrap(), ExecutionProvider::Auto);
+
+        // Test invalid backend
+        assert!(parse_execution_provider("invalid:auto").is_err());
+
+        // Test invalid provider
+        assert!(parse_execution_provider("onnx:invalid").is_err());
+
+        // Test invalid format
+        assert!(parse_execution_provider("invalid").is_err());
     }
 }

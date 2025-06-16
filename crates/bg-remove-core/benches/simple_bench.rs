@@ -42,7 +42,10 @@ fn bench_execution_providers(c: &mut Criterion) {
             b.iter(|| {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let mut processor = ImageProcessor::new(black_box(&config)).unwrap();
+                    // Create ONNX backend for benchmarking
+                    use bg_remove_onnx::OnnxBackend;
+                    let backend = Box::new(OnnxBackend::new());
+                    let mut processor = ImageProcessor::with_backend(black_box(&config), backend).unwrap();
                     let result = processor.process_image(black_box(test_image.clone()));
                     black_box(result.unwrap())
                 })
@@ -77,7 +80,10 @@ fn bench_image_sizes(c: &mut Criterion) {
             b.iter(|| {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let mut processor = ImageProcessor::new(black_box(&config)).unwrap();
+                    // Create ONNX backend for benchmarking
+                    use bg_remove_onnx::OnnxBackend;
+                    let backend = Box::new(OnnxBackend::new());
+                    let mut processor = ImageProcessor::with_backend(black_box(&config), backend).unwrap();
                     let result = processor.process_image(black_box(test_image.clone()));
                     black_box(result.unwrap())
                 })
@@ -109,7 +115,10 @@ fn bench_timing_breakdown(c: &mut Criterion) {
         group.bench_function(name, |b| {
             b.iter_batched(
                 || {
-                    let processor = ImageProcessor::new(&config).unwrap();
+                    // Create ONNX backend for benchmarking
+                    use bg_remove_onnx::OnnxBackend;
+                    let backend = Box::new(OnnxBackend::new());
+                    let processor = ImageProcessor::with_backend(&config, backend).unwrap();
                     (processor, test_image.clone())
                 },
                 |(mut processor, img)| {
