@@ -971,12 +971,20 @@ impl RemovalResult {
     }
 
     /// Encode as WebP with RGBA transparency support
+    #[cfg(feature = "webp-support")]
     fn encode_webp(&self, quality: u8) -> Vec<u8> {
         // Use the webp crate directly for now until image-rs WebP API is stable
         let rgba_image = self.image.to_rgba8();
         let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
         let webp_data = encoder.encode(f32::from(quality));
         webp_data.to_vec()
+    }
+
+    /// Fallback WebP encoding when webp feature is disabled (returns PNG instead)
+    #[cfg(not(feature = "webp-support"))]
+    fn encode_webp(&self, quality: u8) -> Vec<u8> {
+        log::warn!("WebP support disabled - falling back to PNG encoding");
+        self.encode_png()
     }
 }
 

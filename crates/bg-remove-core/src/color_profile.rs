@@ -99,6 +99,7 @@ impl ProfileExtractor {
     }
 
     /// Extract ICC profile from WebP image
+    #[cfg(feature = "webp-support")]
     fn extract_from_webp<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
         // Try to use image-rs WebP decoder to extract ICC profile
         let file = File::open(path)?;
@@ -131,6 +132,13 @@ impl ProfileExtractor {
                 Ok(None)
             }
         }
+    }
+
+    /// Fallback WebP profile extraction when webp feature is disabled
+    #[cfg(not(feature = "webp-support"))]
+    fn extract_from_webp<P: AsRef<Path>>(_path: P) -> Result<Option<ColorProfile>> {
+        log::debug!("WebP support disabled - cannot extract ICC profile from WebP files");
+        Ok(None)
     }
 }
 
@@ -198,6 +206,7 @@ impl ProfileEmbedder {
                     ExtendedColorType::Rgba8,
                 )?;
             },
+            #[cfg(feature = "webp-support")]
             image::ImageFormat::WebP => {
                 let rgba_image = image.to_rgba8();
                 
@@ -234,6 +243,11 @@ impl ProfileEmbedder {
                         ExtendedColorType::Rgba8,
                     )?;
                 }
+            },
+            #[cfg(not(feature = "webp-support"))]
+            image::ImageFormat::WebP => {
+                log::warn!("WebP support disabled - falling back to PNG format");
+                return Self::embed_in_output(image, profile, output_path, image::ImageFormat::Png, quality);
             },
             image::ImageFormat::Tiff => {
                 let rgba_image = image.to_rgba8();

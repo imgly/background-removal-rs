@@ -3,6 +3,7 @@ members = [
     "crates/bg-remove-core",
     "crates/bg-remove-onnx",
     "crates/bg-remove-tract",
+    "crates/bg-remove-web",
     "crates/bg-remove-cli",
     "crates/bg-remove-testing",
 ]

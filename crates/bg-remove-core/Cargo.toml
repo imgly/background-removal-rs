@@ -16,8 +16,11 @@ description = "Core background removal library using ONNX Runtime and ISNet mode
 workspace = true
 
 [features]
-# Default: no embedded models - runtime loading only
-default = []
+# Default: basic features with WebP support
+default = ["webp-support"]
+
+# WebP support (not WASM-compatible)
+webp-support = ["webp", "image/webp"]
 
 # Individual model embedding (additive, not mutually exclusive)
 embed-isnet-fp16 = []
@@ -38,7 +41,7 @@ benchmark-details = []    # Enable detailed benchmark output
 
 [dependencies]
 # Core dependencies
-image = { workspace = true }
+image = { version = "0.25.6", features = ["png", "jpeg"], default-features = false }
 ndarray = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -54,8 +57,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 
-# WebP decoding only (encoding handled by image crate)
-webp = "0.3"
+# WebP decoding only (encoding handled by image crate) - optional for WASM compatibility
+webp = { version = "0.3", optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

@@ -20,8 +20,8 @@ name = "bg-remove"
 path = "src/main.rs"
 
 [features]
-# Default: embed ISNet FP32 model
-default = ["embed-isnet-fp32"]
+# Default: embed ISNet FP32 model with WebP support
+default = ["embed-isnet-fp32", "bg-remove-core/webp-support"]
 
 # Individual model embedding (pass-through to core)
 embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]

@@ -1,0 +1,95 @@
+[package]
+name = "bg-remove-web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "WebAssembly (WASM) bindings for background removal in web browsers using pure Rust inference"
+
+# Inherit workspace lints for zero-warning policy
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+# Default: embed ISNet FP16 model for reasonable bundle size
+default = ["embed-isnet-fp16"]
+
+# Individual model embedding (pass-through to core)
+embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]
+embed-isnet-fp32 = ["bg-remove-core/embed-isnet-fp32"]
+embed-birefnet-fp16 = ["bg-remove-core/embed-birefnet-fp16"]
+embed-birefnet-fp32 = ["bg-remove-core/embed-birefnet-fp32"]
+embed-birefnet-lite-fp16 = ["bg-remove-core/embed-birefnet-lite-fp16"]
+embed-birefnet-lite-fp32 = ["bg-remove-core/embed-birefnet-lite-fp32"]
+
+# Convenience groups
+embed-all-isnet = ["bg-remove-core/embed-all-isnet"]
+embed-all-birefnet = ["bg-remove-core/embed-all-birefnet"]
+embed-all-birefnet-lite = ["bg-remove-core/embed-all-birefnet-lite"]
+embed-all = ["bg-remove-core/embed-all"]
+
+[dependencies]
+# Core library (pure Rust, WASM-compatible)
+bg-remove-core = { path = "../bg-remove-core", default-features = false, features = ["embed-isnet-fp16"] }
+# Tract backend (pure Rust, WASM-compatible)  
+bg-remove-tract = { path = "../bg-remove-tract" }
+
+# WebAssembly bindings
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+# JavaScript and Web API bindings
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+  "console",
+  "CanvasRenderingContext2d",
+  "Document",
+  "Element",
+  "HtmlCanvasElement",
+  "HtmlImageElement",
+  "ImageData",
+  "Window",
+  "File",
+  "FileReader",
+  "Blob",
+  "Url",
+  "Worker",
+  "MessageEvent",
+  "ErrorEvent",
+  "ProgressEvent",
+] }
+
+# Core dependencies (WASM-compatible)
+ndarray = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging (WASM-compatible)
+log = { workspace = true }
+console_error_panic_hook = "0.1"
+wee_alloc = "0.4"
+
+# Serialization for JavaScript interop
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = "0.4"
+
+# WASM-compatible random number generation
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+# Optimize for size in WASM builds
+opt-level = "s"
+lto = true
+debug = false
+panic = "abort"
