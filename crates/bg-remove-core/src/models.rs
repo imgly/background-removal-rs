@@ -340,21 +340,14 @@ impl ExternalModelProvider {
 
                 // For Auto provider, use the most compatible variant
                 if matches!(provider, crate::config::ExecutionProvider::Auto) {
-                    // Check for CoreML availability and use its recommendation if available
+                    // On macOS, prefer CoreML-optimized variants for auto provider
                     #[cfg(target_os = "macos")]
                     {
-                        use ort::execution_providers::{
-                            CoreMLExecutionProvider, ExecutionProvider as OrtExecutionProvider,
-                        };
-                        if OrtExecutionProvider::is_available(&CoreMLExecutionProvider::default())
-                            .unwrap_or(false)
-                        {
-                            if let Some(coreml_variant) = recommendations.get("coreml") {
-                                if let Some(variant_str) = coreml_variant.as_str() {
-                                    if available_variants.contains(&variant_str.to_string()) {
-                                        log::debug!("🍎 Auto provider: Using CoreML-optimized variant '{variant_str}' (Apple Silicon detected)");
-                                        return Ok(variant_str.to_string());
-                                    }
+                        if let Some(coreml_variant) = recommendations.get("coreml") {
+                            if let Some(variant_str) = coreml_variant.as_str() {
+                                if available_variants.contains(&variant_str.to_string()) {
+                                    log::debug!("🍎 Auto provider: Using CoreML-optimized variant '{variant_str}' (macOS detected)");
+                                    return Ok(variant_str.to_string());
                                 }
                             }
                         }

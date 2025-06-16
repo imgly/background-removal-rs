@@ -40,7 +40,7 @@ pub mod models;
 pub mod types;
 
 // Public API exports
-pub use backends::{MockBackend, OnnxBackend};
+pub use backends::MockBackend;
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{
     BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
@@ -155,6 +155,29 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     let model_manager =
         ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))?;
     let mut processor = ImageProcessor::with_model_manager(config, model_manager)?;
+    processor.remove_background(input_path).await
+}
+
+/// Remove background from an image file with a custom backend
+///
+/// This function allows injecting a specific inference backend, useful when the core
+/// crate doesn't have direct access to backend implementations.
+///
+/// # Arguments
+///
+/// * `input_path` - Path to the input image file
+/// * `config` - Configuration for the removal operation
+/// * `backend` - Pre-initialized inference backend
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image, mask, and metadata
+pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
+    input_path: P,
+    config: &RemovalConfig,
+    backend: Box<dyn InferenceBackend>,
+) -> Result<RemovalResult> {
+    let mut processor = ImageProcessor::with_backend(config, backend)?;
     processor.remove_background(input_path).await
 }
 
