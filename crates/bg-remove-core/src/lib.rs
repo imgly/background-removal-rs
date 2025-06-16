@@ -33,7 +33,6 @@
 pub mod backends;
 pub mod color_profile;
 pub mod config;
-pub mod encoders;
 pub mod error;
 pub mod image_processing;
 pub mod inference;
@@ -46,7 +45,6 @@ pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{
     BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
 };
-pub use encoders::{JpegIccEncoder, PngIccEncoder, WebPIccEncoder};
 pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;

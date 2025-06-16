@@ -332,7 +332,7 @@ impl ExternalModelProvider {
                 if let Some(recommended_variant) = recommendations.get(&provider_name) {
                     if let Some(variant_str) = recommended_variant.as_str() {
                         if available_variants.contains(&variant_str.to_string()) {
-                            log::info!("🎯 Using model-recommended variant '{variant_str}' for {provider_name} provider");
+                            log::debug!("🎯 Using model-recommended variant '{variant_str}' for {provider_name} provider");
                             return Ok(variant_str.to_string());
                         }
                     }
@@ -352,7 +352,7 @@ impl ExternalModelProvider {
                             if let Some(coreml_variant) = recommendations.get("coreml") {
                                 if let Some(variant_str) = coreml_variant.as_str() {
                                     if available_variants.contains(&variant_str.to_string()) {
-                                        log::info!("🍎 Auto provider: Using CoreML-optimized variant '{variant_str}' (Apple Silicon detected)");
+                                        log::debug!("🍎 Auto provider: Using CoreML-optimized variant '{variant_str}' (Apple Silicon detected)");
                                         return Ok(variant_str.to_string());
                                     }
                                 }
@@ -364,7 +364,7 @@ impl ExternalModelProvider {
                     if let Some(cpu_variant) = recommendations.get("cpu") {
                         if let Some(variant_str) = cpu_variant.as_str() {
                             if available_variants.contains(&variant_str.to_string()) {
-                                log::info!(
+                                log::debug!(
                                     "🖥️ Auto provider: Using CPU-optimized variant '{variant_str}'"
                                 );
                                 return Ok(variant_str.to_string());

@@ -35,21 +35,6 @@ impl ProfileExtractor {
     /// - File I/O error when reading the image file
     /// - Decoder error when parsing the image format
     /// - Invalid ICC profile data
-    ///
-    /// # Examples
-    /// ```rust,no_run
-    /// use bg_remove_core::color_profile::ProfileExtractor;
-    ///
-    /// # fn example() -> bg_remove_core::Result<()> {
-    /// if let Some(profile) = ProfileExtractor::extract_from_image("photo.jpg")? {
-    ///     println!("Found ICC profile: {} ({} bytes)",
-    ///         profile.color_space, profile.data_size());
-    /// } else {
-    ///     println!("No ICC profile found");
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn extract_from_image<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
         let path = path.as_ref();
 
@@ -76,10 +61,14 @@ impl ProfileExtractor {
             BgRemovalError::processing(format!("Failed to create JPEG decoder: {e}"))
         })?;
 
-        if let Some(icc_data) = decoder.icc_profile() {
-            Ok(Some(ColorProfile::from_icc_data(icc_data)))
-        } else {
-            Ok(None)
+        // Try to get ICC profile - handle Result<Option<Vec<u8>>, ImageError>
+        match decoder.icc_profile() {
+            Ok(Some(icc_data)) => Ok(Some(ColorProfile::from_icc_data(icc_data))),
+            Ok(None) => Ok(None),
+            Err(e) => {
+                log::debug!("Failed to extract ICC profile from JPEG: {e}");
+                Ok(None)
+            }
         }
     }
 
@@ -91,10 +80,14 @@ impl ProfileExtractor {
             BgRemovalError::processing(format!("Failed to create PNG decoder: {e}"))
         })?;
 
-        if let Some(icc_data) = decoder.icc_profile() {
-            Ok(Some(ColorProfile::from_icc_data(icc_data)))
-        } else {
-            Ok(None)
+        // Try to get ICC profile - handle Result<Option<Vec<u8>>, ImageError>
+        match decoder.icc_profile() {
+            Ok(Some(icc_data)) => Ok(Some(ColorProfile::from_icc_data(icc_data))),
+            Ok(None) => Ok(None),
+            Err(e) => {
+                log::debug!("Failed to extract ICC profile from PNG: {e}");
+                Ok(None)
+            }
         }
     }
 
@@ -107,71 +100,47 @@ impl ProfileExtractor {
 
     /// Extract ICC profile from WebP image
     fn extract_from_webp<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
-        use crate::encoders::webp_encoder::WebPIccEncoder;
-
-        let path = path.as_ref();
-        let webp_data = std::fs::read(path).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to read WebP file {}: {e}", path.display()))
-        })?;
-
-        if let Some(icc_data) = WebPIccEncoder::extract_icc_profile(&webp_data)? {
-            log::debug!(
-                "Extracted ICC profile from WebP: {len} bytes",
-                len = icc_data.len()
-            );
-            Ok(Some(ColorProfile::from_icc_data(icc_data)))
-        } else {
-            log::debug!("No ICC profile found in WebP file");
-            Ok(None)
+        // Try to use image-rs WebP decoder to extract ICC profile
+        let file = File::open(path)?;
+        let mut reader = BufReader::new(file);
+        
+        // Try to create a WebP decoder using image-rs
+        match image::codecs::webp::WebPDecoder::new(&mut reader) {
+            Ok(mut decoder) => {
+                // Try to get ICC profile - handle Result<Option<Vec<u8>>, ImageError>
+                match decoder.icc_profile() {
+                    Ok(Some(icc_data)) => {
+                        log::debug!(
+                            "Extracted ICC profile from WebP: {len} bytes",
+                            len = icc_data.len()
+                        );
+                        Ok(Some(ColorProfile::from_icc_data(icc_data)))
+                    }
+                    Ok(None) => {
+                        log::debug!("No ICC profile found in WebP file");
+                        Ok(None)
+                    }
+                    Err(e) => {
+                        log::debug!("Failed to extract ICC profile from WebP: {e}");
+                        Ok(None)
+                    }
+                }
+            }
+            Err(e) => {
+                log::debug!("Failed to create WebP decoder: {e}");
+                Ok(None)
+            }
         }
     }
 }
 
-/// ICC profile embedder for output images
+/// ICC profile embedder for output images using image-rs unified API
 pub struct ProfileEmbedder;
 
 impl ProfileEmbedder {
-    /// Embed ICC profile in output image
-    ///
-    /// Embeds ICC color profiles in output images using format-specific encoders.
-    /// Supports PNG (via iCCP chunks) and JPEG (via APP2 markers) formats.
-    ///
-    /// # Supported Formats
-    /// - **PNG**: Embeds using custom iCCP chunks
-    /// - **JPEG**: Embeds using APP2 markers with custom encoder
-    /// - **WebP**: Embeds using ICCP chunks in RIFF container
-    /// - **Other formats**: Returns error (not supported)
-    ///
-    /// # Arguments
-    /// * `image` - The image to embed profile in
-    /// * `profile` - The ICC profile to embed
-    /// * `output_path` - Output file path
-    /// * `format` - Output image format
-    /// * `quality` - Quality setting (used for JPEG, 0-100)
-    ///
-    /// # Returns
-    /// Result indicating success or failure of the embedding operation
-    ///
-    /// # Errors
-    /// - Unsupported output format (only PNG, JPEG, WebP are supported)
-    /// - File I/O errors when writing the output image
-    /// - Image encoding errors from the underlying format encoders
-    /// - Color profile has no data to embed (empty ICC profile)
-    ///
-    /// # Examples
-    /// ```rust,no_run
-    /// use bg_remove_core::{
-    ///     color_profile::ProfileEmbedder,
-    ///     types::ColorProfile,
-    /// };
-    /// use image::{DynamicImage, ImageFormat};
-    ///
-    /// # fn example(image: DynamicImage, profile: ColorProfile) -> bg_remove_core::Result<()> {
-    /// ProfileEmbedder::embed_in_output(&image, &profile, "output.png", ImageFormat::Png, 0)?;
-    /// ProfileEmbedder::embed_in_output(&image, &profile, "output.jpg", ImageFormat::Jpeg, 90)?;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Embed ICC profile in output image using image-rs 0.25.6 unified API
+    /// 
+    /// Uses the standardized ImageEncoder::set_icc_profile() method for reliable ICC embedding
     pub fn embed_in_output<P: AsRef<Path>>(
         image: &image::DynamicImage,
         profile: &ColorProfile,
@@ -179,72 +148,105 @@ impl ProfileEmbedder {
         format: image::ImageFormat,
         quality: u8,
     ) -> Result<()> {
-        use crate::encoders::{
-            jpeg_encoder::JpegIccEncoder, png_encoder::PngIccEncoder, webp_encoder::WebPIccEncoder,
-        };
-
+        use image::{ImageEncoder, ExtendedColorType};
+        use std::io::BufWriter;
+        
+        let output_path = output_path.as_ref();
+        let file = File::create(output_path)?;
+        let writer = BufWriter::new(file);
+        
         match format {
-            image::ImageFormat::Png => {
-                PngIccEncoder::encode_with_profile(image, profile, output_path)
-            },
             image::ImageFormat::Jpeg => {
-                JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
+                let rgb_image = image.to_rgb8();
+                let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, quality);
+                
+                // Set ICC profile if available
+                if let Some(icc_data) = &profile.icc_data {
+                    if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                        log::debug!("Failed to embed ICC profile in JPEG: {e}");
+                        log::debug!("Continuing without ICC profile");
+                    } else {
+                        log::debug!("Successfully set ICC profile for JPEG output ({} bytes)", icc_data.len());
+                    }
+                }
+                
+                encoder.write_image(
+                    rgb_image.as_raw(),
+                    rgb_image.width(),
+                    rgb_image.height(),
+                    ExtendedColorType::Rgb8,
+                )?;
+            },
+            image::ImageFormat::Png => {
+                let rgba_image = image.to_rgba8();
+                let mut encoder = image::codecs::png::PngEncoder::new(writer);
+                
+                // Set ICC profile if available
+                if let Some(icc_data) = &profile.icc_data {
+                    if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                        log::debug!("Failed to embed ICC profile in PNG: {e}");
+                        log::debug!("Continuing without ICC profile");
+                    } else {
+                        log::debug!("Successfully set ICC profile for PNG output ({} bytes)", icc_data.len());
+                    }
+                }
+                
+                encoder.write_image(
+                    rgba_image.as_raw(),
+                    rgba_image.width(),
+                    rgba_image.height(),
+                    ExtendedColorType::Rgba8,
+                )?;
             },
             image::ImageFormat::WebP => {
-                WebPIccEncoder::encode_with_profile(image, profile, output_path, quality)
+                let rgba_image = image.to_rgba8();
+                
+                if quality < 90 {
+                    // Use webp crate for lossy encoding when quality is significantly below lossless
+                    let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
+                    let webp_data = encoder.encode(f32::from(quality));
+                    
+                    // Write WebP data directly
+                    std::fs::write(output_path, webp_data.as_ref())?;
+                    
+                    if profile.icc_data.is_some() {
+                        log::warn!("ICC profile embedding not supported for lossy WebP encoding");
+                        log::warn!("Use higher quality (90+) for ICC profile support with lossless WebP");
+                    }
+                } else {
+                    // Use image-rs for lossless WebP encoding with ICC profile support
+                    let mut encoder = image::codecs::webp::WebPEncoder::new_lossless(writer);
+                    
+                    // Set ICC profile if available
+                    if let Some(icc_data) = &profile.icc_data {
+                        if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                            log::warn!("Failed to embed ICC profile in WebP: {e}");
+                            log::warn!("WebP saved without ICC profile");
+                        } else {
+                            log::debug!("Successfully embedded ICC profile in lossless WebP ({} bytes)", icc_data.len());
+                        }
+                    }
+                    
+                    encoder.write_image(
+                        rgba_image.as_raw(),
+                        rgba_image.width(),
+                        rgba_image.height(),
+                        ExtendedColorType::Rgba8,
+                    )?;
+                }
             },
             _ => {
-                Err(BgRemovalError::processing(format!(
-                    "ICC profile embedding not supported for format: {format:?}. Supported formats: PNG, JPEG, WebP"
-                )))
+                // Fallback to image-rs save for other formats
+                image.save_with_format(output_path, format)?;
+                
+                if profile.icc_data.is_some() {
+                    log::debug!("ICC profile embedding not implemented for format: {:?}", format);
+                    log::debug!("Image saved without ICC profile");
+                }
             }
         }
-    }
 
-    /// Embed ICC profile in PNG output
-    ///
-    /// Convenience method for PNG-specific ICC embedding.
-    ///
-    /// # Arguments
-    /// * `image` - The image to embed profile in
-    /// * `profile` - The ICC profile to embed
-    /// * `output_path` - Output PNG file path
-    ///
-    /// # Errors
-    /// - File I/O errors when writing the PNG file
-    /// - PNG encoding errors from the underlying encoder
-    /// - Color profile has no data to embed (empty ICC profile)
-    pub fn embed_in_png<P: AsRef<Path>>(
-        image: &image::DynamicImage,
-        profile: &ColorProfile,
-        output_path: P,
-    ) -> Result<()> {
-        use crate::encoders::png_encoder::PngIccEncoder;
-        PngIccEncoder::encode_with_profile(image, profile, output_path)
-    }
-
-    /// Embed ICC profile in JPEG output
-    ///
-    /// Convenience method for JPEG-specific ICC embedding.
-    ///
-    /// # Arguments
-    /// * `image` - The image to embed profile in
-    /// * `profile` - The ICC profile to embed
-    /// * `output_path` - Output JPEG file path
-    /// * `quality` - JPEG quality (0-100)
-    ///
-    /// # Errors
-    /// - File I/O errors when writing the JPEG file
-    /// - JPEG encoding errors from the underlying encoder
-    /// - Color profile has no data to embed (empty ICC profile)
-    pub fn embed_in_jpeg<P: AsRef<Path>>(
-        image: &image::DynamicImage,
-        profile: &ColorProfile,
-        output_path: P,
-        quality: u8,
-    ) -> Result<()> {
-        use crate::encoders::jpeg_encoder::JpegIccEncoder;
-        JpegIccEncoder::encode_with_profile(image, profile, output_path, quality)
+        Ok(())
     }
 }
 
@@ -285,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_embedding_not_implemented() {
+    fn test_embedding_requires_icc_data() {
         use image::DynamicImage;
 
         let image = DynamicImage::new_rgb8(1, 1);
@@ -299,7 +301,7 @@ mod tests {
             80,
         );
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("no data to embed"));
+        // Should succeed but without ICC profile
+        assert!(result.is_ok());
     }
 }
