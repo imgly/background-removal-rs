@@ -205,10 +205,10 @@ impl OnnxBackend {
 
                 if coreml_available {
                     log::info!("🍎 CoreML execution provider is available and will be used");
-                    log::info!("CoreML provider details:");
-                    log::info!("  - This will use Apple Neural Engine and GPU acceleration");
-                    log::info!("  - Expected significant performance improvement on Apple Silicon");
-                    log::info!("  - Provider configuration: {coreml_provider:?}");
+                    log::debug!("CoreML provider details:");
+                    log::debug!("  - This will use Apple Neural Engine and GPU acceleration");
+                    log::debug!("  - Expected significant performance improvement on Apple Silicon");
+                    log::debug!("  - Provider configuration: {coreml_provider:?}");
 
                     // Add CoreML-specific configuration for better performance
                     let coreml_provider = CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
@@ -260,16 +260,16 @@ impl OnnxBackend {
 
                 if coreml_available {
                     log::info!("🍎 Using CoreML execution provider (explicitly requested)");
-                    log::info!("CoreML provider details:");
-                    log::info!("  - Will use Apple Neural Engine and GPU acceleration");
-                    log::info!("  - This should provide significant speedup on Apple Silicon");
-                    log::info!("  - Base provider config: {coreml_provider:?}");
+                    log::debug!("CoreML provider details:");
+                    log::debug!("  - Will use Apple Neural Engine and GPU acceleration");
+                    log::debug!("  - This should provide significant speedup on Apple Silicon");
+                    log::debug!("  - Base provider config: {coreml_provider:?}");
 
                     // Enhanced CoreML configuration for better performance
                     let enhanced_coreml_provider =
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
 
-                    log::info!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
+                    log::debug!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
                     session_builder.with_execution_providers([enhanced_coreml_provider.build()])?
                 } else {
                     log::error!("🚫 CoreML execution provider requested but not available!");
@@ -453,7 +453,7 @@ impl InferenceBackend for OnnxBackend {
             .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{input_name}'. Original error: {e}")))?;
 
         let core_inference_time = core_inference_start.elapsed();
-        log::info!(
+        log::debug!(
             "  ⚡ Core inference: {:.2}ms",
             core_inference_time.as_secs_f64() * 1000.0
         );
@@ -468,7 +468,7 @@ impl InferenceBackend for OnnxBackend {
             log::warn!("    - Expected CoreML performance: 100-300ms for typical models");
             log::warn!("    - Current performance suggests CPU execution");
         } else if core_inference_time.as_millis() < 500 {
-            log::info!(
+            log::debug!(
                 "  🎯 Good inference performance ({:.2}ms) - likely using hardware acceleration",
                 core_inference_time.as_secs_f64() * 1000.0
             );
