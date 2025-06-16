@@ -32,7 +32,7 @@ struct Cli {
     #[arg(short, long, value_enum, default_value_t = CliOutputFormat::Png)]
     format: CliOutputFormat,
 
-    /// Execution provider in format backend:provider (e.g., onnx:auto, onnx:coreml)
+    /// Execution provider in format backend:provider (e.g., onnx:auto, onnx:coreml, tract:cpu)
     #[arg(short, long, default_value = "onnx:auto")]
     execution_provider: String,
 
@@ -130,25 +130,64 @@ impl From<CliOutputFormat> for OutputFormat {
     }
 }
 
-/// Parse execution provider string in format "backend:provider"
-fn parse_execution_provider(provider_str: &str) -> Result<ExecutionProvider> {
+/// Backend type for runtime selection
+#[derive(Clone, Debug)]
+enum BackendType {
+    Onnx,
+    Tract,
+}
+
+/// Parse execution provider string and extract backend type and ExecutionProvider
+fn parse_execution_provider_with_backend(provider_str: &str) -> Result<(BackendType, ExecutionProvider)> {
     if let Some((backend, provider)) = provider_str.split_once(':') {
         match backend {
-            "onnx" => match provider {
-                "auto" => Ok(ExecutionProvider::Auto),
-                "cpu" => Ok(ExecutionProvider::Cpu),
-                "cuda" => Ok(ExecutionProvider::Cuda),
-                "coreml" => Ok(ExecutionProvider::CoreMl),
-                _ => anyhow::bail!("Unknown ONNX provider: {}", provider),
+            "onnx" => {
+                let execution_provider = match provider {
+                    "auto" => ExecutionProvider::Auto,
+                    "cpu" => ExecutionProvider::Cpu,
+                    "cuda" => ExecutionProvider::Cuda,
+                    "coreml" => ExecutionProvider::CoreMl,
+                    _ => anyhow::bail!("Unknown ONNX provider: {}", provider),
+                };
+                Ok((BackendType::Onnx, execution_provider))
             },
-            _ => anyhow::bail!("Unknown backend: {}", backend),
+            "tract" => {
+                let execution_provider = match provider {
+                    "cpu" => ExecutionProvider::Cpu, // Tract only supports CPU
+                    _ => anyhow::bail!("Unknown Tract provider: {}. Tract only supports 'cpu'", provider),
+                };
+                Ok((BackendType::Tract, execution_provider))
+            },
+            _ => anyhow::bail!("Unknown backend: {}. Supported backends: onnx, tract", backend),
         }
     } else {
-        // If no colon, assume it's just "onnx" and default to auto
+        // If no colon, assume it's just a backend name and default to auto/cpu
         match provider_str {
-            "onnx" => Ok(ExecutionProvider::Auto),
-            _ => anyhow::bail!("Invalid provider format. Use backend:provider (e.g., onnx:auto)"),
+            "onnx" => Ok((BackendType::Onnx, ExecutionProvider::Auto)),
+            "tract" => Ok((BackendType::Tract, ExecutionProvider::Cpu)), // Tract only supports CPU
+            _ => anyhow::bail!("Invalid provider format. Use backend:provider (e.g., onnx:auto, tract:cpu)"),
         }
+    }
+}
+
+/// Parse execution provider string in format "backend:provider" (used by tests)
+#[allow(dead_code)]
+fn parse_execution_provider(provider_str: &str) -> Result<ExecutionProvider> {
+    let (_, execution_provider) = parse_execution_provider_with_backend(provider_str)?;
+    Ok(execution_provider)
+}
+
+/// Create backend instance based on backend type and model manager
+fn create_backend(backend_type: BackendType, model_manager: ModelManager) -> Box<dyn bg_remove_core::inference::InferenceBackend> {
+    match backend_type {
+        BackendType::Onnx => {
+            use bg_remove_onnx::OnnxBackend;
+            Box::new(OnnxBackend::with_model_manager(model_manager))
+        },
+        BackendType::Tract => {
+            use bg_remove_tract::TractBackend;
+            Box::new(TractBackend::with_model_manager(model_manager))
+        },
     }
 }
 
@@ -293,8 +332,8 @@ async fn main() -> Result<()> {
     let background_color =
         parse_color(&cli.background_color).context("Invalid background color format")?;
 
-    // Parse execution provider from string format
-    let execution_provider = parse_execution_provider(&cli.execution_provider)?;
+    // Parse execution provider and backend type from string format
+    let (backend_type, execution_provider) = parse_execution_provider_with_backend(&cli.execution_provider)?;
 
     // Build configuration first so we can use it for model optimization
     let config = RemovalConfig::builder()
@@ -383,7 +422,7 @@ async fn main() -> Result<()> {
 
     // Process inputs (can be files, directories, or stdin)
     let start_time = Instant::now();
-    let processed_count = process_inputs(&cli, &config, &final_model_spec).await?;
+    let processed_count = process_inputs(&cli, &config, &final_model_spec, backend_type).await?;
 
     let total_time = start_time.elapsed();
     info!(
@@ -444,6 +483,7 @@ fn write_stdout(data: &[u8]) -> Result<()> {
 /// Display execution provider diagnostics
 fn show_provider_diagnostics() -> Result<()> {
     use bg_remove_onnx::OnnxBackend;
+    use bg_remove_tract::TractBackend;
 
     println!("🔍 Backend and Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -455,32 +495,61 @@ fn show_provider_diagnostics() -> Result<()> {
     println!("💻 System: {cpu_count} CPU cores detected");
 
     println!("\n🔧 Available Backends:");
-    println!("  • onnx: ONNX Runtime backend (default)");
+    println!("  • onnx: ONNX Runtime backend (default) - Full hardware acceleration support");
+    println!("  • tract: Pure Rust backend - No external dependencies, WebAssembly compatible");
 
     println!("\n🚀 ONNX Runtime Execution Providers:");
-    // Check provider availability
-    let providers = OnnxBackend::list_providers();
+    // Check provider availability (handle ORT initialization issues gracefully)
+    match std::panic::catch_unwind(|| {
+        OnnxBackend::list_providers()
+    }) {
+        Ok(onnx_providers) => {
+            for (name, available, description) in onnx_providers {
+                let status = if available {
+                    "✅ Available"
+                } else {
+                    "❌ Not Available"
+                };
+                println!("  • onnx:{}: {} - {}", name.to_lowercase(), status, description);
+            }
+        },
+        Err(_) => {
+            println!("  • onnx:auto: ⚠️ Cannot check (ORT initialization issue)");
+            println!("  • onnx:cpu: ⚠️ Cannot check (ORT initialization issue)");
+            println!("  • onnx:cuda: ⚠️ Cannot check (ORT initialization issue)");
+            println!("  • onnx:coreml: ⚠️ Cannot check (ORT initialization issue)");
+            println!("    Note: ONNX providers may still work when used directly");
+        }
+    }
 
-    for (name, available, description) in providers {
+    println!("\n🦀 Tract Execution Providers:");
+    // Check Tract provider availability (pure Rust, should always work)
+    let tract_providers = TractBackend::list_providers();
+
+    for (name, available, description) in tract_providers {
         let status = if available {
             "✅ Available"
         } else {
             "❌ Not Available"
         };
-        println!("  • onnx:{name}: {status} - {description}");
+        println!("  • tract:{}: {} - {}", name.to_lowercase(), status, description);
     }
 
     println!("\n💡 Usage Examples:");
-    println!("  --execution-provider onnx:auto    # Auto-select best provider (default)");
+    println!("  --execution-provider onnx:auto    # Auto-select best ONNX provider (default)");
     println!("  --execution-provider onnx:coreml  # Use Apple CoreML (macOS)");
     println!("  --execution-provider onnx:cuda    # Use NVIDIA CUDA");
-    println!("  --execution-provider onnx:cpu     # Force CPU execution");
+    println!("  --execution-provider onnx:cpu     # Force ONNX CPU execution");
     println!("  --execution-provider onnx         # Same as onnx:auto");
+    println!("  --execution-provider tract:cpu    # Use pure Rust Tract backend");
+    println!("  --execution-provider tract        # Same as tract:cpu");
 
     println!("\n📋 Notes:");
     println!("  • Default backend is 'onnx' if none specified");
-    println!("  • GPU acceleration requires compatible hardware/drivers");
-    println!("  • CPU provider is always available as fallback");
+    println!("  • ONNX backend provides GPU acceleration with compatible hardware/drivers");
+    println!("  • Tract backend is pure Rust with no external dependencies");
+    println!("  • Tract is ideal for WebAssembly deployments and simpler builds");
+    println!("  • CPU provider is always available as fallback for both backends");
 
     Ok(())
 }
@@ -505,10 +574,11 @@ async fn process_inputs(
     cli: &Cli,
     config: &RemovalConfig,
     model_spec: &ModelSpec,
+    backend_type: BackendType,
 ) -> Result<usize> {
     // Handle stdin specially (single input)
     if cli.input.len() == 1 && cli.input[0] == "-" {
-        return process_stdin(&cli.output, config, model_spec).await;
+        return process_stdin(&cli.output, config, model_spec, backend_type).await;
     }
 
     // Collect all image files from inputs (files and directories)
@@ -547,9 +617,8 @@ async fn process_inputs(
     let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))
         .context("Failed to load model for batch processing")?;
     
-    // Create ONNX backend with the model manager
-    use bg_remove_onnx::OnnxBackend;
-    let backend = Box::new(OnnxBackend::with_model_manager(model_manager));
+    // Create backend with the model manager based on backend type
+    let backend = create_backend(backend_type, model_manager);
     let mut processor = bg_remove_core::ImageProcessor::with_backend(config, backend)
         .context("Failed to create image processor for batch processing")?;
 
@@ -634,13 +703,14 @@ async fn process_stdin(
     output_target: &Option<String>,
     config: &RemovalConfig,
     model_spec: &ModelSpec,
+    backend_type: BackendType,
 ) -> Result<usize> {
     info!("Reading image from stdin");
 
     let image_data = read_stdin()?;
     let start_time = Instant::now();
 
-    // Create ONNX backend with the model
+    // Create backend with the model based on backend type
     let temp_dir = std::env::temp_dir();
     let temp_file = temp_dir.join("stdin_input.tmp");
     std::fs::write(&temp_file, &image_data)?;
@@ -648,8 +718,7 @@ async fn process_stdin(
     let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))
         .context("Failed to load model for stdin processing")?;
     
-    use bg_remove_onnx::OnnxBackend;
-    let backend = Box::new(OnnxBackend::with_model_manager(model_manager));
+    let backend = create_backend(backend_type, model_manager);
     let result = remove_background_with_backend(&temp_file, config, backend)
         .await
         .context("Failed to remove background")?;
@@ -985,20 +1054,28 @@ mod tests {
 
     #[test]
     fn test_parse_execution_provider() {
-        // Test valid backend:provider combinations
+        // Test valid ONNX backend:provider combinations
         assert_eq!(parse_execution_provider("onnx:auto").unwrap(), ExecutionProvider::Auto);
         assert_eq!(parse_execution_provider("onnx:cpu").unwrap(), ExecutionProvider::Cpu);
         assert_eq!(parse_execution_provider("onnx:cuda").unwrap(), ExecutionProvider::Cuda);
         assert_eq!(parse_execution_provider("onnx:coreml").unwrap(), ExecutionProvider::CoreMl);
 
-        // Test implicit auto for "onnx" only
+        // Test valid Tract backend:provider combinations
+        assert_eq!(parse_execution_provider("tract:cpu").unwrap(), ExecutionProvider::Cpu);
+
+        // Test implicit defaults
         assert_eq!(parse_execution_provider("onnx").unwrap(), ExecutionProvider::Auto);
+        assert_eq!(parse_execution_provider("tract").unwrap(), ExecutionProvider::Cpu);
 
         // Test invalid backend
         assert!(parse_execution_provider("invalid:auto").is_err());
 
-        // Test invalid provider
+        // Test invalid ONNX provider
         assert!(parse_execution_provider("onnx:invalid").is_err());
+
+        // Test invalid Tract provider (only cpu supported)
+        assert!(parse_execution_provider("tract:cuda").is_err());
+        assert!(parse_execution_provider("tract:auto").is_err());
 
         // Test invalid format
         assert!(parse_execution_provider("invalid").is_err());

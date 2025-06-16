@@ -42,6 +42,8 @@ embed-all = ["bg-remove-core/embed-all"]
 bg-remove-core = { path = "../bg-remove-core" }
 # ONNX backend
 bg-remove-onnx = { path = "../bg-remove-onnx" }
+# Tract backend
+bg-remove-tract = { path = "../bg-remove-tract" }
 
 # CLI dependencies
 clap = { workspace = true }
