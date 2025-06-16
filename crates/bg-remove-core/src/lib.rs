@@ -158,6 +158,29 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     processor.remove_background(input_path).await
 }
 
+/// Remove background from an image file with a custom backend
+///
+/// This function allows injecting a specific inference backend, useful when the core
+/// crate doesn't have direct access to backend implementations.
+///
+/// # Arguments
+///
+/// * `input_path` - Path to the input image file
+/// * `config` - Configuration for the removal operation
+/// * `backend` - Pre-initialized inference backend
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image, mask, and metadata
+pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
+    input_path: P,
+    config: &RemovalConfig,
+    backend: Box<dyn InferenceBackend>,
+) -> Result<RemovalResult> {
+    let mut processor = ImageProcessor::with_backend(config, backend)?;
+    processor.remove_background(input_path).await
+}
+
 /// Remove background from an image file using first available embedded model
 ///
 /// This is a convenience function that automatically selects the first available embedded model.

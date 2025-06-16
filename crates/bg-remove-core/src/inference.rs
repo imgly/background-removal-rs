@@ -112,9 +112,12 @@ mod tests {
     fn test_backend_registry() {
         let mut registry = BackendRegistry::new();
 
-        // Test that default backends are registered
+        // Test that default backends are registered (ONNX moved to separate crate)
         assert!(registry.get("mock").is_some());
-        assert!(registry.get("onnx").is_some());
         assert!(registry.get("nonexistent").is_none());
+        
+        // Test registering a custom backend
+        registry.register("custom", Box::new(MockBackend::new()));
+        assert!(registry.get("custom").is_some());
     }
 }

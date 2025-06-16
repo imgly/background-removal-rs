@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use bg_remove_core::config::{BackgroundColor, ColorManagementConfig};
 use bg_remove_core::{
-    get_available_embedded_models, remove_background_with_model, ExecutionProvider, ModelManager,
+    get_available_embedded_models, remove_background_with_backend, ExecutionProvider, ModelManager,
     ModelSource, ModelSpec, OutputFormat, RemovalConfig,
 };
 use clap::{Parser, ValueEnum};
@@ -533,7 +533,11 @@ async fn process_inputs(
     // Create processor once with model pre-loaded for efficiency (massive speedup for batch processing)
     let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))
         .context("Failed to load model for batch processing")?;
-    let mut processor = bg_remove_core::ImageProcessor::with_model_manager(config, model_manager)
+    
+    // Create ONNX backend with the model manager
+    use bg_remove_onnx::OnnxBackend;
+    let backend = Box::new(OnnxBackend::with_model_manager(model_manager));
+    let mut processor = bg_remove_core::ImageProcessor::with_backend(config, backend)
         .context("Failed to create image processor for batch processing")?;
 
     // For multiple files, show progress bar
@@ -623,13 +627,17 @@ async fn process_stdin(
     let image_data = read_stdin()?;
     let start_time = Instant::now();
 
-    // Use the existing API for consistency - we'll need to save to a temporary file and use remove_background_with_model
-    // For now, use a simpler approach that matches the file-based API
+    // Create ONNX backend with the model
     let temp_dir = std::env::temp_dir();
     let temp_file = temp_dir.join("stdin_input.tmp");
     std::fs::write(&temp_file, &image_data)?;
 
-    let result = remove_background_with_model(&temp_file, config, model_spec)
+    let model_manager = ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))
+        .context("Failed to load model for stdin processing")?;
+    
+    use bg_remove_onnx::OnnxBackend;
+    let backend = Box::new(OnnxBackend::with_model_manager(model_manager));
+    let result = remove_background_with_backend(&temp_file, config, backend)
         .await
         .context("Failed to remove background")?;
 

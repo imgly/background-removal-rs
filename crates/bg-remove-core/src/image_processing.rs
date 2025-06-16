@@ -810,7 +810,9 @@ mod tests {
             ..Default::default()
         };
 
-        let processor = ImageProcessor::new(&config);
+        // Use mock backend directly since ONNX moved to separate crate
+        let backend = Box::new(MockBackend::new());
+        let processor = ImageProcessor::with_backend(&config, backend);
         assert!(processor.is_ok());
     }
 
@@ -821,7 +823,9 @@ mod tests {
             ..Default::default()
         };
 
-        let processor = ImageProcessor::new(&config).unwrap();
+        // Use mock backend directly since ONNX moved to separate crate
+        let backend = Box::new(MockBackend::new());
+        let processor = ImageProcessor::with_backend(&config, backend).unwrap();
 
         // Create a test image
         let test_image = DynamicImage::new_rgb8(100, 100);
