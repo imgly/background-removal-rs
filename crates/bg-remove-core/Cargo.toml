@@ -41,7 +41,7 @@ benchmark-details = []    # Enable detailed benchmark output
 
 [dependencies]
 # Core dependencies
-image = { version = "0.25.6", features = ["png", "jpeg"], default-features = false }
+image = { version = "0.25.6", features = ["png", "jpeg", "tiff"], default-features = false }
 ndarray = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

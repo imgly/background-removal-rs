@@ -211,7 +211,7 @@ impl ProfileEmbedder {
                 let rgba_image = image.to_rgba8();
                 
                 // Always use image-rs WebP encoder (no external C dependencies)
-                let encoder = if quality >= 100 {
+                let mut encoder = if quality >= 100 {
                     image::codecs::webp::WebPEncoder::new_lossless(writer)
                 } else {
                     // Note: image-rs WebP lossy encoder doesn't have quality parameter in constructor

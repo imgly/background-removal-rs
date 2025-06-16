@@ -19,8 +19,8 @@ workspace = true
 crate-type = ["cdylib"]
 
 [features]
-# Default: embed ISNet FP16 model for reasonable bundle size
-default = ["embed-isnet-fp16"]
+# Default: no embedded models for easier building/testing
+default = []
 
 # Individual model embedding (pass-through to core)
 embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]

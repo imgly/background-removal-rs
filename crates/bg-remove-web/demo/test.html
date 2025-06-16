@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bg-remove-web - Simple Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status { 
+            padding: 10px; 
+            border-radius: 4px; 
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 bg-remove-web Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Module Loading Test</h2>
+        <button onclick="testModuleLoading()">Test WASM Loading</button>
+        <div id="module-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Configuration Test</h2>
+        <button onclick="testConfiguration()">Test WebRemovalConfig</button>
+        <div id="config-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>API Test</h2>
+        <button onclick="testAPI()">Test JavaScript API</button>
+        <div id="api-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Canvas Test</h2>
+        <button onclick="testCanvas()">Create Test Canvas</button>
+        <canvas id="test-canvas" width="200" height="200" style="border: 1px solid #ddd; display: none;"></canvas>
+        <div id="canvas-status"></div>
+    </div>
+
+    <script type="module">
+        // Make functions available globally
+        window.testModuleLoading = async function() {
+            const statusDiv = document.getElementById('module-status');
+            statusDiv.innerHTML = '<div class="status info">Loading WASM module...</div>';
+            
+            try {
+                // Test direct WASM loading
+                const wasmModule = await import('../pkg/bg_remove_web.js');
+                await wasmModule.default();
+                
+                statusDiv.innerHTML = '<div class="status success">✅ WASM module loaded successfully!</div>';
+                
+                // Test available functions
+                const info = `
+                    <pre>
+Version: ${wasmModule.get_version()}
+Providers: ${JSON.stringify(wasmModule.get_wasm_providers(), null, 2)}
+Available exports: ${Object.keys(wasmModule).join(', ')}
+                    </pre>
+                `;
+                statusDiv.innerHTML += info;
+                
+                window.wasmModule = wasmModule; // Store for other tests
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Failed to load module: ${error.message}</div>`;
+                console.error(error);
+            }
+        };
+
+        window.testConfiguration = async function() {
+            const statusDiv = document.getElementById('config-status');
+            
+            if (!window.wasmModule) {
+                statusDiv.innerHTML = '<div class="status error">Please load the module first!</div>';
+                return;
+            }
+            
+            try {
+                // Create config
+                const config = new window.wasmModule.WebRemovalConfig();
+                
+                // Test setters
+                config.outputFormat = "jpeg";
+                config.jpegQuality = 95;
+                config.backgroundColor = "#ff0000";
+                config.debug = true;
+                config.preserveColorProfile = false;
+                
+                // Test getters
+                const configInfo = `
+                    <div class="status success">✅ Configuration created successfully!</div>
+                    <pre>
+Output Format: ${config.outputFormat}
+JPEG Quality: ${config.jpegQuality}
+WebP Quality: ${config.webpQuality}
+Background Color: ${config.backgroundColor}
+Debug: ${config.debug}
+Preserve Color Profile: ${config.preserveColorProfile}
+Force sRGB: ${config.forceSrgbOutput}
+Intra Threads: ${config.intraThreads}
+Inter Threads: ${config.interThreads}
+                    </pre>
+                `;
+                
+                statusDiv.innerHTML = configInfo;
+                window.testConfig = config; // Store for other tests
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Configuration test failed: ${error.message}</div>`;
+                console.error(error);
+            }
+        };
+
+        window.testAPI = async function() {
+            const statusDiv = document.getElementById('api-status');
+            
+            try {
+                // Import the high-level API
+                const { BackgroundRemovalAPI } = await import('../js/index.js');
+                
+                statusDiv.innerHTML = '<div class="status info">Creating API instance...</div>';
+                
+                const api = new BackgroundRemovalAPI();
+                
+                // Note: Initialization will fail without models, but we can test the API structure
+                statusDiv.innerHTML = `
+                    <div class="status success">✅ API instance created!</div>
+                    <pre>
+API Methods: ${Object.getOwnPropertyNames(Object.getPrototypeOf(api)).join(', ')}
+Initialized: ${api.isInitialized()}
+                    </pre>
+                `;
+                
+                // Try initialization (will fail without models)
+                statusDiv.innerHTML += '<div class="status info">Attempting initialization (may fail without models)...</div>';
+                
+                try {
+                    await api.initialize({ debug: true });
+                    statusDiv.innerHTML += '<div class="status success">✅ API initialized!</div>';
+                } catch (e) {
+                    statusDiv.innerHTML += `<div class="status error">⚠️ Initialization failed (expected without models): ${e.message}</div>`;
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ API test failed: ${error.message}</div>`;
+                console.error(error);
+            }
+        };
+
+        window.testCanvas = function() {
+            const canvas = document.getElementById('test-canvas');
+            const statusDiv = document.getElementById('canvas-status');
+            
+            try {
+                canvas.style.display = 'block';
+                const ctx = canvas.getContext('2d');
+                
+                // Draw a test pattern
+                // Background
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(0, 0, 200, 200);
+                
+                // Object (circle)
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(100, 100, 50, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Get ImageData
+                const imageData = ctx.getImageData(0, 0, 200, 200);
+                
+                statusDiv.innerHTML = `
+                    <div class="status success">✅ Canvas created!</div>
+                    <pre>
+Canvas size: ${canvas.width}x${canvas.height}
+ImageData size: ${imageData.width}x${imageData.height}
+Data length: ${imageData.data.length} bytes
+Pixels: ${imageData.width * imageData.height}
+                    </pre>
+                `;
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Canvas test failed: ${error.message}</div>`;
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>

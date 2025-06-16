@@ -972,7 +972,7 @@ impl RemovalResult {
 
     /// Encode as WebP with RGBA transparency support
     #[cfg(feature = "webp-support")]
-    fn encode_webp(&self, quality: u8) -> Vec<u8> {
+    fn encode_webp(&self, _quality: u8) -> Vec<u8> {
         use image::ImageEncoder;
         
         let rgba_image = self.image.to_rgba8();
