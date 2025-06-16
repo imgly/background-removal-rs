@@ -9,9 +9,8 @@ use crate::{
     models::ModelManager,
     types::{ColorProfile, ProcessingMetadata, RemovalResult, SegmentationMask},
 };
-use chrono::Utc;
 use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
-use log::info;
+use log;
 use ndarray::Array4;
 use std::path::Path;
 use std::time::Instant;
@@ -50,8 +49,8 @@ impl ImageProcessor {
             Box::new(OnnxBackend::with_model_manager(model_manager))
         };
 
-        // Initialize the backend
-        backend.initialize(config)?;
+        // Initialize the backend and capture model load timing
+        let _model_load_time = backend.initialize(config)?;
 
         Ok(Self {
             backend,
@@ -123,9 +122,8 @@ impl ImageProcessor {
             Err(_) => "Unknown Model".to_string(),
         };
 
-        info!(
-            "[{}Z INFO bg_remove] Starting processing: {} - Model: {}",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        log::info!(
+            "Starting processing: {} - Model: {}",
             input_path_str,
             model_info
         );
@@ -140,9 +138,8 @@ impl ImageProcessor {
 
         // Log color profile information if found
         if let Some(ref profile) = color_profile {
-            info!(
-                "[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms - Color Profile: {} ({} bytes)",
-                Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+            log::debug!(
+                "Image decoded: {}x{} in {}ms - Color Profile: {} ({} bytes)",
                 original_dimensions.0,
                 original_dimensions.1,
                 timings.image_decode_ms,
@@ -150,9 +147,8 @@ impl ImageProcessor {
                 profile.data_size()
             );
         } else {
-            info!(
-                "[{}Z INFO bg_remove] Image decoded: {}x{} in {}ms - No color profile",
-                Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+            log::debug!(
+                "Image decoded: {}x{} in {}ms - No color profile",
                 original_dimensions.0,
                 original_dimensions.1,
                 timings.image_decode_ms
@@ -171,14 +167,29 @@ impl ImageProcessor {
                     crate::error::BgRemovalError::processing("Preprocessing time too large for u64")
                 })?;
 
-        info!(
-            "[{}Z INFO bg_remove] Preprocessing completed in {}ms",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        log::debug!(
+            "Preprocessing completed in {}ms",
             timings.preprocessing_ms
         );
 
-        // 3. Inference timing (model load happens inside backend initialization if needed)
+        // 3. Model loading and inference timing
+        let was_initialized = self.backend.is_initialized();
         let inference_start = Instant::now();
+        
+        // Initialize backend if needed and capture model load time
+        if !was_initialized {
+            let model_load_time = self.backend.initialize(&self.config)?;
+            if let Some(load_duration) = model_load_time {
+                timings.model_load_ms = load_duration.as_millis().try_into().map_err(|_| {
+                    crate::error::BgRemovalError::processing("Model load time too large for u64")
+                })?;
+                log::debug!(
+                    "Model loaded in {}ms",
+                    timings.model_load_ms
+                );
+            }
+        }
+        
         let output_tensor = self.backend.infer(&input_tensor)?;
         timings.inference_ms = inference_start
             .elapsed()
@@ -188,14 +199,10 @@ impl ImageProcessor {
                 crate::error::BgRemovalError::processing("Inference time too large for u64")
             })?;
 
-        info!(
-            "[{}Z INFO bg_remove] Inference completed in {}ms",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        log::debug!(
+            "Inference completed in {}ms",
             timings.inference_ms
         );
-
-        // Note: Model loading timing is included in inference for now
-        // This could be separated by adding is_loaded() method to InferenceBackend trait
 
         // 4. Postprocessing timing
         let postprocess_start = Instant::now();
@@ -212,9 +219,8 @@ impl ImageProcessor {
                     )
                 })?;
 
-        info!(
-            "[{}Z INFO bg_remove] Postprocessing completed in {}ms",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        log::debug!(
+            "Postprocessing completed in {}ms",
             timings.postprocessing_ms
         );
 

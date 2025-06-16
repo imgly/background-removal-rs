@@ -39,10 +39,10 @@ impl OnnxBackend {
         let mut providers = Vec::new();
 
         // System information for diagnostics
-        log::info!("🔍 System Hardware Analysis:");
-        log::info!("  - Platform: {os}", os = std::env::consts::OS);
-        log::info!("  - Architecture: {arch}", arch = std::env::consts::ARCH);
-        log::info!(
+        log::debug!("🔍 System Hardware Analysis:");
+        log::debug!("  - Platform: {os}", os = std::env::consts::OS);
+        log::debug!("  - Architecture: {arch}", arch = std::env::consts::ARCH);
+        log::debug!(
             "  - CPU cores: {cores}",
             cores = std::thread::available_parallelism()
                 .map(std::num::NonZero::get)
@@ -61,19 +61,19 @@ impl OnnxBackend {
                 .output()
             {
                 let cpu_brand = String::from_utf8_lossy(&output.stdout);
-                log::info!("  - CPU: {cpu}", cpu = cpu_brand.trim());
+                log::debug!("  - CPU: {cpu}", cpu = cpu_brand.trim());
 
                 if cpu_brand.contains("Apple") {
-                    log::info!("  - ✅ Apple Silicon detected - CoreML should be available");
+                    log::debug!("  - ✅ Apple Silicon detected - CoreML should be available");
                 } else {
-                    log::info!("  - ⚠️ Intel Mac detected - CoreML may have limited support");
+                    log::debug!("  - ⚠️ Intel Mac detected - CoreML may have limited support");
                 }
             }
 
             // Check macOS version
             if let Ok(output) = Command::new("sw_vers").arg("-productVersion").output() {
                 let version = String::from_utf8_lossy(&output.stdout);
-                log::info!("  - macOS version: {version}", version = version.trim());
+                log::debug!("  - macOS version: {version}", version = version.trim());
             }
         }
 
@@ -159,7 +159,8 @@ impl OnnxBackend {
 
     /// Load and initialize the ONNX model
     #[allow(clippy::too_many_lines)] // Complex provider configuration logic
-    fn load_model(&mut self, config: &RemovalConfig) -> Result<()> {
+    fn load_model(&mut self, config: &RemovalConfig) -> Result<std::time::Duration> {
+        let model_load_start = std::time::Instant::now();
         // Get or create model manager
         let model_manager = if let Some(ref manager) = self.model_manager {
             manager
@@ -316,46 +317,46 @@ impl OnnxBackend {
             .as_ref()
             .ok_or_else(|| crate::error::BgRemovalError::internal("Model manager not initialized"))?
             .get_info()?;
-        log::info!("✅ ONNX Runtime session created successfully");
-        log::info!("Session configuration:");
-        log::info!("  - Requested provider: {:?}", config.execution_provider);
-        log::info!(
+        log::debug!("✅ ONNX Runtime session created successfully");
+        log::debug!("Session configuration:");
+        log::debug!("  - Requested provider: {:?}", config.execution_provider);
+        log::debug!(
             "  - Threading: {intra_threads} intra-op threads, {inter_threads} inter-op threads"
         );
-        log::info!("  - Parallel execution: enabled");
-        log::info!("  - Optimization level: Level3");
-        log::info!("  - Model: {} ({})", model_info.name, model_info.precision);
+        log::debug!("  - Parallel execution: enabled");
+        log::debug!("  - Optimization level: Level3");
+        log::debug!("  - Model: {} ({})", model_info.name, model_info.precision);
         // Model size in MB (precision loss acceptable for display)
         #[allow(clippy::cast_precision_loss)] // Precision loss acceptable for logging display
         let size_mb = model_info.size_bytes as f64 / (1024.0 * 1024.0);
-        log::info!("  - Model size: {size_mb:.2} MB");
+        log::debug!("  - Model size: {size_mb:.2} MB");
 
         // Try to get active execution providers (this is diagnostic info)
         // Note: ONNX Runtime doesn't expose this directly, but we can infer from our configuration
         match config.execution_provider {
             ExecutionProvider::Auto => {
-                log::info!("🔍 Active execution providers (in priority order):");
+                log::debug!("🔍 Active execution providers (in priority order):");
                 if OrtExecutionProvider::is_available(&CUDAExecutionProvider::default())
                     .unwrap_or(false)
                 {
-                    log::info!("  1. CUDA (GPU acceleration)");
+                    log::debug!("  1. CUDA (GPU acceleration)");
                 }
                 if OrtExecutionProvider::is_available(&CoreMLExecutionProvider::default())
                     .unwrap_or(false)
                 {
-                    log::info!("  2. CoreML (Apple Silicon acceleration)");
-                    log::info!("     📊 Expected performance: 3-10x faster than CPU");
-                    log::info!("     🎯 This should provide significant speedup");
+                    log::debug!("  2. CoreML (Apple Silicon acceleration)");
+                    log::debug!("     📊 Expected performance: 3-10x faster than CPU");
+                    log::debug!("     🎯 This should provide significant speedup");
                 }
-                log::info!("  3. CPU (fallback)");
+                log::debug!("  3. CPU (fallback)");
             },
             ExecutionProvider::CoreMl => {
                 if OrtExecutionProvider::is_available(&CoreMLExecutionProvider::default())
                     .unwrap_or(false)
                 {
                     log::info!("🎯 Active execution provider: CoreML");
-                    log::info!("  📊 Expected performance: 3-10x faster than CPU");
-                    log::info!("  🚀 Using Apple Neural Engine and GPU acceleration");
+                    log::debug!("  📊 Expected performance: 3-10x faster than CPU");
+                    log::debug!("  🚀 Using Apple Neural Engine and GPU acceleration");
                 } else {
                     log::warn!("⚠️ Active execution provider: CPU (CoreML not available)");
                 }
@@ -377,7 +378,13 @@ impl OnnxBackend {
         self.session = Some(session);
         self.initialized = true;
 
-        Ok(())
+        let model_load_time = model_load_start.elapsed();
+        log::info!(
+            "📊 Model loading complete: {:.0}ms",
+            model_load_time.as_secs_f64() * 1000.0
+        );
+        
+        Ok(model_load_time)
     }
 }
 
@@ -388,13 +395,13 @@ impl Default for OnnxBackend {
 }
 
 impl InferenceBackend for OnnxBackend {
-    fn initialize(&mut self, config: &RemovalConfig) -> Result<()> {
+    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
         if self.initialized {
-            return Ok(());
+            return Ok(None); // No model loading time for already initialized backend
         }
 
-        self.load_model(config)?;
-        Ok(())
+        let model_load_time = self.load_model(config)?;
+        Ok(Some(model_load_time))
     }
 
     #[allow(clippy::too_many_lines)] // Complex inference with detailed diagnostics
@@ -597,5 +604,9 @@ impl InferenceBackend for OnnxBackend {
             crate::error::BgRemovalError::internal("Model manager not initialized")
         })?;
         model_manager.get_info()
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.initialized
     }
 }

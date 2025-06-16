@@ -1,9 +1,8 @@
 //! Core types for background removal operations
 
 use crate::{config::OutputFormat, error::Result};
-use chrono::Utc;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
-use log::info;
+use log;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 use std::path::Path;
@@ -452,19 +451,17 @@ impl RemovalResult {
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
-        // Log encoding completion first
-        info!(
-            "[{}Z INFO bg_remove] Image Encoding completed in {}ms",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        // Log encoding completion at debug level
+        log::debug!(
+            "Image Encoding completed in {}ms",
             encode_ms
         );
 
-        // Then log final completion with total processing time
+        // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
         let input_path = self.input_path.as_deref().unwrap_or("input");
-        info!(
-            "[{}Z INFO bg_remove] Processed: {} -> {} in {:.2}s",
-            Utc::now().format("%Y-%m-%dT%H:%M:%S"),
+        log::debug!(
+            "Processed: {} -> {} in {:.2}s",
             input_path,
             path_str,
             total_time_s
@@ -485,6 +482,143 @@ impl RemovalResult {
         self.save_with_timing(path, image::ImageFormat::Png)
     }
 
+    /// Save as JPEG and measure encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - JPEG encoding errors from underlying image library
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
+    pub fn save_jpeg_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
+        let path_str = path.as_ref().display().to_string();
+        let encode_start = std::time::Instant::now();
+        
+        // Convert to RGB and apply background color for JPEG
+        let rgb_image = self.image.to_rgb8();
+        let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+            std::fs::File::create(&path)?,
+            quality,
+        );
+        jpeg_encoder.encode_image(&rgb_image)?;
+        
+        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("JPEG encoding time too large for u64")
+        })?;
+
+        // Update the timings
+        self.metadata.timings.image_encode_ms = Some(encode_ms);
+
+        // Log encoding completion at debug level
+        log::debug!(
+            "Image Encoding completed in {}ms",
+            encode_ms
+        );
+
+        // Log final completion with total processing time
+        let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+        let input_path = self.input_path.as_deref().unwrap_or("input");
+        log::debug!(
+            "Processed: {} -> {} in {:.2}s",
+            input_path,
+            path_str,
+            total_time_s
+        );
+
+        Ok(())
+    }
+
+    /// Save as WebP and measure encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - WebP encoding errors from underlying implementation
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
+    pub fn save_webp_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
+        let path_str = path.as_ref().display().to_string();
+        let encode_start = std::time::Instant::now();
+        
+        // Use the existing WebP encoding method
+        let webp_data = self.encode_webp(quality);
+        std::fs::write(&path, webp_data)?;
+        
+        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("WebP encoding time too large for u64")
+        })?;
+
+        // Update the timings
+        self.metadata.timings.image_encode_ms = Some(encode_ms);
+
+        // Log encoding completion at debug level
+        log::debug!(
+            "Image Encoding completed in {}ms",
+            encode_ms
+        );
+
+        // Log final completion with total processing time
+        let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+        let input_path = self.input_path.as_deref().unwrap_or("input");
+        log::debug!(
+            "Processed: {} -> {} in {:.2}s",
+            input_path,
+            path_str,
+            total_time_s
+        );
+
+        Ok(())
+    }
+
+    /// Save in the specified format with timing measurement
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - Image encoding errors specific to the chosen format
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
+    pub fn save_timed<P: AsRef<Path>>(&mut self, path: P, format: OutputFormat, quality: u8) -> Result<()> {
+        match format {
+            OutputFormat::Png => self.save_png_timed(path),
+            OutputFormat::Jpeg => self.save_jpeg_timed(path, quality),
+            OutputFormat::WebP => self.save_webp_timed(path, quality),
+            OutputFormat::Rgba8 => {
+                let path_str = path.as_ref().display().to_string();
+                let encode_start = std::time::Instant::now();
+                
+                // For RGBA8 format, save the raw RGBA bytes
+                let rgba_image = self.image.to_rgba8();
+                std::fs::write(&path, rgba_image.as_raw())?;
+                
+                let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+                    crate::error::BgRemovalError::processing("RGBA8 encoding time too large for u64")
+                })?;
+
+                // Update the timings
+                self.metadata.timings.image_encode_ms = Some(encode_ms);
+
+                // Log encoding completion at debug level
+                log::debug!(
+                    "Image Encoding completed in {}ms",
+                    encode_ms
+                );
+
+                // Log final completion with total processing time
+                let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+                let input_path = self.input_path.as_deref().unwrap_or("input");
+                log::debug!(
+                    "Processed: {} -> {} in {:.2}s",
+                    input_path,
+                    path_str,
+                    total_time_s
+                );
+
+                Ok(())
+            },
+        }
+    }
+
     /// Get timing summary for display
     #[must_use]
     pub fn timing_summary(&self) -> String {
@@ -492,13 +626,29 @@ impl RemovalResult {
         let breakdown = t.breakdown_percentages();
 
         let mut summary = format!(
-            "Total: {}ms | Decode: {}ms ({:.1}%) | Preprocess: {}ms ({:.1}%) | Inference: {}ms ({:.1}%) | Postprocess: {}ms ({:.1}%)",
-            t.total_ms,
+            "Total: {}ms",
+            t.total_ms
+        );
+
+        // Add model load timing if present (only for first time)
+        if t.model_load_ms > 0 {
+            write!(
+                summary,
+                " | Model Load: {}ms ({:.1}%)",
+                t.model_load_ms, breakdown.model_load_pct
+            )
+            .expect("Writing to String should never fail");
+        }
+
+        write!(
+            summary,
+            " | Decode: {}ms ({:.1}%) | Preprocess: {}ms ({:.1}%) | Inference: {}ms ({:.1}%) | Postprocess: {}ms ({:.1}%)",
             t.image_decode_ms, breakdown.decode_pct,
             t.preprocessing_ms, breakdown.preprocessing_pct,
             t.inference_ms, breakdown.inference_pct,
             t.postprocessing_ms, breakdown.postprocessing_pct
-        );
+        )
+        .expect("Writing to String should never fail");
 
         // Add encode timing if present
         if let Some(encode_ms) = t.image_encode_ms {
@@ -589,7 +739,7 @@ impl RemovalResult {
 
         // Check if we have a color profile to embed
         if let Some(ref profile) = self.color_profile {
-            log::info!(
+            log::debug!(
                 "Embedding ICC color profile ({}, {} bytes) in output image",
                 profile.color_space,
                 profile.data_size()
@@ -613,6 +763,79 @@ impl RemovalResult {
             log::debug!("No ICC color profile available, using standard save");
             self.save(path, format, quality)
         }
+    }
+
+    /// Save with color profile preservation and measure encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - Image encoding errors specific to the chosen format
+    /// - Color profile embedding errors
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
+    pub fn save_with_color_profile_timed<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<()> {
+        use crate::color_profile::ProfileEmbedder;
+
+        let path_str = path.as_ref().display().to_string();
+        let encode_start = std::time::Instant::now();
+
+        // Check if we have a color profile to embed
+        if let Some(ref profile) = self.color_profile {
+            log::debug!(
+                "Embedding ICC color profile ({}, {} bytes) in output image",
+                profile.color_space,
+                profile.data_size()
+            );
+
+            // Convert OutputFormat to ImageFormat for ProfileEmbedder
+            let image_format = match format {
+                OutputFormat::Png => image::ImageFormat::Png,
+                OutputFormat::Jpeg => image::ImageFormat::Jpeg,
+                OutputFormat::WebP => image::ImageFormat::WebP,
+                OutputFormat::Rgba8 => {
+                    log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
+                    return self.save_timed(path, format, quality);
+                },
+            };
+
+            // Use ProfileEmbedder to save with ICC profile
+            ProfileEmbedder::embed_in_output(&self.image, profile, &path, image_format, quality)?;
+        } else {
+            // No color profile to embed, use standard saving
+            log::debug!("No ICC color profile available, using standard save");
+            return self.save_timed(path, format, quality);
+        }
+
+        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("Color profile encoding time too large for u64")
+        })?;
+
+        // Update the timings
+        self.metadata.timings.image_encode_ms = Some(encode_ms);
+
+        // Log encoding completion at debug level
+        log::debug!(
+            "Image Encoding completed in {}ms",
+            encode_ms
+        );
+
+        // Log final completion with total processing time
+        let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+        let input_path = self.input_path.as_deref().unwrap_or("input");
+        log::debug!(
+            "Processed: {} -> {} in {:.2}s",
+            input_path,
+            path_str,
+            total_time_s
+        );
+
+        Ok(())
     }
 
     /// Get the ICC color profile if available

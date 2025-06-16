@@ -64,9 +64,9 @@ struct Cli {
     #[arg(short, long)]
     debug: bool,
 
-    /// Enable verbose logging
-    #[arg(short, long)]
-    verbose: bool,
+    /// Enable verbose logging (-v: INFO, -vv: DEBUG, -vvv: TRACE)
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
 
     /// Process directory recursively
     #[arg(short, long)]
@@ -274,9 +274,7 @@ async fn main() -> Result<()> {
     if cli.debug {
         info!("🐛 DEBUG MODE: Using mock backend for testing");
     }
-    if cli.verbose {
-        info!("📋 VERBOSE MODE: Detailed logging enabled");
-    }
+    // Verbose mode information is already shown in init_logging()
     info!("Input(s): {}", cli.input.join(", "));
     info!(
         "Model: {} ({})",
@@ -348,7 +346,7 @@ async fn main() -> Result<()> {
         },
     }
 
-    if cli.verbose {
+    if cli.verbose > 1 {
         log::debug!(
             "Configuration: execution_provider={:?}, output_format={:?}, debug={}",
             config.execution_provider,
@@ -394,15 +392,24 @@ async fn main() -> Result<()> {
 }
 
 /// Initialize logging based on verbosity level
-fn init_logging(verbose: bool) {
-    let log_level = if verbose { "debug" } else { "info" };
+fn init_logging(verbose_count: u8) {
+    let log_level = match verbose_count {
+        0 => "warn",        // Default: only warnings and errors
+        1 => "info",        // -v: user-actionable information
+        2 => "debug",       // -vv: internal state and computations  
+        _ => "trace",       // -vvv+: extremely detailed traces
+    };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
         .format_timestamp_secs()
         .init();
 
-    if verbose {
-        log::debug!("Verbose logging enabled - showing DEBUG level messages");
+    if verbose_count > 0 {
+        match verbose_count {
+            1 => log::info!("📋 Verbose mode: Showing user-actionable information"),
+            2 => log::debug!("🔧 Debug mode: Showing internal state and computations"),
+            _ => log::trace!("🔍 Trace mode: Showing extremely detailed traces"),
+        }
         log::debug!("Log level: {log_level}");
     }
 }
@@ -545,6 +552,7 @@ async fn process_inputs(
     let mut processed_count = 0;
     let mut failed_count = 0;
     let file_count = all_files.len();
+    let batch_start_time = Instant::now();
 
     for input_file in all_files {
         if let Some(ref pb) = progress {
@@ -562,8 +570,8 @@ async fn process_inputs(
         match process_single_file_with_processor(&mut processor, &input_file, &output_path, config).await {
             Ok(_) => {
                 processed_count += 1;
-                if cli.verbose {
-                    info!("✅ Processed: {}", input_file.display());
+                if cli.verbose > 1 {
+                    log::debug!("✅ Processed: {}", input_file.display());
                 }
             },
             Err(e) => {
@@ -585,6 +593,18 @@ async fn process_inputs(
 
     if failed_count > 0 {
         warn!("Some files failed to process. Processed: {processed_count}, Failed: {failed_count}");
+    }
+
+    // For batch processing, show a summary
+    let batch_total_time = batch_start_time.elapsed();
+    if file_count > 1 {
+        info!("📊 Batch processing summary:");
+        info!("  ├─ Files processed: {}", processed_count);
+        info!("  ├─ Files failed: {}", failed_count);
+        info!("  ├─ Total time: {:.2}s", batch_total_time.as_secs_f64());
+        info!("  └─ Average per file: {:.2}s", 
+              if processed_count > 0 { batch_total_time.as_secs_f64() / (processed_count as f64) } else { 0.0 });
+        log::debug!("Note: Individual file timing breakdowns shown above include model load (first file only), decode, preprocessing, inference, postprocessing, and encode phases.");
     }
 
     Ok(processed_count)
@@ -664,13 +684,25 @@ async fn process_single_file_with_processor(
     output_path: &Option<String>,
     config: &RemovalConfig,
 ) -> Result<usize> {
-    let start_time = Instant::now();
-    
     let mut result = processor.remove_background(input_path)
         .await
         .context("Failed to remove background")?;
 
-    let processing_time = start_time.elapsed();
+    // Show detailed timing breakdown at INFO level for single file processing
+    let timings = result.timings();
+    let breakdown = timings.breakdown_percentages();
+    
+    info!("📊 Processing breakdown for {}:", input_path.display());
+    
+    // Show model load timing if present (first file only)
+    if timings.model_load_ms > 0 {
+        info!("  ├─ Model Load: {}ms ({:.1}%)", timings.model_load_ms, breakdown.model_load_pct);
+    }
+    
+    info!("  ├─ Image Decode: {}ms ({:.1}%)", timings.image_decode_ms, breakdown.decode_pct);
+    info!("  ├─ Preprocessing: {}ms ({:.1}%)", timings.preprocessing_ms, breakdown.preprocessing_pct);
+    info!("  ├─ Inference: {}ms ({:.1}%)", timings.inference_ms, breakdown.inference_pct);
+    info!("  ├─ Postprocessing: {}ms ({:.1}%)", timings.postprocessing_ms, breakdown.postprocessing_pct);
 
     // Handle output
     match output_path {
@@ -678,63 +710,61 @@ async fn process_single_file_with_processor(
             // Output to stdout
             let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
             write_stdout(&output_data)?;
-            info!(
-                "Processed {} and wrote to stdout in {:.2}s",
-                input_path.display(),
-                processing_time.as_secs_f64()
-            );
+            
+            // Show total without encoding (since we don't save to file)
+            info!("  └─ Total: {}ms ({:.2}s) - output to stdout", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
         },
         Some(target) => {
             // Output to specific file - use timed save for detailed logging
             let output_path = PathBuf::from(target);
             if config.color_management.preserve_color_profile {
                 result
-                    .save_with_color_profile(
+                    .save_with_color_profile_timed(
                         &output_path,
                         config.output_format,
                         config.jpeg_quality,
                     )
                     .context("Failed to save result with color profile")?;
             } else {
-                match config.output_format {
-                    OutputFormat::Png => {
-                        result
-                            .save_png_timed(&output_path)
-                            .context("Failed to save result")?;
-                    },
-                    _ => {
-                        result
-                            .save(&output_path, config.output_format, config.jpeg_quality)
-                            .context("Failed to save result")?;
-                    },
-                }
+                result
+                    .save_timed(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result")?;
             }
+            
+            // Show encoding timing if it was captured
+            if let Some(encode_ms) = result.timings().image_encode_ms {
+                let encode_breakdown = result.timings().breakdown_percentages();
+                info!("  ├─ Image Encode: {}ms ({:.1}%)", encode_ms, encode_breakdown.encode_pct);
+            }
+            
+            // Show total with final breakdown
+            info!("  └─ Total: {}ms ({:.2}s)", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
         },
         None => {
             // Generate default output filename - use timed save for detailed logging
             let output_path = generate_output_path(input_path, config.output_format);
             if config.color_management.preserve_color_profile {
                 result
-                    .save_with_color_profile(
+                    .save_with_color_profile_timed(
                         &output_path,
                         config.output_format,
                         config.jpeg_quality,
                     )
                     .context("Failed to save result with color profile")?;
             } else {
-                match config.output_format {
-                    OutputFormat::Png => {
-                        result
-                            .save_png_timed(&output_path)
-                            .context("Failed to save result")?;
-                    },
-                    _ => {
-                        result
-                            .save(&output_path, config.output_format, config.jpeg_quality)
-                            .context("Failed to save result")?;
-                    },
-                }
+                result
+                    .save_timed(&output_path, config.output_format, config.jpeg_quality)
+                    .context("Failed to save result")?;
             }
+            
+            // Show encoding timing if it was captured
+            if let Some(encode_ms) = result.timings().image_encode_ms {
+                let encode_breakdown = result.timings().breakdown_percentages();
+                info!("  ├─ Image Encode: {}ms ({:.1}%)", encode_ms, encode_breakdown.encode_pct);
+            }
+            
+            // Show total with final breakdown
+            info!("  └─ Total: {}ms ({:.2}s)", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
         },
     }
 
