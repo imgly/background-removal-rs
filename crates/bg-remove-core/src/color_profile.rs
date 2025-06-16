@@ -134,31 +134,93 @@ impl ProfileExtractor {
     }
 }
 
-/// ICC profile embedder for output images (temporarily simplified)
+/// ICC profile embedder for output images using image-rs unified API
 pub struct ProfileEmbedder;
 
 impl ProfileEmbedder {
-    /// Embed ICC profile in output image 
+    /// Embed ICC profile in output image using image-rs 0.25.6 unified API
     /// 
-    /// Temporarily uses basic encoding without ICC until image-rs API issues are resolved
+    /// Uses the standardized ImageEncoder::set_icc_profile() method for reliable ICC embedding
     pub fn embed_in_output<P: AsRef<Path>>(
         image: &image::DynamicImage,
-        _profile: &ColorProfile,
+        profile: &ColorProfile,
         output_path: P,
         format: image::ImageFormat,
         quality: u8,
     ) -> Result<()> {
-        log::warn!("ICC profile embedding temporarily disabled due to API changes. Saving without ICC profile.");
+        use image::{ImageEncoder, ExtendedColorType};
+        use std::io::BufWriter;
+        
+        let output_path = output_path.as_ref();
+        let file = File::create(output_path)?;
+        let writer = BufWriter::new(file);
         
         match format {
             image::ImageFormat::Jpeg => {
                 let rgb_image = image.to_rgb8();
-                let file = File::create(output_path)?;
-                let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(file, quality);
-                jpeg_encoder.encode_image(&rgb_image)?;
+                let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, quality);
+                
+                // Set ICC profile if available
+                if let Some(icc_data) = &profile.icc_data {
+                    if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                        log::debug!("Failed to embed ICC profile in JPEG: {e}");
+                        log::debug!("Continuing without ICC profile");
+                    } else {
+                        log::debug!("Successfully set ICC profile for JPEG output ({} bytes)", icc_data.len());
+                    }
+                }
+                
+                encoder.write_image(
+                    rgb_image.as_raw(),
+                    rgb_image.width(),
+                    rgb_image.height(),
+                    ExtendedColorType::Rgb8,
+                )?;
+            },
+            image::ImageFormat::Png => {
+                let rgba_image = image.to_rgba8();
+                let mut encoder = image::codecs::png::PngEncoder::new(writer);
+                
+                // Set ICC profile if available
+                if let Some(icc_data) = &profile.icc_data {
+                    if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                        log::debug!("Failed to embed ICC profile in PNG: {e}");
+                        log::debug!("Continuing without ICC profile");
+                    } else {
+                        log::debug!("Successfully set ICC profile for PNG output ({} bytes)", icc_data.len());
+                    }
+                }
+                
+                encoder.write_image(
+                    rgba_image.as_raw(),
+                    rgba_image.width(),
+                    rgba_image.height(),
+                    ExtendedColorType::Rgba8,
+                )?;
+            },
+            image::ImageFormat::WebP => {
+                // For WebP, use the webp crate directly to preserve transparency
+                // image-rs WebP encoder doesn't yet support set_icc_profile consistently
+                let rgba_image = image.to_rgba8();
+                let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
+                let webp_data = encoder.encode(f32::from(quality));
+                
+                // Write WebP data directly
+                std::fs::write(output_path, webp_data.as_ref())?;
+                
+                if profile.icc_data.is_some() {
+                    log::debug!("ICC profile embedding not yet supported for WebP via webp crate");
+                    log::debug!("WebP saved without ICC profile");
+                }
             },
             _ => {
+                // Fallback to image-rs save for other formats
                 image.save_with_format(output_path, format)?;
+                
+                if profile.icc_data.is_some() {
+                    log::debug!("ICC profile embedding not implemented for format: {:?}", format);
+                    log::debug!("Image saved without ICC profile");
+                }
             }
         }
 
