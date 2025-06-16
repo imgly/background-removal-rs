@@ -199,18 +199,40 @@ impl ProfileEmbedder {
                 )?;
             },
             image::ImageFormat::WebP => {
-                // For WebP, use the webp crate directly to preserve transparency
-                // image-rs WebP encoder doesn't yet support set_icc_profile consistently
                 let rgba_image = image.to_rgba8();
-                let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
-                let webp_data = encoder.encode(f32::from(quality));
                 
-                // Write WebP data directly
-                std::fs::write(output_path, webp_data.as_ref())?;
-                
-                if profile.icc_data.is_some() {
-                    log::debug!("ICC profile embedding not yet supported for WebP via webp crate");
-                    log::debug!("WebP saved without ICC profile");
+                if quality < 90 {
+                    // Use webp crate for lossy encoding when quality is significantly below lossless
+                    let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
+                    let webp_data = encoder.encode(f32::from(quality));
+                    
+                    // Write WebP data directly
+                    std::fs::write(output_path, webp_data.as_ref())?;
+                    
+                    if profile.icc_data.is_some() {
+                        log::warn!("ICC profile embedding not supported for lossy WebP encoding");
+                        log::warn!("Use higher quality (90+) for ICC profile support with lossless WebP");
+                    }
+                } else {
+                    // Use image-rs for lossless WebP encoding with ICC profile support
+                    let mut encoder = image::codecs::webp::WebPEncoder::new_lossless(writer);
+                    
+                    // Set ICC profile if available
+                    if let Some(icc_data) = &profile.icc_data {
+                        if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                            log::warn!("Failed to embed ICC profile in WebP: {e}");
+                            log::warn!("WebP saved without ICC profile");
+                        } else {
+                            log::debug!("Successfully embedded ICC profile in lossless WebP ({} bytes)", icc_data.len());
+                        }
+                    }
+                    
+                    encoder.write_image(
+                        rgba_image.as_raw(),
+                        rgba_image.width(),
+                        rgba_image.height(),
+                        ExtendedColorType::Rgba8,
+                    )?;
                 }
             },
             _ => {
