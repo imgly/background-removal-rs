@@ -683,7 +683,7 @@ impl ImageProcessor {
 
         // Handle different output formats
         match self.config.output_format {
-            OutputFormat::Png | OutputFormat::Rgba8 => {
+            OutputFormat::Png | OutputFormat::Rgba8 | OutputFormat::Tiff => {
                 // Keep alpha channel
                 Ok(DynamicImage::ImageRgba8(rgba_image))
             },

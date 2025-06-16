@@ -114,6 +114,7 @@ enum CliOutputFormat {
     Png,
     Jpeg,
     Webp,
+    Tiff,
     Rgba8,
 }
 
@@ -123,6 +124,7 @@ impl From<CliOutputFormat> for OutputFormat {
             CliOutputFormat::Png => OutputFormat::Png,
             CliOutputFormat::Jpeg => OutputFormat::Jpeg,
             CliOutputFormat::Webp => OutputFormat::WebP,
+            CliOutputFormat::Tiff => OutputFormat::Tiff,
             CliOutputFormat::Rgba8 => OutputFormat::Rgba8,
         }
     }
@@ -504,7 +506,7 @@ async fn process_inputs(
         
         if path.is_file() {
             // Single file - validate it's an image
-            if is_image_file(&path, &["jpg", "jpeg", "png", "webp", "bmp", "tiff"]) {
+            if is_image_file(&path, &["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"]) {
                 all_files.push(path);
             } else {
                 warn!("Skipping non-image file: {}", path.display());
@@ -776,7 +778,7 @@ async fn process_single_file_with_processor(
 /// Find image files in directory
 fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
-    let image_extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"];
+    let image_extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"];
 
     if recursive {
         for entry in walkdir::WalkDir::new(dir) {
@@ -835,6 +837,7 @@ fn generate_output_path(input_path: &Path, format: OutputFormat) -> PathBuf {
         OutputFormat::Png => "png",
         OutputFormat::Jpeg => "jpg",
         OutputFormat::WebP => "webp",
+        OutputFormat::Tiff => "tiff",
         OutputFormat::Rgba8 => "rgba8",
     };
 
@@ -886,6 +889,9 @@ mod tests {
 
         let jpeg_output = generate_output_path(input, OutputFormat::Jpeg);
         assert_eq!(jpeg_output, Path::new("/path/to/image_bg_removed.jpg"));
+
+        let tiff_output = generate_output_path(input, OutputFormat::Tiff);
+        assert_eq!(tiff_output, Path::new("/path/to/image_bg_removed.tiff"));
 
         let rgba8_output = generate_output_path(input, OutputFormat::Rgba8);
         assert_eq!(rgba8_output, Path::new("/path/to/image_bg_removed.rgba8"));

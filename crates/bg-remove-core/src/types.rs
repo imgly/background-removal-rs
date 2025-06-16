@@ -276,6 +276,35 @@ impl RemovalResult {
         Ok(())
     }
 
+    /// Save the result as TIFF with RGBA transparency and lossless compression
+    ///
+    /// TIFF format preserves the alpha channel created by background removal,
+    /// resulting in a truly transparent background with lossless compression.
+    /// TIFF is ideal for high-quality archival and professional workflows.
+    ///
+    /// # Arguments
+    /// * `path` - Output file path (will be created or overwritten)
+    ///
+    /// # File Format
+    /// - **Format**: TIFF with RGBA channels
+    /// - **Compression**: Lossless LZW or ZIP compression
+    /// - **Transparency**: Full alpha channel support
+    /// - **Quality**: No quality loss (lossless format)
+    ///
+    /// # Use Cases
+    /// - Professional photography workflows
+    /// - High-quality archival storage
+    /// - Print production pipelines
+    /// - Graphic design applications requiring lossless editing
+    ///
+    /// # Errors
+    /// Returns `BgRemovalError` for file I/O errors, permission issues,
+    /// or disk space problems.
+    pub fn save_tiff<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        self.image.save_with_format(path, image::ImageFormat::Tiff)?;
+        Ok(())
+    }
+
     /// Save in the specified format
     ///
     /// Automatically uses color profile-aware saving when color profiles are available.
@@ -300,6 +329,7 @@ impl RemovalResult {
                 OutputFormat::Png => self.save_png(path),
                 OutputFormat::Jpeg => self.save_jpeg(path, quality),
                 OutputFormat::WebP => self.save_webp(path, quality),
+                OutputFormat::Tiff => self.save_tiff(path),
                 OutputFormat::Rgba8 => {
                     // For RGBA8 format, save the raw RGBA bytes
                     let rgba_image = self.image.to_rgba8();
@@ -402,6 +432,12 @@ impl RemovalResult {
             },
             OutputFormat::WebP => {
                 Ok(self.encode_webp(quality))
+            },
+            OutputFormat::Tiff => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                self.image.write_to(&mut cursor, image::ImageFormat::Tiff)?;
+                Ok(buffer)
             },
             OutputFormat::Rgba8 => Ok(self.to_rgba_bytes()),
         }
@@ -562,6 +598,47 @@ impl RemovalResult {
         Ok(())
     }
 
+    /// Save as TIFF and measure encoding time
+    ///
+    /// # Errors
+    /// - File I/O errors when creating or writing output file
+    /// - Permission errors or insufficient disk space
+    /// - TIFF encoding errors from underlying image library
+    /// - Timing conversion errors if encoding time exceeds u64 range
+    /// - Path conversion errors for logging purposes
+    pub fn save_tiff_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        let path_str = path.as_ref().display().to_string();
+        let encode_start = std::time::Instant::now();
+        
+        // Save as TIFF with RGBA transparency
+        self.image.save_with_format(&path, image::ImageFormat::Tiff)?;
+        
+        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
+            crate::error::BgRemovalError::processing("TIFF encoding time too large for u64")
+        })?;
+
+        // Update the timings
+        self.metadata.timings.image_encode_ms = Some(encode_ms);
+
+        // Log encoding completion at debug level
+        log::debug!(
+            "Image Encoding completed in {}ms",
+            encode_ms
+        );
+
+        // Log final completion with total processing time
+        let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
+        let input_path = self.input_path.as_deref().unwrap_or("input");
+        log::debug!(
+            "Processed: {} -> {} in {:.2}s",
+            input_path,
+            path_str,
+            total_time_s
+        );
+
+        Ok(())
+    }
+
     /// Save in the specified format with timing measurement
     ///
     /// # Errors
@@ -575,6 +652,7 @@ impl RemovalResult {
             OutputFormat::Png => self.save_png_timed(path),
             OutputFormat::Jpeg => self.save_jpeg_timed(path, quality),
             OutputFormat::WebP => self.save_webp_timed(path, quality),
+            OutputFormat::Tiff => self.save_tiff_timed(path),
             OutputFormat::Rgba8 => {
                 let path_str = path.as_ref().display().to_string();
                 let encode_start = std::time::Instant::now();
@@ -742,6 +820,7 @@ impl RemovalResult {
                 OutputFormat::Png => image::ImageFormat::Png,
                 OutputFormat::Jpeg => image::ImageFormat::Jpeg,
                 OutputFormat::WebP => image::ImageFormat::WebP,
+                OutputFormat::Tiff => image::ImageFormat::Tiff,
                 OutputFormat::Rgba8 => {
                     log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
                     return self.save(path, format, quality);
@@ -790,6 +869,7 @@ impl RemovalResult {
                 OutputFormat::Png => image::ImageFormat::Png,
                 OutputFormat::Jpeg => image::ImageFormat::Jpeg,
                 OutputFormat::WebP => image::ImageFormat::WebP,
+                OutputFormat::Tiff => image::ImageFormat::Tiff,
                 OutputFormat::Rgba8 => {
                     log::warn!("RGBA8 format does not support ICC profiles, saving raw data");
                     return self.save_timed(path, format, quality);

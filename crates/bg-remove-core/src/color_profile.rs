@@ -235,6 +235,27 @@ impl ProfileEmbedder {
                     )?;
                 }
             },
+            image::ImageFormat::Tiff => {
+                let rgba_image = image.to_rgba8();
+                let mut encoder = image::codecs::tiff::TiffEncoder::new(writer);
+                
+                // Set ICC profile if available
+                if let Some(icc_data) = &profile.icc_data {
+                    if let Err(e) = encoder.set_icc_profile(icc_data.clone()) {
+                        log::warn!("Failed to embed ICC profile in TIFF: {e}");
+                        log::warn!("TIFF saved without ICC profile");
+                    } else {
+                        log::debug!("Successfully embedded ICC profile in TIFF ({} bytes)", icc_data.len());
+                    }
+                }
+                
+                encoder.write_image(
+                    rgba_image.as_raw(),
+                    rgba_image.width(),
+                    rgba_image.height(),
+                    ExtendedColorType::Rgba8,
+                )?;
+            },
             _ => {
                 // Fallback to image-rs save for other formats
                 image.save_with_format(output_path, format)?;
