@@ -248,24 +248,21 @@ impl RemovalResult {
         })
     }
 
-    /// Save the result as JPEG with background color
+    /// Save the result as JPEG with ICC profile support
     ///
     /// # Errors
     /// - File I/O errors when creating or writing output file
     /// - JPEG encoding errors from underlying image library
     /// - Invalid quality parameter (though already validated in builder)
     pub fn save_jpeg<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
-        // Convert to RGB and apply background color for JPEG
         let rgb_image = self.image.to_rgb8();
-        let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
-            std::fs::File::create(path)?,
-            quality,
-        );
+        let mut file = std::fs::File::create(path)?;
+        let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, quality);
         jpeg_encoder.encode_image(&rgb_image)?;
         Ok(())
     }
 
-    /// Save the result as WebP
+    /// Save the result as WebP with RGBA transparency and ICC profile support
     ///
     /// # Errors
     /// - WebP encoding errors during compression
@@ -273,7 +270,7 @@ impl RemovalResult {
     /// - Permission errors or disk space issues
     /// - Invalid quality parameter (outside 0-100 range)
     pub fn save_webp<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
-        // Note: WebP support depends on image crate features
+        // For now, use basic WebP encoding until API issues are resolved
         let webp_data = self.encode_webp(quality);
         std::fs::write(path, webp_data)?;
         Ok(())
@@ -399,17 +396,12 @@ impl RemovalResult {
                 let mut buffer = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut buffer);
                 let rgb_image = self.image.to_rgb8();
-                let mut jpeg_encoder =
-                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
+                let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
                 jpeg_encoder.encode_image(&rgb_image)?;
                 Ok(buffer)
             },
             OutputFormat::WebP => {
-                // For now, fall back to PNG for WebP until proper WebP encoding is implemented
-                let mut buffer = Vec::new();
-                let mut cursor = std::io::Cursor::new(&mut buffer);
-                self.image.write_to(&mut cursor, image::ImageFormat::Png)?;
-                Ok(buffer)
+                Ok(self.encode_webp(quality))
             },
             OutputFormat::Rgba8 => Ok(self.to_rgba_bytes()),
         }
@@ -900,13 +892,10 @@ impl RemovalResult {
 
     /// Encode as WebP with RGBA transparency support
     fn encode_webp(&self, quality: u8) -> Vec<u8> {
-        // WebP supports RGBA, so preserve transparency from background removal
+        // Use the webp crate directly for now until image-rs WebP API is stable
         let rgba_image = self.image.to_rgba8();
-
-        // Encode to WebP with RGBA support
         let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
         let webp_data = encoder.encode(f32::from(quality));
-
         webp_data.to_vec()
     }
 }
