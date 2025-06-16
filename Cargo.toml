@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/bg-remove-core",
+    "crates/bg-remove-onnx",
     "crates/bg-remove-cli",
     "crates/bg-remove-testing",
 ]

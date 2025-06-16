@@ -1,9 +1,13 @@
-//! ONNX Runtime backend implementation for `ISNet` model inference
+//! ONNX Runtime backend implementation for background removal models
+//!
+//! This crate provides ONNX Runtime-based inference backend for the bg-remove-core library.
+//! It implements the `InferenceBackend` trait from bg-remove-core to provide model inference
+//! using ONNX Runtime with support for multiple execution providers (CPU, CUDA, CoreML).
 
-use crate::config::{ExecutionProvider, RemovalConfig};
-use crate::error::Result;
-use crate::inference::InferenceBackend;
-use crate::models::ModelManager;
+use bg_remove_core::config::{ExecutionProvider, RemovalConfig};
+use bg_remove_core::error::Result;
+use bg_remove_core::inference::InferenceBackend;
+use bg_remove_core::models::ModelManager;
 use log;
 use ndarray::Array4;
 use ort::execution_providers::{
@@ -12,7 +16,7 @@ use ort::execution_providers::{
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{self, value::Value};
 
-/// ONNX Runtime backend for running `ISNet` models
+/// ONNX Runtime backend for running background removal models
 #[derive(Debug)]
 pub struct OnnxBackend {
     session: Option<Session>,
@@ -30,6 +34,8 @@ impl OnnxBackend {
     ///
     /// # Examples
     /// ```rust
+    /// use bg_remove_onnx::OnnxBackend;
+    /// 
     /// let providers = OnnxBackend::list_providers();
     /// for (name, available, description) in providers {
     ///     println!("{}: {} - {}", name, if available { "✅" } else { "❌" }, description);
@@ -169,7 +175,7 @@ impl OnnxBackend {
             let embedded_manager = ModelManager::with_embedded()?;
             self.model_manager = Some(embedded_manager);
             self.model_manager.as_ref().ok_or_else(|| {
-                crate::error::BgRemovalError::internal(
+                bg_remove_core::error::BgRemovalError::internal(
                     "Model manager unexpectedly missing after insertion",
                 )
             })?
@@ -179,8 +185,10 @@ impl OnnxBackend {
         let model_data = model_manager.load_model()?;
 
         // Create ONNX Runtime session with specified execution provider
-        let mut session_builder =
-            Session::builder()?.with_optimization_level(GraphOptimizationLevel::Level3)?;
+        let mut session_builder = Session::builder()
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to create session builder: {e}")))?
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set optimization level: {e}")))?;
 
         // Configure execution providers with availability checking
         session_builder = match config.execution_provider {
@@ -231,7 +239,8 @@ impl OnnxBackend {
                         "✅ Hardware acceleration enabled with {count} provider(s)",
                         count = providers.len()
                     );
-                    session_builder.with_execution_providers(providers)?
+                    session_builder.with_execution_providers(providers)
+                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set auto execution providers: {e}")))?
                 }
             },
             ExecutionProvider::Cpu => {
@@ -244,7 +253,8 @@ impl OnnxBackend {
                 let cuda_provider = CUDAExecutionProvider::default();
                 if OrtExecutionProvider::is_available(&cuda_provider).unwrap_or(false) {
                     log::info!("Using CUDA execution provider");
-                    session_builder.with_execution_providers([cuda_provider.build()])?
+                    session_builder.with_execution_providers([cuda_provider.build()])
+                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set CUDA execution provider: {e}")))?
                 } else {
                     log::warn!(
                         "CUDA execution provider requested but not available, falling back to CPU"
@@ -270,7 +280,8 @@ impl OnnxBackend {
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
 
                     log::debug!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
-                    session_builder.with_execution_providers([enhanced_coreml_provider.build()])?
+                    session_builder.with_execution_providers([enhanced_coreml_provider.build()])
+                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set CoreML execution provider: {e}")))?
                 } else {
                     log::error!("🚫 CoreML execution provider requested but not available!");
                     log::error!("  - This is unexpected on Apple Silicon Mac");
@@ -306,16 +317,20 @@ impl OnnxBackend {
         };
 
         let session = session_builder
-            .with_parallel_execution(true)?           // Enable parallel execution
-            .with_intra_threads(intra_threads)?       // Threads within operations
-            .with_inter_threads(inter_threads)?       // Threads between operations
-            .commit_from_memory(&model_data)?;
+            .with_parallel_execution(true)
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to enable parallel execution: {e}")))?           // Enable parallel execution
+            .with_intra_threads(intra_threads)
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set intra threads: {e}")))?       // Threads within operations
+            .with_inter_threads(inter_threads)
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set inter threads: {e}")))?       // Threads between operations
+            .commit_from_memory(&model_data)
+            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to create session from model data: {e}")))?;
 
         // Log comprehensive configuration details and verify active providers
         let model_info = self
             .model_manager
             .as_ref()
-            .ok_or_else(|| crate::error::BgRemovalError::internal("Model manager not initialized"))?
+            .ok_or_else(|| bg_remove_core::error::BgRemovalError::internal("Model manager not initialized"))?
             .get_info()?;
         log::debug!("✅ ONNX Runtime session created successfully");
         log::debug!("Session configuration:");
@@ -409,13 +424,13 @@ impl InferenceBackend for OnnxBackend {
         use std::time::Instant;
 
         if !self.initialized {
-            return Err(crate::error::BgRemovalError::internal(
+            return Err(bg_remove_core::error::BgRemovalError::internal(
                 "Backend not initialized",
             ));
         }
 
         let session = self.session.as_mut().ok_or_else(|| {
-            crate::error::BgRemovalError::internal("ONNX session not initialized")
+            bg_remove_core::error::BgRemovalError::internal("ONNX session not initialized")
         })?;
 
         // Start detailed timing for inference diagnostics
@@ -425,7 +440,7 @@ impl InferenceBackend for OnnxBackend {
         // Convert ndarray to ort Value
         let tensor_conversion_start = Instant::now();
         let input_value = Value::from_array(input.clone()).map_err(|e| {
-            crate::error::BgRemovalError::processing(format!("Failed to convert input tensor: {e}"))
+            bg_remove_core::error::BgRemovalError::processing(format!("Failed to convert input tensor: {e}"))
         })?;
         let tensor_conversion_time = tensor_conversion_start.elapsed();
         log::debug!(
@@ -435,7 +450,7 @@ impl InferenceBackend for OnnxBackend {
 
         // Run inference using model-specific input tensor name
         let model_manager = self.model_manager.as_ref().ok_or_else(|| {
-            crate::error::BgRemovalError::internal("Model manager not initialized")
+            bg_remove_core::error::BgRemovalError::internal("Model manager not initialized")
         })?;
         let input_name = model_manager.get_input_name()?;
         let output_name = model_manager.get_output_name()?;
@@ -450,7 +465,7 @@ impl InferenceBackend for OnnxBackend {
         log::debug!("  🧠 Starting core ONNX inference...");
 
         let outputs = session.run(inputs)
-            .map_err(|e| crate::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{input_name}'. Original error: {e}")))?;
+            .map_err(|e| bg_remove_core::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{input_name}'. Original error: {e}")))?;
 
         let core_inference_time = core_inference_start.elapsed();
         log::debug!(
@@ -478,7 +493,7 @@ impl InferenceBackend for OnnxBackend {
         let output_extraction_start = Instant::now();
         let output_tensor = if let Some(named_output) = outputs.get(output_name.as_str()) {
             named_output.try_extract_array::<f32>().map_err(|e| {
-                crate::error::BgRemovalError::processing(format!(
+                bg_remove_core::error::BgRemovalError::processing(format!(
                     "Failed to extract named output tensor '{output_name}': {e}"
                 ))
             })?
@@ -490,16 +505,16 @@ impl InferenceBackend for OnnxBackend {
                 outputs
                     .get(first_key)
                     .ok_or_else(|| {
-                        crate::error::BgRemovalError::processing("First output key not found")
+                        bg_remove_core::error::BgRemovalError::processing("First output key not found")
                     })?
                     .try_extract_array::<f32>()
                     .map_err(|e| {
-                        crate::error::BgRemovalError::processing(format!(
+                        bg_remove_core::error::BgRemovalError::processing(format!(
                             "Failed to extract fallback output tensor: {e}"
                         ))
                     })?
             } else {
-                return Err(crate::error::BgRemovalError::processing(
+                return Err(bg_remove_core::error::BgRemovalError::processing(
                     "No output tensors found",
                 ));
             }
@@ -526,14 +541,14 @@ impl InferenceBackend for OnnxBackend {
                 output_data.into_raw_vec_and_offset().0,
             )
             .map_err(|e| {
-                crate::error::BgRemovalError::processing(format!(
+                bg_remove_core::error::BgRemovalError::processing(format!(
                     "Failed to reshape output tensor: {e}"
                 ))
             })?;
 
             Ok(output_array)
         } else {
-            Err(crate::error::BgRemovalError::processing(format!(
+            Err(bg_remove_core::error::BgRemovalError::processing(format!(
                 "Expected 4D output tensor, got {}D",
                 output_shape.len()
             )))
@@ -592,16 +607,16 @@ impl InferenceBackend for OnnxBackend {
             .map_or((1, 1, 1024, 1024), |info| info.output_shape) // Default fallback
     }
 
-    fn get_preprocessing_config(&self) -> Result<crate::models::PreprocessingConfig> {
+    fn get_preprocessing_config(&self) -> Result<bg_remove_core::models::PreprocessingConfig> {
         let model_manager = self.model_manager.as_ref().ok_or_else(|| {
-            crate::error::BgRemovalError::internal("Model manager not initialized")
+            bg_remove_core::error::BgRemovalError::internal("Model manager not initialized")
         })?;
         model_manager.get_preprocessing_config()
     }
 
-    fn get_model_info(&self) -> Result<crate::models::ModelInfo> {
+    fn get_model_info(&self) -> Result<bg_remove_core::models::ModelInfo> {
         let model_manager = self.model_manager.as_ref().ok_or_else(|| {
-            crate::error::BgRemovalError::internal("Model manager not initialized")
+            bg_remove_core::error::BgRemovalError::internal("Model manager not initialized")
         })?;
         model_manager.get_info()
     }

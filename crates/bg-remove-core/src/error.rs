@@ -16,9 +16,9 @@ pub enum BgRemovalError {
     #[error("Image processing error: {0}")]
     Image(#[from] image::ImageError),
 
-    /// ONNX Runtime inference errors
+    /// Backend inference errors
     #[error("Inference error: {0}")]
-    Inference(#[from] ort::Error),
+    Inference(String),
 
     /// Invalid configuration or parameters
     #[error("Invalid configuration: {0}")]
@@ -60,6 +60,11 @@ impl BgRemovalError {
     /// Create a new processing error
     pub fn processing<S: Into<String>>(msg: S) -> Self {
         Self::Processing(msg.into())
+    }
+
+    /// Create a new inference error
+    pub fn inference<S: Into<String>>(msg: S) -> Self {
+        Self::Inference(msg.into())
     }
 
     /// Create a new internal error

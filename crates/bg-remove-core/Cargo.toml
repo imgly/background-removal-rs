@@ -38,7 +38,6 @@ benchmark-details = []    # Enable detailed benchmark output
 
 [dependencies]
 # Core dependencies
-ort = { workspace = true }
 image = { workspace = true }
 ndarray = { workspace = true }
 anyhow = { workspace = true }

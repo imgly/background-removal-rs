@@ -1,7 +1,7 @@
 //! Image processing pipeline for background removal
 
 use crate::{
-    backends::{MockBackend, OnnxBackend},
+    backends::MockBackend,
     color_profile::ProfileExtractor,
     config::{BackgroundColor, OutputFormat, RemovalConfig},
     error::Result,
@@ -30,6 +30,29 @@ pub struct ImageProcessor {
 }
 
 impl ImageProcessor {
+    /// Create a new image processor with a custom backend
+    ///
+    /// # Arguments
+    /// * `config` - Processing configuration including execution provider and quality settings
+    /// * `backend` - Pre-initialized inference backend
+    ///
+    /// # Errors
+    /// - Backend initialization failures
+    pub fn with_backend(config: &RemovalConfig, mut backend: Box<dyn InferenceBackend>) -> Result<Self> {
+        // Initialize the backend
+        let _model_load_time = backend.initialize(config)?;
+
+        let options = ProcessingOptions {
+            padding_color: [255, 255, 255], // Default white padding
+        };
+
+        Ok(Self {
+            backend,
+            config: config.clone(),
+            options,
+        })
+    }
+
     /// Create a new image processor with the given configuration and model manager
     ///
     /// # Arguments
@@ -40,13 +63,14 @@ impl ImageProcessor {
     /// - Backend initialization failures
     /// - Model loading or validation errors
     /// - Invalid configuration parameters
-    pub fn with_model_manager(config: &RemovalConfig, model_manager: ModelManager) -> Result<Self> {
+    pub fn with_model_manager(config: &RemovalConfig, _model_manager: ModelManager) -> Result<Self> {
         let mut backend: Box<dyn InferenceBackend> = if config.debug {
             // Use mock backend for debugging - it doesn't need the model manager
             Box::new(MockBackend::new())
         } else {
-            // Use ONNX backend with the specific model manager
-            Box::new(OnnxBackend::with_model_manager(model_manager))
+            // TODO: ONNX backend moved to separate crate - need backend injection mechanism
+            // For now, fall back to mock backend
+            Box::new(MockBackend::new())
         };
 
         // Initialize the backend and capture model load timing

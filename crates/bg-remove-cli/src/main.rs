@@ -441,7 +441,7 @@ fn write_stdout(data: &[u8]) -> Result<()> {
 
 /// Display execution provider diagnostics
 fn show_provider_diagnostics() -> Result<()> {
-    use bg_remove_core::backends::OnnxBackend;
+    use bg_remove_onnx::OnnxBackend;
 
     println!("🔍 ONNX Runtime Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

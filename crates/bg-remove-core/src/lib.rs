@@ -40,7 +40,7 @@ pub mod models;
 pub mod types;
 
 // Public API exports
-pub use backends::{MockBackend, OnnxBackend};
+pub use backends::MockBackend;
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{
     BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,

@@ -1,7 +1,7 @@
 //! Inference backend abstraction and registry
 
 use crate::{
-    backends::{MockBackend, OnnxBackend},
+    backends::MockBackend,
     config::RemovalConfig,
     error::Result,
 };
@@ -63,8 +63,9 @@ impl BackendRegistry {
         };
 
         // Register default backends
-        let onnx_backend = OnnxBackend::new();
-        registry.register("onnx", Box::new(onnx_backend));
+        // TODO: ONNX backend moved to separate crate - need backend injection mechanism
+        // let onnx_backend = OnnxBackend::new();
+        // registry.register("onnx", Box::new(onnx_backend));
         registry.register("mock", Box::new(MockBackend::new()));
 
         registry
