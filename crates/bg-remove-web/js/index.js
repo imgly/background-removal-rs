@@ -30,6 +30,17 @@ export class BackgroundRemovalAPI {
      * Initialize the background removal API
      * @param {Object} options - Configuration options
      * @param {string} options.modelName - Name of the model to use (optional)
+     * @param {string} options.outputFormat - Output format (optional)
+     * @param {number} options.jpegQuality - JPEG quality 0-100 (optional)
+     * @param {number} options.webpQuality - WebP quality 0-100 (optional)
+     * @param {string} options.backgroundColor - Background color hex (optional)
+     * @param {boolean} options.debug - Enable debug mode (optional)
+     * @param {number} options.intraThreads - Number of intra-op threads (optional)
+     * @param {number} options.interThreads - Number of inter-op threads (optional)
+     * @param {boolean} options.preserveColorProfile - Preserve ICC profiles (optional)
+     * @param {boolean} options.forceSrgbOutput - Force sRGB output (optional)
+     * @param {boolean} options.fallbackToSrgb - Fallback to sRGB (optional)
+     * @param {boolean} options.embedProfileInOutput - Embed profile in output (optional)
      * @param {Function} options.onProgress - Progress callback (optional)
      * @returns {Promise<void>}
      */
@@ -45,8 +56,24 @@ export class BackgroundRemovalAPI {
             console.log('📦 Version:', this.wasmModule.get_version());
             console.log('🔧 Providers:', this.wasmModule.get_wasm_providers());
             
-            // Create remover instance
-            this.remover = new this.wasmModule.BackgroundRemover();
+            // Create config
+            const config = new this.wasmModule.WebRemovalConfig();
+            
+            // Apply configuration options
+            if (options.outputFormat) config.outputFormat = options.outputFormat;
+            if (options.jpegQuality !== undefined) config.jpegQuality = options.jpegQuality;
+            if (options.webpQuality !== undefined) config.webpQuality = options.webpQuality;
+            if (options.backgroundColor) config.backgroundColor = options.backgroundColor;
+            if (options.debug !== undefined) config.debug = options.debug;
+            if (options.intraThreads !== undefined) config.intraThreads = options.intraThreads;
+            if (options.interThreads !== undefined) config.interThreads = options.interThreads;
+            if (options.preserveColorProfile !== undefined) config.preserveColorProfile = options.preserveColorProfile;
+            if (options.forceSrgbOutput !== undefined) config.forceSrgbOutput = options.forceSrgbOutput;
+            if (options.fallbackToSrgb !== undefined) config.fallbackToSrgb = options.fallbackToSrgb;
+            if (options.embedProfileInOutput !== undefined) config.embedProfileInOutput = options.embedProfileInOutput;
+            
+            // Create remover instance with config
+            this.remover = new this.wasmModule.BackgroundRemover(config);
             
             // Initialize with model
             const modelName = options.modelName || null;

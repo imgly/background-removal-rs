@@ -117,14 +117,28 @@ impl From<bg_remove_core::error::BgRemovalError> for WasmError {
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct WebRemovalConfig {
+    /// Output format (png, jpeg, webp)
+    output_format: String,
     /// Output format quality for JPEG (0-100)
     jpeg_quality: u8,
     /// Output format quality for WebP (0-100)  
     webp_quality: u8,
     /// Background color (RGB hex string, e.g., "#ffffff")
     background_color: String,
+    /// Enable debug mode (additional logging)
+    debug: bool,
+    /// Number of intra-op threads for inference (0 = auto)
+    intra_threads: u32,
+    /// Number of inter-op threads for inference (0 = auto)
+    inter_threads: u32,
     /// Whether to preserve color profiles
     preserve_color_profile: bool,
+    /// Force sRGB output regardless of input profile
+    force_srgb_output: bool,
+    /// Fallback to sRGB when color space detection fails
+    fallback_to_srgb: bool,
+    /// Embed color profile in output when supported
+    embed_profile_in_output: bool,
 }
 
 #[wasm_bindgen]
@@ -132,13 +146,39 @@ impl WebRemovalConfig {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
+            output_format: "png".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
             background_color: "#ffffff".to_string(),
+            debug: false,
+            intra_threads: 0,
+            inter_threads: 0,
             preserve_color_profile: true,
+            force_srgb_output: false,
+            fallback_to_srgb: true,
+            embed_profile_in_output: true,
         }
     }
 
+    // Output format
+    #[wasm_bindgen(getter)]
+    pub fn output_format(&self) -> String {
+        self.output_format.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_output_format(&mut self, format: String) {
+        // Validate format
+        let valid_formats = ["png", "jpeg", "jpg", "webp", "tiff", "rgba8"];
+        if valid_formats.contains(&format.to_lowercase().as_str()) {
+            self.output_format = format.to_lowercase();
+        } else {
+            console_log!("Invalid output format: {}. Using 'png'", format);
+            self.output_format = "png".to_string();
+        }
+    }
+
+    // JPEG quality
     #[wasm_bindgen(getter)]
     pub fn jpeg_quality(&self) -> u8 {
         self.jpeg_quality
@@ -149,6 +189,7 @@ impl WebRemovalConfig {
         self.jpeg_quality = quality.clamp(0, 100);
     }
 
+    // WebP quality
     #[wasm_bindgen(getter)]
     pub fn webp_quality(&self) -> u8 {
         self.webp_quality
@@ -159,6 +200,7 @@ impl WebRemovalConfig {
         self.webp_quality = quality.clamp(0, 100);
     }
 
+    // Background color
     #[wasm_bindgen(getter)]
     pub fn background_color(&self) -> String {
         self.background_color.clone()
@@ -166,9 +208,49 @@ impl WebRemovalConfig {
 
     #[wasm_bindgen(setter)]
     pub fn set_background_color(&mut self, color: String) {
-        self.background_color = color;
+        // Basic validation for hex color
+        if color.starts_with('#') && (color.len() == 7 || color.len() == 4) {
+            self.background_color = color;
+        } else {
+            console_log!("Invalid color format: {}. Using '#ffffff'", color);
+            self.background_color = "#ffffff".to_string();
+        }
     }
 
+    // Debug mode
+    #[wasm_bindgen(getter)]
+    pub fn debug(&self) -> bool {
+        self.debug
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_debug(&mut self, debug: bool) {
+        self.debug = debug;
+    }
+
+    // Intra threads
+    #[wasm_bindgen(getter)]
+    pub fn intra_threads(&self) -> u32 {
+        self.intra_threads
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_intra_threads(&mut self, threads: u32) {
+        self.intra_threads = threads;
+    }
+
+    // Inter threads
+    #[wasm_bindgen(getter)]
+    pub fn inter_threads(&self) -> u32 {
+        self.inter_threads
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_inter_threads(&mut self, threads: u32) {
+        self.inter_threads = threads;
+    }
+
+    // Color profile preservation
     #[wasm_bindgen(getter)]
     pub fn preserve_color_profile(&self) -> bool {
         self.preserve_color_profile
@@ -177,6 +259,96 @@ impl WebRemovalConfig {
     #[wasm_bindgen(setter)]
     pub fn set_preserve_color_profile(&mut self, preserve: bool) {
         self.preserve_color_profile = preserve;
+    }
+
+    // Force sRGB output
+    #[wasm_bindgen(getter)]
+    pub fn force_srgb_output(&self) -> bool {
+        self.force_srgb_output
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_force_srgb_output(&mut self, force: bool) {
+        self.force_srgb_output = force;
+    }
+
+    // Fallback to sRGB
+    #[wasm_bindgen(getter)]
+    pub fn fallback_to_srgb(&self) -> bool {
+        self.fallback_to_srgb
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_fallback_to_srgb(&mut self, fallback: bool) {
+        self.fallback_to_srgb = fallback;
+    }
+
+    // Embed profile in output
+    #[wasm_bindgen(getter)]
+    pub fn embed_profile_in_output(&self) -> bool {
+        self.embed_profile_in_output
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_embed_profile_in_output(&mut self, embed: bool) {
+        self.embed_profile_in_output = embed;
+    }
+    
+    /// Convert to core RemovalConfig
+    pub(crate) fn to_removal_config(&self) -> RemovalConfig {
+        use crate::{OutputFormat, BackgroundColor, ColorManagementConfig};
+        
+        // Parse background color from hex
+        let bg_color = self.parse_hex_color(&self.background_color)
+            .unwrap_or(BackgroundColor::white());
+        
+        // Parse output format
+        let output_format = match self.output_format.as_str() {
+            "png" => OutputFormat::Png,
+            "jpeg" | "jpg" => OutputFormat::Jpeg,
+            "webp" => OutputFormat::WebP,
+            "tiff" => OutputFormat::Tiff,
+            "rgba8" => OutputFormat::Rgba8,
+            _ => OutputFormat::Png,
+        };
+        
+        RemovalConfig {
+            execution_provider: ExecutionProvider::Cpu, // WASM only supports CPU
+            output_format,
+            background_color: bg_color,
+            jpeg_quality: self.jpeg_quality,
+            webp_quality: self.webp_quality,
+            debug: self.debug,
+            intra_threads: self.intra_threads as usize,
+            inter_threads: self.inter_threads as usize,
+            color_management: ColorManagementConfig {
+                preserve_color_profile: self.preserve_color_profile,
+                force_srgb_output: self.force_srgb_output,
+                fallback_to_srgb: self.fallback_to_srgb,
+                embed_profile_in_output: self.embed_profile_in_output,
+            },
+        }
+    }
+    
+    /// Parse hex color string to BackgroundColor
+    fn parse_hex_color(&self, hex: &str) -> Option<BackgroundColor> {
+        let hex = hex.trim_start_matches('#');
+        
+        if hex.len() == 6 {
+            // Parse #RRGGBB
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            Some(BackgroundColor::new(r, g, b))
+        } else if hex.len() == 3 {
+            // Parse #RGB
+            let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
+            let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
+            let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
+            Some(BackgroundColor::new(r, g, b))
+        } else {
+            None
+        }
     }
 }
 
@@ -217,15 +389,15 @@ impl ProcessingProgress {
 #[wasm_bindgen]
 pub struct BackgroundRemover {
     backend: Option<TractBackend>,
-    config: RemovalConfig,
+    config: WebRemovalConfig,
     initialized: bool,
 }
 
 #[wasm_bindgen]
 impl BackgroundRemover {
-    /// Create a new BackgroundRemover instance
+    /// Create a new BackgroundRemover instance with optional config
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new(config: Option<WebRemovalConfig>) -> Self {
         console_log!("🌐 Creating new BackgroundRemover instance");
         
         // Set up better panic messages
@@ -234,7 +406,7 @@ impl BackgroundRemover {
 
         Self {
             backend: None,
-            config: RemovalConfig::default(),
+            config: config.unwrap_or_default(),
             initialized: false,
         }
     }
@@ -262,9 +434,8 @@ impl BackgroundRemover {
             variant: None,
         };
 
-        // Configure for Tract backend (CPU only in WASM)
-        let mut config = RemovalConfig::default();
-        config.execution_provider = ExecutionProvider::Cpu;
+        // Convert WebRemovalConfig to RemovalConfig
+        let config = self.config.to_removal_config();
 
         // Clone self state for async operation
         let self_ptr = self as *mut Self;
@@ -312,6 +483,18 @@ impl BackgroundRemover {
     #[wasm_bindgen]
     pub fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    /// Get the current configuration
+    #[wasm_bindgen(getter)]
+    pub fn config(&self) -> WebRemovalConfig {
+        self.config.clone()
+    }
+
+    /// Set a new configuration
+    #[wasm_bindgen(setter)]
+    pub fn set_config(&mut self, config: WebRemovalConfig) {
+        self.config = config;
     }
 
     /// Get list of available embedded models

@@ -12,14 +12,28 @@ declare module 'bg-remove-web' {
     export interface RemovalOptions {
         /** Name of the model to use (optional, defaults to available model) */
         modelName?: string;
+        /** Output format (png, jpeg, webp, tiff, rgba8) */
+        outputFormat?: string;
         /** JPEG quality (0-100) */
         jpegQuality?: number;
         /** WebP quality (0-100) */
         webpQuality?: number;
         /** Background color (hex string, e.g., "#ffffff") */
         backgroundColor?: string;
+        /** Enable debug mode */
+        debug?: boolean;
+        /** Number of intra-op threads (0 = auto) */
+        intraThreads?: number;
+        /** Number of inter-op threads (0 = auto) */
+        interThreads?: number;
         /** Whether to preserve color profiles */
         preserveColorProfile?: boolean;
+        /** Force sRGB output */
+        forceSrgbOutput?: boolean;
+        /** Fallback to sRGB on detection failure */
+        fallbackToSrgb?: boolean;
+        /** Embed profile in output */
+        embedProfileInOutput?: boolean;
         /** Progress callback function */
         onProgress?: (progress: ProcessingProgress) => void;
     }
@@ -50,17 +64,38 @@ declare module 'bg-remove-web' {
     export class WebRemovalConfig {
         constructor();
         
+        /** Output format (png, jpeg, webp, tiff, rgba8) */
+        outputFormat: string;
+        /** JPEG quality (0-100) */
         jpegQuality: number;
+        /** WebP quality (0-100) */
         webpQuality: number;
+        /** Background color (hex string, e.g., "#ffffff") */
         backgroundColor: string;
+        /** Enable debug mode for additional logging */
+        debug: boolean;
+        /** Number of intra-op threads (0 = auto) */
+        intraThreads: number;
+        /** Number of inter-op threads (0 = auto) */
+        interThreads: number;
+        /** Preserve ICC color profiles from input */
         preserveColorProfile: boolean;
+        /** Force sRGB output regardless of input profile */
+        forceSrgbOutput: boolean;
+        /** Fallback to sRGB when color space detection fails */
+        fallbackToSrgb: boolean;
+        /** Embed color profile in output when supported */
+        embedProfileInOutput: boolean;
     }
 
     /**
      * Main background removal class (WebAssembly binding)
      */
     export class BackgroundRemover {
-        constructor();
+        constructor(config?: WebRemovalConfig);
+        
+        /** Current configuration */
+        config: WebRemovalConfig;
         
         /**
          * Initialize the background remover with a specific model
