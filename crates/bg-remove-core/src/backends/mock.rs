@@ -33,9 +33,9 @@ impl Default for MockBackend {
 }
 
 impl InferenceBackend for MockBackend {
-    fn initialize(&mut self, _config: &RemovalConfig) -> Result<()> {
-        // Mock backend doesn't need initialization
-        Ok(())
+    fn initialize(&mut self, _config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
+        // Mock backend doesn't need initialization and has no model loading time
+        Ok(None)
     }
 
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
@@ -97,5 +97,9 @@ impl InferenceBackend for MockBackend {
             input_shape: self.input_shape,
             output_shape: self.output_shape,
         })
+    }
+
+    fn is_initialized(&self) -> bool {
+        true // Mock backend is always "initialized"
     }
 }

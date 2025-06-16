@@ -15,7 +15,7 @@ pub trait InferenceBackend {
     /// - Backend initialization failures
     /// - Model loading or validation errors
     /// - Invalid configuration parameters
-    fn initialize(&mut self, config: &RemovalConfig) -> Result<()>;
+    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>>;
 
     /// Run inference on the input tensor
     ///
@@ -45,6 +45,9 @@ pub trait InferenceBackend {
     /// - Model manager not initialized
     /// - Model metadata unavailable or invalid
     fn get_model_info(&self) -> Result<crate::models::ModelInfo>;
+
+    /// Check if backend is initialized
+    fn is_initialized(&self) -> bool;
 }
 
 /// Backend registry for managing different inference backends
