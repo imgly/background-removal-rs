@@ -19,8 +19,8 @@ workspace = true
 # Default: basic features with WebP support
 default = ["webp-support"]
 
-# WebP support (not WASM-compatible)
-webp-support = ["webp", "image/webp"]
+# WebP support (pure Rust, WASM-compatible via image crate)
+webp-support = ["image/webp"]
 
 # Individual model embedding (additive, not mutually exclusive)
 embed-isnet-fp16 = []
@@ -57,8 +57,7 @@ serde_json = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 
-# WebP decoding only (encoding handled by image crate) - optional for WASM compatibility
-webp = { version = "0.3", optional = true }
+# WebP support is now handled entirely by image crate - no external C dependencies needed
 
 [dev-dependencies]
 criterion = { workspace = true }

@@ -210,21 +210,15 @@ impl ProfileEmbedder {
             image::ImageFormat::WebP => {
                 let rgba_image = image.to_rgba8();
                 
-                if quality < 90 {
-                    // Use webp crate for lossy encoding when quality is significantly below lossless
-                    let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
-                    let webp_data = encoder.encode(f32::from(quality));
-                    
-                    // Write WebP data directly
-                    std::fs::write(output_path, webp_data.as_ref())?;
-                    
-                    if profile.icc_data.is_some() {
-                        log::warn!("ICC profile embedding not supported for lossy WebP encoding");
-                        log::warn!("Use higher quality (90+) for ICC profile support with lossless WebP");
-                    }
+                // Always use image-rs WebP encoder (no external C dependencies)
+                let encoder = if quality >= 100 {
+                    image::codecs::webp::WebPEncoder::new_lossless(writer)
                 } else {
-                    // Use image-rs for lossless WebP encoding with ICC profile support
-                    let mut encoder = image::codecs::webp::WebPEncoder::new_lossless(writer);
+                    // Note: image-rs WebP lossy encoder doesn't have quality parameter in constructor
+                    // Using lossless for now to maintain ICC profile support
+                    log::info!("Using lossless WebP encoding to preserve ICC profile");
+                    image::codecs::webp::WebPEncoder::new_lossless(writer)
+                };
                     
                     // Set ICC profile if available
                     if let Some(icc_data) = &profile.icc_data {
@@ -236,13 +230,12 @@ impl ProfileEmbedder {
                         }
                     }
                     
-                    encoder.write_image(
-                        rgba_image.as_raw(),
-                        rgba_image.width(),
-                        rgba_image.height(),
-                        ExtendedColorType::Rgba8,
-                    )?;
-                }
+                encoder.write_image(
+                    rgba_image.as_raw(),
+                    rgba_image.width(),
+                    rgba_image.height(),
+                    ExtendedColorType::Rgba8,
+                )?;
             },
             #[cfg(not(feature = "webp-support"))]
             image::ImageFormat::WebP => {
