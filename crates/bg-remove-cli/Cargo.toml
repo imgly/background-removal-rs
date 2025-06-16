@@ -28,10 +28,13 @@ embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]
 embed-isnet-fp32 = ["bg-remove-core/embed-isnet-fp32"]
 embed-birefnet-fp16 = ["bg-remove-core/embed-birefnet-fp16"]
 embed-birefnet-fp32 = ["bg-remove-core/embed-birefnet-fp32"]
+embed-birefnet-lite-fp16 = ["bg-remove-core/embed-birefnet-lite-fp16"]
+embed-birefnet-lite-fp32 = ["bg-remove-core/embed-birefnet-lite-fp32"]
 
 # Convenience groups
 embed-all-isnet = ["bg-remove-core/embed-all-isnet"]
 embed-all-birefnet = ["bg-remove-core/embed-all-birefnet"]
+embed-all-birefnet-lite = ["bg-remove-core/embed-all-birefnet-lite"]
 embed-all = ["bg-remove-core/embed-all"]
 
 [dependencies]
