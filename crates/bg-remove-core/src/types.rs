@@ -898,13 +898,13 @@ impl RemovalResult {
         self.color_profile.is_some()
     }
 
-    /// Encode as WebP (placeholder implementation)
+    /// Encode as WebP with RGBA transparency support
     fn encode_webp(&self, quality: u8) -> Vec<u8> {
-        // Convert to RGB (WebP crate doesn't support RGBA)
-        let rgb_image = self.image.to_rgb8();
+        // WebP supports RGBA, so preserve transparency from background removal
+        let rgba_image = self.image.to_rgba8();
 
-        // Encode to WebP
-        let encoder = webp::Encoder::from_rgb(&rgb_image, rgb_image.width(), rgb_image.height());
+        // Encode to WebP with RGBA support
+        let encoder = webp::Encoder::from_rgba(&rgba_image, rgba_image.width(), rgba_image.height());
         let webp_data = encoder.encode(f32::from(quality));
 
         webp_data.to_vec()
