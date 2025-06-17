@@ -74,6 +74,7 @@ ndarray = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 image = { workspace = true }
+png = "0.17"
 
 # Logging (WASM-compatible)
 log = { workspace = true }
