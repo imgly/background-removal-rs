@@ -125,11 +125,11 @@ impl TractBackend {
 
         // Create Tract model from ONNX data
         log::debug!("Creating Tract model from ONNX data...");
+        
+        // Let Tract infer shapes from the ONNX model itself to avoid conflicts
         let model = onnx()
             .model_for_read(&mut std::io::Cursor::new(model_data))
             .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}")))?
-            .with_input_fact(0, f32::fact([1, 3, 1024, 1024]).into())
-            .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to set input shape: {e}")))?
             .into_optimized()
             .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to optimize model: {e}")))?
             .into_runnable()

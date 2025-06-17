@@ -4,13 +4,6 @@ echo "🚀 bg-remove-web Demo Runner"
 echo "============================"
 echo ""
 
-# Check for Python
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is required to run the demo server"
-    echo "   Please install Python 3 and try again"
-    exit 1
-fi
-
 # Check for wasm-pack
 if ! command -v wasm-pack &> /dev/null; then
     echo "❌ wasm-pack is required to build the WASM module"
@@ -23,44 +16,29 @@ if ! command -v wasm-pack &> /dev/null; then
     exit 1
 fi
 
+# Check for npx/npm
+if ! command -v npx &> /dev/null; then
+    echo "❌ npx is required to run the demo server"
+    echo "   Please install Node.js and npm"
+    exit 1
+fi
+
 echo "✅ Dependencies found"
 echo ""
 
-# Options
-echo "Build options:"
-echo "1) Build without embedded models (fast, ~3MB)"
-echo "2) Build with ISNet FP16 model (slower, ~90MB)"
-echo "3) Skip build (use existing build)"
+# Always build with embedded ISNet FP16 model
+echo "🔨 Building WASM module with embedded ISNet FP16 model..."
+echo "⏳ This may take a minute as it embeds the 84MB model..."
 echo ""
-read -p "Choose option (1-3): " choice
 
-case $choice in
-    1)
-        echo "🔨 Building WASM module without models..."
-        wasm-pack build --target web --out-dir pkg --no-default-features
-        ;;
-    2)
-        echo "🔨 Building WASM module with ISNet FP16..."
-        echo "⚠️  Note: This requires the model file at ../../models/isnet/model_fp16.onnx"
-        wasm-pack build --target web --out-dir pkg --features embed-isnet-fp16
-        ;;
-    3)
-        echo "⏭️  Skipping build, using existing files..."
-        ;;
-    *)
-        echo "❌ Invalid choice"
-        exit 1
-        ;;
-esac
-
-# Check if build succeeded
-if [ ! -d "pkg" ]; then
+# Build the WASM module
+if ! wasm-pack build --target web --out-dir pkg --features embed-isnet-fp16,console_error_panic_hook; then
     echo ""
-    echo "❌ Build failed or pkg directory not found"
+    echo "❌ Build failed!"
     echo ""
     echo "Common issues:"
-    echo "- Model files not found: Use option 1 to build without models"
-    echo "- WebP compilation errors: Make sure you have the latest code"
+    echo "- Model file not found at ../../models/isnet/model_fp16.onnx"
+    echo "- Rust/wasm-pack not properly installed"
     echo ""
     exit 1
 fi
@@ -68,13 +46,25 @@ fi
 echo ""
 echo "✅ Build complete!"
 echo ""
-echo "🌐 Starting demo server..."
+
+# Ensure demo/pkg is symlinked to the built pkg directory
+echo "🔗 Setting up pkg symlink in demo directory..."
+cd demo
+if [ -L "pkg" ] || [ -d "pkg" ]; then
+    rm -rf pkg
+fi
+ln -s ../pkg pkg
+
+echo ""
+echo "🌐 Starting demo server with npx serve..."
 echo ""
 echo "Demo will be available at:"
-echo "  http://localhost:8000"
-echo "  http://localhost:8000/test.html (simple test page)"
+echo "  http://localhost:3000"
+echo "  http://localhost:3000/working-demo.html (full featured demo)"
+echo "  http://localhost:3000/test.html (simple test page)"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-cd demo && python3 serve.py
+# Start the server with npx serve (using serve.json for CORS headers)
+npx serve -l 3000 -c serve.json
