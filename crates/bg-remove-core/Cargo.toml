@@ -57,6 +57,9 @@ serde_json = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 
+# WASM-compatible time
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+
 # WebP support is now handled entirely by image crate - no external C dependencies needed
 
 [dev-dependencies]

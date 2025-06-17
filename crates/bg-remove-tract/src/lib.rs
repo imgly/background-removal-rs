@@ -19,6 +19,9 @@ use log;
 use ndarray::Array4;
 use tract_onnx::prelude::*;
 
+// Use instant crate for cross-platform time compatibility
+use instant::{Duration, Instant};
+
 /// Tract backend for running background removal models using pure Rust inference
 #[derive(Debug)]
 pub struct TractBackend {
@@ -93,8 +96,8 @@ impl TractBackend {
     }
 
     /// Load and initialize the model using Tract
-    fn load_model(&mut self, _config: &RemovalConfig) -> Result<std::time::Duration> {
-        let model_load_start = std::time::Instant::now();
+    fn load_model(&mut self, _config: &RemovalConfig) -> Result<Duration> {
+        let model_load_start = Instant::now();
         
         // Get or create model manager
         let model_manager = if let Some(ref manager) = self.model_manager {
@@ -125,6 +128,8 @@ impl TractBackend {
         let model = onnx()
             .model_for_read(&mut std::io::Cursor::new(model_data))
             .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}")))?
+            .with_input_fact(0, f32::fact([1, 3, 1024, 1024]).into())
+            .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to set input shape: {e}")))?
             .into_optimized()
             .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to optimize model: {e}")))?
             .into_runnable()
@@ -170,7 +175,7 @@ impl Default for TractBackend {
 }
 
 impl InferenceBackend for TractBackend {
-    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
+    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<Duration>> {
         if self.initialized {
             return Ok(None); // No model loading time for already initialized backend
         }
@@ -190,7 +195,7 @@ impl InferenceBackend for TractBackend {
         log::debug!("  - Input tensor: {:?}", input.shape());
         log::debug!("  - Backend: Pure Rust (Tract)");
 
-        let inference_start = std::time::Instant::now();
+        let inference_start = Instant::now();
 
         // Convert ndarray to Tract tensor
         let input_tensor = Tensor::from(input.clone());

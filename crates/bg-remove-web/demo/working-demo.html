@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bg-remove-web - Working Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status { 
+            padding: 12px; 
+            border-radius: 6px; 
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+        .warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #007bff;
+            background: #f0f8ff;
+            transform: translateY(-2px);
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
+            opacity: 0.7;
+        }
+        
+        .processing {
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .image-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .image-box {
+            text-align: center;
+            flex: 1;
+            min-width: 300px;
+        }
+        .image-box h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        canvas {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            max-width: 100%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .download-section {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .download-section button {
+            margin: 5px 10px;
+            background: #28a745;
+        }
+        .download-section button:hover {
+            background: #1e7e34;
+        }
+        
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .logo p {
+            color: #6c757d;
+            margin: 5px 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">
+        <h1>🌐 bg-remove-web</h1>
+        <p>AI-powered background removal in your browser</p>
+    </div>
+    
+    <div class="card">
+        <h2>🚀 System Status</h2>
+        <div id="init-status" class="status info">
+            <div class="spinner"></div>
+            Initializing AI model... This may take 30-60 seconds for the 84MB embedded model.
+        </div>
+        <div id="module-info" style="display: none;"></div>
+    </div>
+
+    <div class="card" id="upload-section" style="display: none;">
+        <h2>📸 Upload Image</h2>
+        <div class="upload-area" id="upload-area">
+            <div style="font-size: 48px; margin-bottom: 15px;">📷</div>
+            <h3>Drop an image here or click to select</h3>
+            <p>Supports JPG, PNG, WebP formats • Max recommended: 2048×2048</p>
+            <button id="choose-btn">Choose Image</button>
+            <input type="file" id="file-input" accept="image/*" style="display: none;">
+        </div>
+    </div>
+
+    <div class="card" id="processing-section" style="display: none;">
+        <div class="processing">
+            <div class="spinner"></div>
+            <h3>🧠 Processing Image</h3>
+            <p id="processing-status">Running AI inference...</p>
+        </div>
+    </div>
+
+    <div class="card" id="results-section" style="display: none;">
+        <h2>✨ Results</h2>
+        <div class="image-container" id="image-container">
+            <!-- Images will be added here -->
+        </div>
+        <div class="download-section" id="download-section">
+            <!-- Download buttons will be added here -->
+        </div>
+        <div id="processing-info"></div>
+        
+        <button onclick="startOver()" style="margin-top: 20px;">Process Another Image</button>
+    </div>
+
+    <script type="module">
+        let wasmModule = null;
+        let backgroundRemover = null;
+        let isProcessing = false;
+        
+        async function initializeApp() {
+            try {
+                console.log('🚀 Loading WASM module...');
+                
+                // Import and initialize WASM
+                wasmModule = await import('./pkg/bg_remove_web.js');
+                await wasmModule.default();
+                
+                console.log('✅ WASM loaded, creating BackgroundRemover...');
+                
+                // Create BackgroundRemover with default config
+                backgroundRemover = new wasmModule.BackgroundRemover(null);
+                
+                console.log('🔧 Initializing with embedded model...');
+                
+                // Initialize with embedded model (will use first available)
+                await backgroundRemover.initialize(null);
+                
+                console.log('🎉 Initialization complete!');
+                
+                // Update UI
+                document.getElementById('init-status').innerHTML = 
+                    '<div class="status success">✅ AI model loaded and ready!</div>';
+                
+                // Show module info
+                const version = wasmModule.get_version();
+                const providers = wasmModule.get_wasm_providers();
+                
+                document.getElementById('module-info').innerHTML = `
+                    <pre>Version: ${version}
+WASM Provider: ${providers.description}
+Status: Ready for background removal</pre>
+                `;
+                document.getElementById('module-info').style.display = 'block';
+                
+                // Show upload section
+                document.getElementById('upload-section').style.display = 'block';
+                
+                setupImageUpload();
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                document.getElementById('init-status').innerHTML = 
+                    `<div class="status error">❌ Failed to initialize: ${error.message}</div>`;
+            }
+        }
+        
+        function setupImageUpload() {
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('file-input');
+            const chooseBtn = document.getElementById('choose-btn');
+            
+            // Prevent default drag behaviors
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+            
+            // Visual feedback for drag and drop
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.classList.add('dragover');
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.classList.remove('dragover');
+                }, false);
+            });
+            
+            // Handle dropped files
+            uploadArea.addEventListener('drop', e => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            }, false);
+            
+            // Handle file input
+            fileInput.addEventListener('change', e => {
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+            
+            // Handle button click
+            chooseBtn.addEventListener('click', () => {
+                if (!isProcessing) {
+                    fileInput.click();
+                }
+            });
+        }
+        
+        async function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            if (isProcessing) {
+                return;
+            }
+            
+            isProcessing = true;
+            
+            try {
+                // Hide upload, show processing
+                document.getElementById('upload-section').style.display = 'none';
+                document.getElementById('results-section').style.display = 'none';
+                document.getElementById('processing-section').style.display = 'block';
+                
+                console.log('📸 Processing file:', file.name);
+                
+                // Load image
+                const img = await loadImage(file);
+                console.log(`🖼️ Image loaded: ${img.width}×${img.height}`);
+                
+                // Create canvas and get ImageData
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Resize if too large (for performance)
+                const maxSize = 1024;
+                const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                console.log(`🔄 Processing ${canvas.width}×${canvas.height} image...`);
+                document.getElementById('processing-status').textContent = 
+                    `Processing ${canvas.width}×${canvas.height} image...`;
+                
+                // Process with background removal
+                const startTime = performance.now();
+                const resultImageData = await backgroundRemover.remove_background_from_image_data(imageData);
+                const processingTime = (performance.now() - startTime).toFixed(0);
+                
+                console.log(`✅ Processing complete in ${processingTime}ms`);
+                
+                // Display results
+                displayResults(img, file, canvas, resultImageData, processingTime);
+                
+            } catch (error) {
+                console.error('❌ Processing failed:', error);
+                document.getElementById('processing-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+                alert(`Processing failed: ${error.message}`);
+            }
+            
+            isProcessing = false;
+        }
+        
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function displayResults(originalImg, file, originalCanvas, resultImageData, processingTime) {
+            // Hide processing, show results
+            document.getElementById('processing-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'block';
+            
+            const container = document.getElementById('image-container');
+            container.innerHTML = '';
+            
+            // Original image
+            const originalBox = document.createElement('div');
+            originalBox.className = 'image-box';
+            originalBox.innerHTML = '<h4>📸 Original</h4>';
+            originalBox.appendChild(originalCanvas);
+            container.appendChild(originalBox);
+            
+            // Result image
+            const resultCanvas = document.createElement('canvas');
+            const resultCtx = resultCanvas.getContext('2d');
+            resultCanvas.width = resultImageData.width;
+            resultCanvas.height = resultImageData.height;
+            resultCtx.putImageData(resultImageData, 0, 0);
+            
+            const resultBox = document.createElement('div');
+            resultBox.className = 'image-box';
+            resultBox.innerHTML = '<h4>✨ Background Removed</h4>';
+            resultBox.appendChild(resultCanvas);
+            container.appendChild(resultBox);
+            
+            // Download buttons
+            const downloadSection = document.getElementById('download-section');
+            downloadSection.innerHTML = `
+                <button onclick="downloadCanvas(arguments[0], 'removed-background.png')" 
+                        data-canvas-id="result">📥 Download PNG</button>
+                <button onclick="downloadCanvas(arguments[0], 'removed-background.jpg')" 
+                        data-canvas-id="result">📥 Download JPG</button>
+            `;
+            
+            // Store canvas for download
+            window.resultCanvas = resultCanvas;
+            
+            // Processing info
+            document.getElementById('processing-info').innerHTML = `
+                <div class="status success">
+                    <strong>✅ Processing Complete!</strong><br>
+                    File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)<br>
+                    Original: ${originalImg.width}×${originalImg.height}<br>
+                    Processed: ${resultCanvas.width}×${resultCanvas.height}<br>
+                    Processing time: ${processingTime}ms
+                </div>
+            `;
+        }
+        
+        window.downloadCanvas = function(event, filename) {
+            const canvas = window.resultCanvas;
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+        
+        window.startOver = function() {
+            document.getElementById('results-section').style.display = 'none';
+            document.getElementById('upload-section').style.display = 'block';
+            document.getElementById('file-input').value = '';
+        };
+        
+        // Start initialization
+        initializeApp();
+    </script>
+</body>
+</html>

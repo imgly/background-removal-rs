@@ -5,6 +5,9 @@ use crate::error::Result;
 use crate::inference::InferenceBackend;
 use ndarray::Array4;
 
+// Use instant crate for cross-platform time compatibility
+use instant::Duration;
+
 /// Mock backend for testing and debugging purposes
 ///
 /// This backend provides a simple edge detection algorithm as a mock
@@ -33,7 +36,7 @@ impl Default for MockBackend {
 }
 
 impl InferenceBackend for MockBackend {
-    fn initialize(&mut self, _config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
+    fn initialize(&mut self, _config: &RemovalConfig) -> Result<Option<Duration>> {
         // Mock backend doesn't need initialization and has no model loading time
         Ok(None)
     }

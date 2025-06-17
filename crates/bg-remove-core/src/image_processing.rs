@@ -13,7 +13,8 @@ use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
 use log;
 use ndarray::Array4;
 use std::path::Path;
-use std::time::Instant;
+// Use instant crate for cross-platform time compatibility
+use instant::Instant;
 
 /// Processing options for fine-tuning behavior
 #[derive(Debug, Clone, Default)]

@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 use std::path::Path;
 
+// Use instant crate for cross-platform time compatibility
+use instant::Instant;
+
 /// ICC color profile information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColorProfile {
@@ -241,7 +244,7 @@ impl RemovalResult {
     /// - PNG encoding errors from underlying image library
     /// - Timing conversion errors if encoding time exceeds u64 range
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
         self.image.save_with_format(path, image::ImageFormat::Png)?;
         encode_start.elapsed().as_millis().try_into().map_err(|_| {
             crate::error::BgRemovalError::processing("PNG encoding time too large for u64")
@@ -470,7 +473,7 @@ impl RemovalResult {
         format: image::ImageFormat,
     ) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
         self.image.save_with_format(&path, format)?;
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
             crate::error::BgRemovalError::processing("Image encoding time too large for u64")
@@ -520,7 +523,7 @@ impl RemovalResult {
     /// - Path conversion errors for logging purposes
     pub fn save_jpeg_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
         
         // Convert to RGB and apply background color for JPEG
         let rgb_image = self.image.to_rgb8();
@@ -566,7 +569,7 @@ impl RemovalResult {
     /// - Path conversion errors for logging purposes
     pub fn save_webp_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
         
         // Use the existing WebP encoding method
         let webp_data = self.encode_webp(quality);
@@ -608,7 +611,7 @@ impl RemovalResult {
     /// - Path conversion errors for logging purposes
     pub fn save_tiff_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
         
         // Save as TIFF with RGBA transparency
         self.image.save_with_format(&path, image::ImageFormat::Tiff)?;
@@ -655,7 +658,7 @@ impl RemovalResult {
             OutputFormat::Tiff => self.save_tiff_timed(path),
             OutputFormat::Rgba8 => {
                 let path_str = path.as_ref().display().to_string();
-                let encode_start = std::time::Instant::now();
+                let encode_start = Instant::now();
                 
                 // For RGBA8 format, save the raw RGBA bytes
                 let rgba_image = self.image.to_rgba8();
@@ -854,7 +857,7 @@ impl RemovalResult {
         use crate::color_profile::ProfileEmbedder;
 
         let path_str = path.as_ref().display().to_string();
-        let encode_start = std::time::Instant::now();
+        let encode_start = Instant::now();
 
         // Check if we have a color profile to embed
         if let Some(ref profile) = self.color_profile {

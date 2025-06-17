@@ -7,6 +7,9 @@ use crate::{
 };
 use ndarray::Array4;
 
+// Use instant crate for cross-platform time compatibility
+use instant::Duration;
+
 /// Trait for inference backends
 pub trait InferenceBackend {
     /// Initialize the backend with the given configuration
@@ -15,7 +18,7 @@ pub trait InferenceBackend {
     /// - Backend initialization failures
     /// - Model loading or validation errors
     /// - Invalid configuration parameters
-    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>>;
+    fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<Duration>>;
 
     /// Run inference on the input tensor
     ///

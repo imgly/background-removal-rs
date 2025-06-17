@@ -21,6 +21,8 @@ crate-type = ["cdylib"]
 [features]
 # Default: no embedded models for easier building/testing
 default = []
+console_error_panic_hook = []
+wee_alloc = []
 
 # Individual model embedding (pass-through to core)
 embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]
@@ -84,6 +86,9 @@ serde-wasm-bindgen = "0.4"
 # WASM-compatible random number generation
 getrandom = { version = "0.2", features = ["js"] }
 
+# WASM-compatible time (no std::time)
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
@@ -92,4 +97,7 @@ wasm-bindgen-test = "0.3"
 opt-level = "s"
 lto = true
 debug = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
 panic = "abort"

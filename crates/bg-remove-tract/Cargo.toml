@@ -31,6 +31,9 @@ thiserror = { workspace = true }
 # Logging
 log = { workspace = true }
 
+# WASM-compatible time
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 env_logger = "0.11"

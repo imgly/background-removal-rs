@@ -72,11 +72,10 @@ use bg_remove_core::{
     InferenceBackend,
 };
 use bg_remove_tract::TractBackend;
-use js_sys::{Array, Promise, Uint8Array};
+use js_sys::{Array, Promise};
 use ndarray::Array4;
-use std::collections::HashMap;
 use wasm_bindgen_futures::future_to_promise;
-use web_sys::{ImageData, CanvasRenderingContext2d, HtmlCanvasElement};
+use web_sys::{ImageData};
 
 /// JavaScript-compatible error type for WASM
 #[wasm_bindgen]
@@ -296,11 +295,11 @@ impl WebRemovalConfig {
     
     /// Convert to core RemovalConfig
     pub(crate) fn to_removal_config(&self) -> RemovalConfig {
-        use crate::{OutputFormat, BackgroundColor, ColorManagementConfig};
+        use bg_remove_core::{OutputFormat, ColorManagementConfig};
         
         // Parse background color from hex
         let bg_color = self.parse_hex_color(&self.background_color)
-            .unwrap_or(BackgroundColor::white());
+            .unwrap_or(bg_remove_core::BackgroundColor::white());
         
         // Parse output format
         let output_format = match self.output_format.as_str() {
@@ -331,7 +330,7 @@ impl WebRemovalConfig {
     }
     
     /// Parse hex color string to BackgroundColor
-    fn parse_hex_color(&self, hex: &str) -> Option<BackgroundColor> {
+    fn parse_hex_color(&self, hex: &str) -> Option<bg_remove_core::BackgroundColor> {
         let hex = hex.trim_start_matches('#');
         
         if hex.len() == 6 {
@@ -339,22 +338,64 @@ impl WebRemovalConfig {
             let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
             let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
             let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            Some(BackgroundColor::new(r, g, b))
+            Some(bg_remove_core::BackgroundColor::new(r, g, b))
         } else if hex.len() == 3 {
             // Parse #RGB
             let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
             let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
             let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
-            Some(BackgroundColor::new(r, g, b))
+            Some(bg_remove_core::BackgroundColor::new(r, g, b))
         } else {
             None
+        }
+    }
+
+    /// Create WebRemovalConfig from core RemovalConfig
+    pub(crate) fn from_removal_config(config: RemovalConfig) -> Self {
+        let background_hex = format!("#{:02x}{:02x}{:02x}", 
+            config.background_color.r, 
+            config.background_color.g, 
+            config.background_color.b);
+            
+        let output_format = match config.output_format {
+            bg_remove_core::OutputFormat::Png => "png",
+            bg_remove_core::OutputFormat::Jpeg => "jpeg",
+            bg_remove_core::OutputFormat::WebP => "webp",
+            bg_remove_core::OutputFormat::Tiff => "tiff",
+            bg_remove_core::OutputFormat::Rgba8 => "rgba8",
+        }.to_string();
+
+        Self {
+            output_format,
+            jpeg_quality: config.jpeg_quality,
+            webp_quality: config.webp_quality,
+            background_color: background_hex,
+            debug: config.debug,
+            intra_threads: config.intra_threads as u32,
+            inter_threads: config.inter_threads as u32,
+            preserve_color_profile: config.color_management.preserve_color_profile,
+            force_srgb_output: config.color_management.force_srgb_output,
+            fallback_to_srgb: config.color_management.fallback_to_srgb,
+            embed_profile_in_output: config.color_management.embed_profile_in_output,
         }
     }
 }
 
 impl Default for WebRemovalConfig {
     fn default() -> Self {
-        Self::new()
+        WebRemovalConfig {
+            output_format: "png".to_string(),
+            jpeg_quality: 90,
+            webp_quality: 85,
+            background_color: "#ffffff".to_string(),
+            debug: false,
+            intra_threads: 0,
+            inter_threads: 0,
+            preserve_color_profile: true,
+            force_srgb_output: false,
+            fallback_to_srgb: true,
+            embed_profile_in_output: true,
+        }
     }
 }
 
@@ -413,6 +454,7 @@ impl BackgroundRemover {
 
     /// Initialize the background remover with a specific model
     /// Returns a Promise that resolves when initialization is complete
+    #[allow(unsafe_code)]
     #[wasm_bindgen]
     pub fn initialize(&mut self, model_name: Option<String>) -> Promise {
         console_log!("🚀 Initializing BackgroundRemover");
@@ -448,7 +490,8 @@ impl BackgroundRemover {
                     // SAFETY: We know this pointer is valid for the duration of the Promise
                     unsafe {
                         (*self_ptr).backend = Some(backend);
-                        (*self_ptr).config = config;
+                        // Convert RemovalConfig to WebRemovalConfig
+                        (*self_ptr).config = WebRemovalConfig::from_removal_config(config);
                         (*self_ptr).initialized = true;
                     }
                     
@@ -465,7 +508,7 @@ impl BackgroundRemover {
     /// Internal async initialization implementation
     async fn initialize_impl(
         model_spec: ModelSpec,
-        mut config: RemovalConfig,
+        config: RemovalConfig,
     ) -> Result<(TractBackend, RemovalConfig), bg_remove_core::error::BgRemovalError> {
         // Create model manager
         let model_manager = ModelManager::from_spec(&model_spec)?;
@@ -521,7 +564,7 @@ impl BackgroundRemover {
         console_log!("🖼️ Processing ImageData: {}x{}", image_data.width(), image_data.height());
 
         // Clone backend reference for async operation
-        let backend_ptr = self.backend.as_ref().unwrap() as *const TractBackend;
+        let backend_ptr = self.backend.as_ref().unwrap() as *const TractBackend as *mut TractBackend;
         
         future_to_promise(async move {
             match Self::process_image_data_impl(image_data, backend_ptr).await {
@@ -535,21 +578,22 @@ impl BackgroundRemover {
     }
 
     /// Internal implementation for processing ImageData
+    #[allow(unsafe_code)]
     async fn process_image_data_impl(
         image_data: ImageData,
-        backend_ptr: *const TractBackend,
+        backend_ptr: *mut TractBackend,
     ) -> Result<ImageData, bg_remove_core::error::BgRemovalError> {
         let width = image_data.width();
         let height = image_data.height();
         let data = image_data.data();
 
-        console_log!("📊 Image dimensions: {}x{}, data length: {}", width, height, data.length());
+        console_log!("📊 Image dimensions: {}x{}, data length: {}", width, height, data.len());
 
         // Convert ImageData to ndarray format for processing
         let input_array = Self::image_data_to_array4(&data, width, height)?;
         
         // SAFETY: We know this pointer is valid for the duration of the Promise
-        let backend = unsafe { &*backend_ptr };
+        let backend = unsafe { &mut *backend_ptr };
         
         // Perform inference using Tract backend
         console_log!("🧠 Running inference...");
@@ -564,11 +608,11 @@ impl BackgroundRemover {
 
     /// Convert ImageData to Array4<f32> for processing
     fn image_data_to_array4(
-        data: &js_sys::Uint8ClampedArray,
+        data: &wasm_bindgen::Clamped<Vec<u8>>,
         width: u32,
         height: u32,
     ) -> Result<Array4<f32>, bg_remove_core::error::BgRemovalError> {
-        let data_vec: Vec<u8> = data.to_vec();
+        let data_vec: &Vec<u8> = &data;
         
         if data_vec.len() != (width * height * 4) as usize {
             return Err(bg_remove_core::error::BgRemovalError::processing(
@@ -648,10 +692,10 @@ impl BackgroundRemover {
         }
 
         // Create Uint8ClampedArray from the data
-        let clamped_array = js_sys::Uint8ClampedArray::from(&rgba_data[..]);
+        let clamped_array = wasm_bindgen::Clamped(rgba_data);
         
         // Create and return ImageData
-        ImageData::new_with_u8_clamped_array(&clamped_array, width)
+        ImageData::new_with_u8_clamped_array(wasm_bindgen::Clamped(&clamped_array), width)
             .map_err(|e| bg_remove_core::error::BgRemovalError::processing(
                 format!("Failed to create ImageData: {:?}", e)
             ))
@@ -660,7 +704,7 @@ impl BackgroundRemover {
 
 impl Default for BackgroundRemover {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
