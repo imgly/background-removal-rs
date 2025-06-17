@@ -73,6 +73,7 @@ web-sys = { version = "0.3", features = [
 ndarray = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+image = { workspace = true }
 
 # Logging (WASM-compatible)
 log = { workspace = true }

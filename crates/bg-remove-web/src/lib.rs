@@ -589,11 +589,16 @@ impl BackgroundRemover {
 
         console_log!("📊 Image dimensions: {}x{}, data length: {}", width, height, data.len());
 
-        // Convert ImageData to ndarray format for processing
-        let input_array = Self::image_data_to_array4(&data, width, height)?;
+        // Convert ImageData to DynamicImage 
+        let dynamic_image = Self::image_data_to_dynamic_image(&data, width, height)?;
         
         // SAFETY: We know this pointer is valid for the duration of the Promise
         let backend = unsafe { &mut *backend_ptr };
+        
+        // Use proper preprocessing and inference
+        console_log!("🔧 Preprocessing image...");
+        let config = RemovalConfig::default(); // TODO: Use actual config
+        let (input_array, _preprocessed_image) = Self::process_with_core_processor(dynamic_image, backend, &config)?;
         
         // Perform inference using Tract backend
         console_log!("🧠 Running inference...");
@@ -606,12 +611,12 @@ impl BackgroundRemover {
         Ok(result_data)
     }
 
-    /// Convert ImageData to Array4<f32> for processing
-    fn image_data_to_array4(
+    /// Convert ImageData to DynamicImage and then use core preprocessing
+    fn image_data_to_dynamic_image(
         data: &wasm_bindgen::Clamped<Vec<u8>>,
         width: u32,
         height: u32,
-    ) -> Result<Array4<f32>, bg_remove_core::error::BgRemovalError> {
+    ) -> Result<image::DynamicImage, bg_remove_core::error::BgRemovalError> {
         let data_vec: &Vec<u8> = &data;
         
         if data_vec.len() != (width * height * 4) as usize {
@@ -621,24 +626,115 @@ impl BackgroundRemover {
             ));
         }
 
-        // Convert RGBA to RGB and normalize to [0,1]
+        // Convert RGBA ImageData to RGB image
         let mut rgb_data = Vec::with_capacity((width * height * 3) as usize);
-        
         for chunk in data_vec.chunks_exact(4) {
-            rgb_data.push(chunk[0] as f32 / 255.0); // R
-            rgb_data.push(chunk[1] as f32 / 255.0); // G  
-            rgb_data.push(chunk[2] as f32 / 255.0); // B
+            rgb_data.push(chunk[0]); // R
+            rgb_data.push(chunk[1]); // G  
+            rgb_data.push(chunk[2]); // B
             // Ignore alpha channel (chunk[3])
         }
 
-        // Create Array4 in NCHW format (batch=1, channels=3, height, width)
-        Array4::from_shape_vec(
-            (1, 3, height as usize, width as usize),
-            rgb_data,
-        )
-        .map_err(|e| bg_remove_core::error::BgRemovalError::processing(
-            format!("Failed to create input array: {}", e)
-        ))
+        // Create RGB ImageBuffer
+        let rgb_image = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::from_raw(width, height, rgb_data)
+            .ok_or_else(|| bg_remove_core::error::BgRemovalError::processing(
+                "Failed to create RGB image buffer"
+            ))?;
+        
+        console_log!("📐 Converted ImageData to DynamicImage: {}x{}", width, height);
+        Ok(image::DynamicImage::ImageRgb8(rgb_image))
+    }
+
+    /// Process image using core ImageProcessor (reuses existing preprocessing logic)
+    fn process_with_core_processor(
+        image: image::DynamicImage,
+        backend: &mut TractBackend,
+        _config: &RemovalConfig,
+    ) -> Result<(Array4<f32>, image::DynamicImage), bg_remove_core::error::BgRemovalError> {
+        // Create ImageProcessor with our backend - but we need to avoid double initialization
+        // Since we can't easily extract the preprocessing method, let's use a simpler approach
+        // and call the backend directly with proper preprocessing
+        
+        // Get preprocessing config from backend
+        let preprocessing_config = backend.get_preprocessing_config()?;
+        let target_size = preprocessing_config.target_size[0];
+        
+        console_log!("🔧 Model preprocessing config: target_size={}, mean={:?}, std={:?}", 
+                    target_size, preprocessing_config.normalization_mean, preprocessing_config.normalization_std);
+
+        // Apply the same preprocessing logic as ImageProcessor::preprocess_image
+        let rgb_image = image.to_rgb8();
+        let (orig_width, orig_height) = rgb_image.dimensions();
+
+        // Calculate aspect ratio preserving dimensions
+        let target_size_f32 = target_size as f32;
+        let orig_width_f32 = orig_width as f32;
+        let orig_height_f32 = orig_height as f32;
+
+        let scale = target_size_f32
+            .min((target_size_f32 / orig_width_f32).min(target_size_f32 / orig_height_f32));
+
+        let new_width = (orig_width_f32 * scale).round() as u32;
+        let new_height = (orig_height_f32 * scale).round() as u32;
+        
+        console_log!("📏 Scale factor: {:.3}, resized: {}x{}", scale, new_width, new_height);
+
+        // Resize image maintaining aspect ratio
+        let resized = image::imageops::resize(
+            &rgb_image,
+            new_width,
+            new_height,
+            image::imageops::FilterType::Triangle,
+        );
+
+        // Create padded canvas with white padding (matching core default)
+        let mut canvas = image::ImageBuffer::from_pixel(
+            target_size,
+            target_size,
+            image::Rgb([255, 255, 255]), // White padding
+        );
+
+        // Calculate centering offset
+        let offset_x = (target_size - new_width) / 2;
+        let offset_y = (target_size - new_height) / 2;
+        
+        console_log!("📍 Padding offsets: x={}, y={}", offset_x, offset_y);
+
+        // Copy resized image to center of canvas
+        for (x, y, pixel) in resized.enumerate_pixels() {
+            let canvas_x = x + offset_x;
+            let canvas_y = y + offset_y;
+            if canvas_x < target_size && canvas_y < target_size {
+                canvas.put_pixel(canvas_x, canvas_y, *pixel);
+            }
+        }
+
+        // Convert to tensor format (NCHW) with model-specific normalization
+        let target_size_usize = target_size as usize;
+        let mut tensor = Array4::<f32>::zeros((1, 3, target_size_usize, target_size_usize));
+
+        for (y, row) in canvas.rows().enumerate() {
+            for (x, pixel) in row.enumerate() {
+                // Apply model-specific normalization (mean and std from preprocessing config)
+                let normalized_r = (f32::from(pixel[0]) / 255.0
+                    - preprocessing_config.normalization_mean[0])
+                    / preprocessing_config.normalization_std[0];
+                let normalized_g = (f32::from(pixel[1]) / 255.0
+                    - preprocessing_config.normalization_mean[1])
+                    / preprocessing_config.normalization_std[1];
+                let normalized_b = (f32::from(pixel[2]) / 255.0
+                    - preprocessing_config.normalization_mean[2])
+                    / preprocessing_config.normalization_std[2];
+
+                tensor[[0, 0, y, x]] = normalized_r; // R
+                tensor[[0, 1, y, x]] = normalized_g; // G
+                tensor[[0, 2, y, x]] = normalized_b; // B
+            }
+        }
+
+        let preprocessed_image = image::DynamicImage::ImageRgb8(canvas);
+        console_log!("✅ Preprocessed to tensor: 1x3x{}x{}", target_size, target_size);
+        Ok((tensor, preprocessed_image))
     }
 
     /// Convert Array4<f32> back to ImageData
