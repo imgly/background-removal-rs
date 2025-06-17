@@ -27,7 +27,7 @@ impl Default for ExecutionProvider {
 pub enum OutputFormat {
     /// PNG with alpha channel transparency
     Png,
-    /// JPEG with configurable background color (no transparency)
+    /// JPEG (no transparency, premultiplied RGB output)
     Jpeg,
     /// WebP with alpha channel transparency
     WebP,
@@ -43,95 +43,6 @@ impl Default for OutputFormat {
     }
 }
 
-/// Background color for formats that don't support transparency
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BackgroundColor {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-}
-
-impl Default for BackgroundColor {
-    fn default() -> Self {
-        // Default to white background
-        Self {
-            r: 255,
-            g: 255,
-            b: 255,
-        }
-    }
-}
-
-impl BackgroundColor {
-    /// Create a new background color with RGB values
-    ///
-    /// # Arguments
-    /// * `r` - Red component (0-255)
-    /// * `g` - Green component (0-255)
-    /// * `b` - Blue component (0-255)
-    ///
-    /// # Examples
-    /// ```rust
-    /// use bg_remove_core::BackgroundColor;
-    /// let purple = BackgroundColor::new(128, 0, 128);
-    /// let orange = BackgroundColor::new(255, 165, 0);
-    /// ```
-    #[must_use]
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
-    }
-
-    /// Create a white background color (255, 255, 255)
-    ///
-    /// Commonly used for product photography and clean presentations.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use bg_remove_core::BackgroundColor;
-    /// let white = BackgroundColor::white();
-    /// assert_eq!(white.r, 255);
-    /// assert_eq!(white.g, 255);
-    /// assert_eq!(white.b, 255);
-    /// ```
-    #[must_use]
-    pub fn white() -> Self {
-        Self::new(255, 255, 255)
-    }
-
-    /// Create a black background color (0, 0, 0)
-    ///
-    /// Useful for dramatic effects or when the foreground is light-colored.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use bg_remove_core::BackgroundColor;
-    /// let black = BackgroundColor::black();
-    /// assert_eq!(black.r, 0);
-    /// assert_eq!(black.g, 0);
-    /// assert_eq!(black.b, 0);
-    /// ```
-    #[must_use]
-    pub fn black() -> Self {
-        Self::new(0, 0, 0)
-    }
-
-    /// Create a transparent background placeholder
-    ///
-    /// Note: This returns black (0,0,0) but the color is ignored for formats
-    /// that support transparency (PNG, WebP). Only used for JPEG output.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use bg_remove_core::{BackgroundColor, OutputFormat};
-    /// let transparent = BackgroundColor::transparent();
-    /// // Used with PNG - color ignored, true transparency
-    /// // Used with JPEG - renders as black background
-    /// ```
-    #[must_use]
-    pub fn transparent() -> Self {
-        Self::new(0, 0, 0) // Will be ignored for transparent formats
-    }
-}
 
 /// Color management configuration
 ///
@@ -208,8 +119,6 @@ pub struct RemovalConfig {
     /// Output format
     pub output_format: OutputFormat,
 
-    /// Background color for non-transparent formats
-    pub background_color: BackgroundColor,
 
     /// JPEG quality (0-100, only used for JPEG output)
     pub jpeg_quality: u8,
@@ -235,7 +144,6 @@ impl Default for RemovalConfig {
         Self {
             execution_provider: ExecutionProvider::default(),
             output_format: OutputFormat::default(),
-            background_color: BackgroundColor::default(),
             jpeg_quality: 90,
             webp_quality: 85,
             debug: false,
@@ -265,13 +173,12 @@ impl RemovalConfig {
     ///
     /// ## Advanced configuration
     /// ```rust
-    /// use bg_remove_core::{RemovalConfig, ExecutionProvider, OutputFormat, BackgroundColor};
+    /// use bg_remove_core::{RemovalConfig, ExecutionProvider, OutputFormat};
     ///
     /// let config = RemovalConfig::builder()
     ///     .execution_provider(ExecutionProvider::CoreMl)
     ///     .output_format(OutputFormat::WebP)
     ///     .webp_quality(95)
-    ///     .background_color(BackgroundColor::new(240, 248, 255))
     ///     .debug(true)
     ///     .num_threads(8)
     ///     .build()
@@ -351,12 +258,6 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set background color
-    #[must_use]
-    pub fn background_color(mut self, color: BackgroundColor) -> Self {
-        self.config.background_color = color;
-        self
-    }
 
     /// Set JPEG quality
     #[must_use]
@@ -523,14 +424,12 @@ mod tests {
     fn test_config_builder() {
         let config = RemovalConfig::builder()
             .output_format(OutputFormat::Jpeg)
-            .background_color(BackgroundColor::black())
             .jpeg_quality(95)
             .debug(true)
             .build()
             .unwrap();
 
         assert_eq!(config.output_format, OutputFormat::Jpeg);
-        assert_eq!(config.background_color, BackgroundColor::black());
         assert_eq!(config.jpeg_quality, 95);
         assert!(config.debug);
     }
@@ -547,12 +446,4 @@ mod tests {
         assert!(config.validate().is_err());
     }
 
-    #[test]
-    fn test_background_colors() {
-        assert_eq!(
-            BackgroundColor::white(),
-            BackgroundColor::new(255, 255, 255)
-        );
-        assert_eq!(BackgroundColor::black(), BackgroundColor::new(0, 0, 0));
-    }
 }

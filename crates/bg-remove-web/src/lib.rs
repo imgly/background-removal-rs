@@ -83,8 +83,6 @@ pub struct WebRemovalConfig {
     jpeg_quality: u8,
     /// Output format quality for WebP (0-100)  
     webp_quality: u8,
-    /// Background color (RGB hex string, e.g., "#ffffff")
-    background_color: String,
     /// Enable debug mode (additional logging)
     debug: bool,
     /// Number of intra-op threads for inference (0 = auto)
@@ -125,21 +123,6 @@ impl WebRemovalConfig {
         }
     }
 
-    // Background color getters/setters
-    #[wasm_bindgen(getter)]
-    pub fn background_color(&self) -> String {
-        self.background_color.clone()
-    }
-
-    #[wasm_bindgen(setter)]
-    pub fn set_background_color(&mut self, color: String) {
-        if color.starts_with('#') && (color.len() == 7 || color.len() == 4) {
-            self.background_color = color;
-        } else {
-            console_log!("Invalid color format: {}. Using '#ffffff'", color);
-            self.background_color = "#ffffff".to_string();
-        }
-    }
 
     // Additional getters/setters (simplified for brevity)
     #[wasm_bindgen(getter)]
@@ -177,7 +160,6 @@ impl Default for WebRemovalConfig {
             output_format: "png".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
-            background_color: "#ffffff".to_string(),
             debug: false,
             intra_threads: 0,
             inter_threads: 0,

@@ -3,7 +3,7 @@
 //! These tests validate compatibility across different configurations,
 //! execution providers, and edge cases.
 
-use bg_remove_core::config::{BackgroundColor, ExecutionProvider};
+use bg_remove_core::config::ExecutionProvider;
 use bg_remove_core::{remove_background, RemovalConfig};
 use image::GenericImageView;
 use std::path::Path;
@@ -62,43 +62,46 @@ async fn test_execution_provider_compatibility() {
 }
 
 #[tokio::test]
-async fn test_background_color_options() {
-    let background_colors = vec![
-        ("Transparent", BackgroundColor::transparent()),
-        ("White", BackgroundColor::white()),
-        ("Black", BackgroundColor::black()),
-    ];
+async fn test_output_format_options() {
 
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !Path::new(input_path).exists() {
-        println!("⏭️  Skipping background color test: test file not found");
+        println!("⏭️  Skipping output format test: test file not found");
         return;
     }
 
-    for (name, bg_color) in background_colors {
+    // Test different output formats instead of background colors
+    use bg_remove_core::config::OutputFormat;
+    let output_formats = vec![
+        ("PNG", OutputFormat::Png),
+        ("JPEG", OutputFormat::Jpeg),
+        ("WebP", OutputFormat::WebP),
+    ];
+
+    for (name, format) in output_formats {
         let config = RemovalConfig::builder()
-            .background_color(bg_color)
+            .output_format(format)
             .debug(false)
             .build()
             .expect("Failed to create config");
 
         let result = remove_background(input_path, &config).await;
-        assert!(result.is_ok(), "Should work with {name} background");
+        assert!(result.is_ok(), "Should work with {name} output format");
 
         let result = result.unwrap();
 
         // Verify output properties
         assert!(
             !result.mask.data.is_empty(),
-            "{name} background should produce mask"
+            "{name} format should produce mask"
         );
         assert!(
             result.image.width() > 0,
-            "{name} background should produce valid image"
+            "{name} format should produce valid image"
         );
 
-        println!("✅ {name} background: compatible");
+        println!("✅ {name} output format: compatible");
     }
 }
 
@@ -162,8 +165,9 @@ async fn test_configuration_builder_compatibility() {
     // Test full configuration
     let full_config = RemovalConfig::builder()
         .execution_provider(ExecutionProvider::Cpu)
-        .background_color(BackgroundColor::transparent())
         .debug(false)
+        .jpeg_quality(95)
+        .webp_quality(90)
         .build()
         .expect("Full config should build");
 
@@ -194,10 +198,10 @@ async fn test_concurrent_different_configs() {
             .build()
             .expect("Auto config should build"),
         RemovalConfig::builder()
-            .background_color(BackgroundColor::white())
+            .jpeg_quality(85)
             .debug(false)
             .build()
-            .expect("White background config should build"),
+            .expect("Quality config should build"),
     ];
 
     // Process with different configs sequentially (due to Send constraints)

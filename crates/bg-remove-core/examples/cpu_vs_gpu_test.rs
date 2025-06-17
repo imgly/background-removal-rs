@@ -1,7 +1,6 @@
 //! Compare CPU vs GPU ONNX Runtime performance
 
-use bg_remove_core::config::RemovalConfig;
-use bg_remove_core::image_processing::ImageProcessor;
+use bg_remove_core::{RemovalConfig, BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
 use std::time::Instant;
 
 #[tokio::main]
@@ -19,12 +18,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test current implementation (should use GPU if available)
     println!("🧪 Testing current implementation (GPU-enabled)...");
-    let config_gpu = RemovalConfig::builder().debug(false).build()?;
+    let processor_config = ProcessorConfigBuilder::new()
+        .backend_type(BackendType::Mock)  // Use Mock backend for example
+        .debug(false)
+        .build()?;
 
-    let mut processor_gpu = ImageProcessor::new(&config_gpu)?;
+    let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
 
     let start = Instant::now();
-    let result_gpu = processor_gpu.remove_background(test_image).await?;
+    let result_gpu = processor.process_file(test_image).await?;
     let gpu_time = start.elapsed().as_secs_f64();
     let gpu_stats = result_gpu.mask.statistics();
 

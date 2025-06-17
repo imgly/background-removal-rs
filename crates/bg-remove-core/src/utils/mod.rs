@@ -6,9 +6,12 @@
 
 pub mod color;
 pub mod models;
+pub mod preprocessing;
 pub mod providers;
+pub mod validation;
 
 // Re-export commonly used items for convenience
-pub use color::ColorParser;
 pub use models::ModelSpecParser;
+pub use preprocessing::{ImagePreprocessor, PreprocessingOptions};
 pub use providers::{ExecutionProviderManager, ProviderInfo};
+pub use validation::ConfigValidator;

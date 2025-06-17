@@ -44,28 +44,35 @@ impl InferenceBackend for MockBackend {
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         let (n, _c, h, w) = input.dim();
 
-        // Create a mock segmentation mask (simple edge detection)
+        // Create a mock segmentation mask (simple center circle/square detection)
         let mut output = Array4::<f32>::zeros((n, 1, h, w));
 
         for batch in 0..n {
-            for y in 1..h - 1 {
-                for x in 1..w - 1 {
-                    // Simple edge detection as mock segmentation
-                    let center = input[[batch, 0, y, x]];
-                    let left = input[[batch, 0, y, x - 1]];
-                    let right = input[[batch, 0, y, x + 1]];
-                    let top = input[[batch, 0, y - 1, x]];
-                    let bottom = input[[batch, 0, y + 1, x]];
-
-                    let edge_strength = ((center - left).abs()
-                        + (center - right).abs()
-                        + (center - top).abs()
-                        + (center - bottom).abs())
-                        / 4.0;
-
-                    // Create a reasonable mock mask - use safe indexing
+            // Create a simple mask with a circle/square in the center
+            let center_y = h / 2;
+            let center_x = w / 2;
+            let radius = (h.min(w) / 3) as f32;
+            
+            for y in 0..h {
+                for x in 0..w {
+                    // Calculate distance from center
+                    let dy = (y as f32 - center_y as f32).abs();
+                    let dx = (x as f32 - center_x as f32).abs();
+                    let distance = (dy * dy + dx * dx).sqrt();
+                    
+                    // Create a circular mask with soft edges
+                    let mask_value = if distance < radius {
+                        1.0
+                    } else if distance < radius + 50.0 {
+                        // Soft edge falloff
+                        1.0 - (distance - radius) / 50.0
+                    } else {
+                        0.0
+                    };
+                    
+                    // Set the mask value
                     if let Some(elem) = output.get_mut([batch, 0, y, x]) {
-                        *elem = if edge_strength > 0.1 { 1.0 } else { 0.0 };
+                        *elem = mask_value.clamp(0.0, 1.0);
                     }
                 }
             }

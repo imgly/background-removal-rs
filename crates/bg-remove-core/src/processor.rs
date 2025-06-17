@@ -6,15 +6,18 @@
 
 use crate::{
     backends::MockBackend,
-    config::{BackgroundColor, ExecutionProvider, OutputFormat, RemovalConfig},
+    config::{ExecutionProvider, OutputFormat, RemovalConfig},
     error::{BgRemovalError, Result},
     inference::InferenceBackend,
     models::{ModelManager, ModelSource, ModelSpec},
-    types::RemovalResult,
+    types::{RemovalResult, ProcessingTimings, ProcessingMetadata, SegmentationMask},
+    utils::ImagePreprocessor,
 };
-use image::DynamicImage;
+use image::{DynamicImage, ImageBuffer, RgbaImage, GenericImageView};
 use log::{debug, info};
 use std::path::Path;
+use ndarray::Array4;
+use instant::Instant;
 
 /// Backend type enumeration for runtime selection
 #[derive(Clone, Debug, PartialEq)]
@@ -82,8 +85,6 @@ pub struct ProcessorConfig {
     pub execution_provider: ExecutionProvider,
     /// Output format configuration
     pub output_format: OutputFormat,
-    /// Background color for non-transparent formats
-    pub background_color: BackgroundColor,
     /// JPEG quality (0-100)
     pub jpeg_quality: u8,
     /// WebP quality (0-100)
@@ -109,7 +110,6 @@ impl ProcessorConfig {
         RemovalConfig {
             execution_provider: self.execution_provider,
             output_format: self.output_format,
-            background_color: self.background_color,
             jpeg_quality: self.jpeg_quality,
             webp_quality: self.webp_quality,
             debug: self.debug,
@@ -130,7 +130,6 @@ impl Default for ProcessorConfig {
             backend_type: BackendType::Mock,
             execution_provider: ExecutionProvider::Auto,
             output_format: OutputFormat::Png,
-            background_color: BackgroundColor::white(),
             jpeg_quality: 90,
             webp_quality: 85,
             debug: false,
@@ -173,10 +172,6 @@ impl ProcessorConfigBuilder {
         self
     }
     
-    pub fn background_color(mut self, color: BackgroundColor) -> Self {
-        self.config.background_color = color;
-        self
-    }
     
     pub fn jpeg_quality(mut self, quality: u8) -> Self {
         self.config.jpeg_quality = quality.clamp(0, 100);
@@ -301,24 +296,93 @@ impl BackgroundRemovalProcessor {
             self.initialize()?;
         }
         
-        let removal_config = self.config.to_removal_config();
+        // Load and process the image using the configured backend
+        let image = image::open(&input_path)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to load image: {}", e)))?;
         
-        // For now, delegate to the existing remove_background function
-        // TODO: Refactor to use the unified processor directly once we solve the backend sharing issue
-        crate::remove_background(input_path, &removal_config).await
+        self.process_image(image)
     }
     
     /// Process a DynamicImage directly for background removal
-    pub fn process_image(&mut self, _image: DynamicImage) -> Result<RemovalResult> {
+    pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
         if !self.initialized {
             self.initialize()?;
         }
         
+        let backend = self.backend.as_mut()
+            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
+        
         let removal_config = self.config.to_removal_config();
         
-        // For now, delegate to the existing process_image function
-        // TODO: Refactor to use the unified processor directly once we solve the backend sharing issue
-        crate::process_image(_image, &removal_config)
+        // Initialize timing
+        let mut timings = ProcessingTimings::default();
+        let total_start = Instant::now();
+        
+        info!("Starting processing: {} - Backend: {:?}", 
+              "DynamicImage", 
+              self.config.backend_type);
+        
+        // 1. Extract color profile
+        let _color_profile: Option<crate::types::ColorProfile> = if removal_config.color_management.preserve_color_profile {
+            None // TODO: Implement color profile extraction for DynamicImage
+        } else {
+            None
+        };
+        
+        // 2. Preprocessing
+        let preprocess_start = Instant::now();
+        let original_dimensions = (image.width(), image.height());
+        
+        // Get preprocessing config from backend before borrowing mutably
+        let preprocessing_config = backend.get_preprocessing_config()?;
+        let input_tensor = ImagePreprocessor::preprocess_for_inference(&image, &preprocessing_config)?;
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        
+        // 3. Inference
+        let inference_start = Instant::now();
+        let output_tensor = backend.infer(&input_tensor)?;
+        timings.inference_ms = inference_start.elapsed().as_millis() as u64;
+        
+        // 4. Postprocessing
+        let postprocess_start = Instant::now();
+        let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
+        let result_image = self.apply_background_removal(&image, &mask, &removal_config)?;
+        timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
+        
+        timings.total_ms = total_start.elapsed().as_millis() as u64;
+        timings.image_decode_ms = 0; // Already decoded
+        
+        let mut metadata = ProcessingMetadata::new("unified_processor".to_string());
+        metadata.model_precision = format!("{:?}", self.config.backend_type);
+        metadata.set_detailed_timings(timings);
+        
+        // Handle output format
+        let final_image = match self.config.output_format {
+            OutputFormat::Png | OutputFormat::Rgba8 | OutputFormat::Tiff => {
+                DynamicImage::ImageRgba8(result_image)
+            },
+            OutputFormat::Jpeg => {
+                // Convert RGBA to RGB by dropping alpha channel
+                let (width, height) = result_image.dimensions();
+                let mut rgb_image = ImageBuffer::new(width, height);
+                for (x, y, pixel) in result_image.enumerate_pixels() {
+                    rgb_image.put_pixel(x, y, image::Rgb([pixel[0], pixel[1], pixel[2]]));
+                }
+                DynamicImage::ImageRgb8(rgb_image)
+            },
+            OutputFormat::WebP => {
+                DynamicImage::ImageRgba8(result_image)
+            },
+        };
+        
+        let mut result = RemovalResult::new(
+            final_image,
+            mask,
+            original_dimensions,
+            metadata,
+        );
+        result.color_profile = _color_profile;
+        Ok(result)
     }
     
     /// Get the current configuration
@@ -334,5 +398,170 @@ impl BackgroundRemovalProcessor {
     /// Get available backends from the factory
     pub fn available_backends(&self) -> Vec<BackendType> {
         self.backend_factory.available_backends()
+    }
+    
+    
+    /// Convert output tensor to segmentation mask with proper aspect ratio handling
+    fn tensor_to_mask(&self, tensor: &Array4<f32>, original_dimensions: (u32, u32)) -> Result<SegmentationMask> {
+        let shape = tensor.shape();
+        if shape[0] != 1 || shape[1] != 1 {
+            return Err(BgRemovalError::processing("Invalid output tensor shape"));
+        }
+        
+        let mask_height = shape[2];
+        let mask_width = shape[3];
+        let (orig_width, orig_height) = original_dimensions;
+        
+        // Reproduce the preprocessing calculations to get the inverse transformation
+        let target_size = mask_width; // Assuming square tensor (typical for models)
+        let target_size_f32 = target_size as f32;
+        let orig_width_f32 = orig_width as f32;
+        let orig_height_f32 = orig_height as f32;
+        
+        // Calculate the same scale factor used during preprocessing
+        let scale = target_size_f32
+            .min((target_size_f32 / orig_width_f32).min(target_size_f32 / orig_height_f32));
+        
+        let scaled_width = (orig_width_f32 * scale).round() as u32;
+        let scaled_height = (orig_height_f32 * scale).round() as u32;
+        
+        // Calculate the centering offsets used during preprocessing
+        let offset_x = (target_size as u32 - scaled_width) / 2;
+        let offset_y = (target_size as u32 - scaled_height) / 2;
+        
+        // Create mask data with proper inverse transformation
+        let mut mask_data = Vec::with_capacity((orig_width * orig_height) as usize);
+        
+        for y in 0..orig_height {
+            for x in 0..orig_width {
+                // Map original coordinates to scaled coordinates
+                let scaled_x = (x as f32 * scale).round() as u32;
+                let scaled_y = (y as f32 * scale).round() as u32;
+                
+                // Map scaled coordinates to tensor coordinates (accounting for centering)
+                let tensor_x = scaled_x + offset_x;
+                let tensor_y = scaled_y + offset_y;
+                
+                let mask_value = if tensor_x < mask_width as u32 && tensor_y < mask_height as u32 {
+                    // Safe indexing with bounds check
+                    if let Some(value) = tensor.get([0, 0, tensor_y as usize, tensor_x as usize]) {
+                        *value
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0 // Outside the model's prediction area
+                };
+                
+                mask_data.push((mask_value.clamp(0.0, 1.0) * 255.0) as u8);
+            }
+        }
+        
+        Ok(SegmentationMask::new(mask_data, original_dimensions))
+    }
+    
+    /// Apply background removal using the segmentation mask
+    fn apply_background_removal(
+        &self, 
+        image: &DynamicImage, 
+        mask: &SegmentationMask, 
+        _config: &RemovalConfig
+    ) -> Result<RgbaImage> {
+        let rgba_image = image.to_rgba8();
+        let (width, height) = rgba_image.dimensions();
+        let mut result = ImageBuffer::new(width, height);
+        
+        for (x, y, pixel) in rgba_image.enumerate_pixels() {
+            let pixel_index = (y * width + x) as usize;
+            let mask_value = if pixel_index < mask.data.len() {
+                mask.data[pixel_index]
+            } else {
+                0
+            };
+            let alpha = mask_value;
+            
+            if alpha > 0 {
+                // Keep foreground pixel
+                result.put_pixel(x, y, image::Rgba([pixel[0], pixel[1], pixel[2], alpha]));
+            } else {
+                // Apply transparent background
+                result.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+            }
+        }
+        
+        Ok(result)
+    }
+    
+    /// Extract foreground segmentation mask only without applying background removal
+    pub async fn segment_foreground<P: AsRef<Path>>(&mut self, input_path: P) -> Result<SegmentationMask> {
+        if !self.initialized {
+            self.initialize()?;
+        }
+        
+        let image = image::open(&input_path)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to load image: {}", e)))?;
+        
+        let backend = self.backend.as_mut()
+            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
+        
+        // Preprocess
+        let preprocessing_config = backend.get_preprocessing_config()?;
+        let original_dimensions = image.dimensions();
+        let input_tensor = ImagePreprocessor::preprocess_for_inference(&image, &preprocessing_config)?;
+        
+        // Inference
+        let output_tensor = backend.infer(&input_tensor)?;
+        
+        // Convert to mask
+        self.tensor_to_mask(&output_tensor, original_dimensions)
+    }
+    
+    /// Apply a pre-computed segmentation mask to an image for background removal
+    pub async fn apply_mask<P: AsRef<Path>>(
+        &self,
+        input_path: P,
+        mask: &SegmentationMask,
+    ) -> Result<RemovalResult> {
+        let image = image::open(&input_path)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to load image: {}", e)))?;
+        
+        let original_dimensions = image.dimensions();
+        
+        // Resize mask if needed
+        let resized_mask = if mask.dimensions == original_dimensions {
+            mask.clone()
+        } else {
+            mask.resize(original_dimensions.0, original_dimensions.1)?
+        };
+        
+        let removal_config = self.config.to_removal_config();
+        let result_image = self.apply_background_removal(&image, &resized_mask, &removal_config)?;
+        
+        // Handle output format
+        let final_image = match self.config.output_format {
+            OutputFormat::Png | OutputFormat::Rgba8 | OutputFormat::Tiff => {
+                DynamicImage::ImageRgba8(result_image)
+            },
+            OutputFormat::Jpeg => {
+                // Convert RGBA to RGB by dropping alpha channel
+                let (width, height) = result_image.dimensions();
+                let mut rgb_image = ImageBuffer::new(width, height);
+                for (x, y, pixel) in result_image.enumerate_pixels() {
+                    rgb_image.put_pixel(x, y, image::Rgb([pixel[0], pixel[1], pixel[2]]));
+                }
+                DynamicImage::ImageRgb8(rgb_image)
+            },
+            OutputFormat::WebP => {
+                DynamicImage::ImageRgba8(result_image)
+            },
+        };
+        
+        let metadata = ProcessingMetadata::new("mask_application".to_string());
+        Ok(RemovalResult::new(
+            final_image,
+            resized_mask,
+            original_dimensions,
+            metadata,
+        ))
     }
 }

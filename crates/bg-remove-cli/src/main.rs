@@ -48,9 +48,6 @@ pub struct Cli {
     #[arg(long, default_value_t = 85)]
     pub webp_quality: u8,
 
-    /// Background color (hex format, e.g., #ffffff)
-    #[arg(long, default_value = "#ffffff")]
-    pub background_color: String,
 
     /// Number of intra-op threads (0 = auto, optimal for compute)
     #[arg(long, default_value_t = 0)]

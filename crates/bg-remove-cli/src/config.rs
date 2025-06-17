@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use bg_remove_core::{
     processor::{ProcessorConfig, ProcessorConfigBuilder},
-    utils::{ColorParser, ExecutionProviderManager, ModelSpecParser},
+    utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
     config::{ColorManagementConfig, OutputFormat},
     models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
@@ -39,9 +39,6 @@ impl CliConfigBuilder {
         let (backend_type, execution_provider) = ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
             .context("Invalid execution provider format")?;
 
-        // Parse background color
-        let background_color = ColorParser::parse_hex(&cli.background_color)
-            .context("Invalid background color format")?;
 
         // Parse output format
         let output_format = match cli.format {
@@ -64,7 +61,6 @@ impl CliConfigBuilder {
             .backend_type(backend_type)
             .execution_provider(execution_provider)
             .output_format(output_format)
-            .background_color(background_color)
             .jpeg_quality(cli.jpeg_quality)
             .webp_quality(cli.webp_quality)
             .debug(cli.debug)
@@ -96,17 +92,10 @@ impl CliConfigBuilder {
         ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
             .context("Invalid execution provider format")?;
 
-        // Validate background color format
-        ColorParser::parse_hex(&cli.background_color)
-            .context("Invalid background color format")?;
 
-        // Validate quality settings
-        if cli.jpeg_quality > 100 {
-            anyhow::bail!("JPEG quality must be between 0 and 100");
-        }
-        if cli.webp_quality > 100 {
-            anyhow::bail!("WebP quality must be between 0 and 100");
-        }
+        // Validate quality settings using shared validator
+        ConfigValidator::validate_quality_settings(cli.jpeg_quality, cli.webp_quality)
+            .context("Invalid quality settings")?;
 
         // Validate model specification if provided
         if let Some(model_arg) = &cli.model {
@@ -136,7 +125,6 @@ mod tests {
             execution_provider: "onnx:auto".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
-            background_color: "#ffffff".to_string(),
             intra_threads: 0,
             inter_threads: 0,
             threads: 0,
@@ -177,13 +165,8 @@ mod tests {
         cli.execution_provider = "invalid:provider".to_string();
         assert!(CliConfigBuilder::validate_cli(&cli).is_err());
 
-        // Reset and test invalid color
-        cli.execution_provider = "onnx:auto".to_string();
-        cli.background_color = "invalid".to_string();
-        assert!(CliConfigBuilder::validate_cli(&cli).is_err());
-
         // Reset and test invalid quality
-        cli.background_color = "#ffffff".to_string();
+        cli.execution_provider = "onnx:auto".to_string();
         cli.jpeg_quality = 150;
         assert!(CliConfigBuilder::validate_cli(&cli).is_err());
     }

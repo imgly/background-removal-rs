@@ -34,21 +34,23 @@ pub mod backends;
 pub mod color_profile;
 pub mod config;
 pub mod error;
-pub mod image_processing;
 pub mod inference;
 pub mod models;
 pub mod processor;
 pub mod types;
 pub mod utils;
 
+// Internal imports for lib functions
+use image::GenericImageView;
+use crate::types::ProcessingMetadata;
+
 // Public API exports
 pub use backends::MockBackend;
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{
-    BackgroundColor, ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
+    ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
 };
 pub use error::{BgRemovalError, Result};
-pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
 pub use models::{get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
 pub use processor::{
@@ -56,7 +58,7 @@ pub use processor::{
     ProcessorConfig, ProcessorConfigBuilder,
 };
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
-pub use utils::{ColorParser, ExecutionProviderManager, ModelSpecParser, ProviderInfo};
+pub use utils::{ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, PreprocessingOptions, ProviderInfo};
 
 /// Remove background from an image file with specific model selection
 ///
@@ -159,10 +161,23 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     config: &RemovalConfig,
     model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
-    let model_manager =
-        ModelManager::from_spec_with_provider(model_spec, Some(&config.execution_provider))?;
-    let mut processor = ImageProcessor::with_model_manager(config, model_manager)?;
-    processor.remove_background(input_path).await
+    // Convert RemovalConfig to ProcessorConfig for unified processor
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(model_spec.clone())
+        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .execution_provider(config.execution_provider)
+        .output_format(config.output_format)
+        .jpeg_quality(config.jpeg_quality)
+        .webp_quality(config.webp_quality)
+        .debug(config.debug)
+        .intra_threads(config.intra_threads)
+        .inter_threads(config.inter_threads)
+        .color_management(config.color_management.clone())
+        .build()?;
+        
+    let backend_factory = Box::new(DefaultBackendFactory);
+    let mut unified_processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
+    unified_processor.process_file(input_path).await
 }
 
 /// Remove background from an image file with a custom backend
@@ -182,10 +197,76 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
 pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
     input_path: P,
     config: &RemovalConfig,
-    backend: Box<dyn InferenceBackend>,
+    mut backend: Box<dyn InferenceBackend>,
 ) -> Result<RemovalResult> {
-    let mut processor = ImageProcessor::with_backend(config, backend)?;
-    processor.remove_background(input_path).await
+    // Initialize the backend first
+    backend.initialize(config)?;
+    
+    // Load image
+    let image = image::open(&input_path)
+        .map_err(|e| BgRemovalError::processing(format!("Failed to load image: {}", e)))?;
+    
+    // Get preprocessing config and preprocess
+    let preprocessing_config = backend.get_preprocessing_config()?;
+    let input_tensor = ImagePreprocessor::preprocess_for_inference(&image, &preprocessing_config)?;
+    
+    // Run inference
+    let output_tensor = backend.infer(&input_tensor)?;
+    
+    // Convert output to mask - we need to extract this logic from processor
+    let (_, _, height, width) = output_tensor.dim();
+    let original_dimensions = image.dimensions();
+    
+    // Create mask data
+    let mut mask_data = Vec::with_capacity((original_dimensions.0 * original_dimensions.1) as usize);
+    for y in 0..original_dimensions.1 {
+        for x in 0..original_dimensions.0 {
+            // Map original coordinates to mask coordinates
+            let mask_x = (x as f32 * width as f32 / original_dimensions.0 as f32) as usize;
+            let mask_y = (y as f32 * height as f32 / original_dimensions.1 as f32) as usize;
+            
+            let mask_value = if mask_x < width && mask_y < height {
+                output_tensor[[0, 0, mask_y.min(height - 1), mask_x.min(width - 1)]]
+            } else {
+                0.0
+            };
+            
+            mask_data.push((mask_value.clamp(0.0, 1.0) * 255.0) as u8);
+        }
+    }
+    
+    let mask = SegmentationMask::new(mask_data, original_dimensions);
+    
+    // Apply mask to create result image
+    let mut rgba_image = image.to_rgba8();
+    mask.apply_to_image(&mut rgba_image)?;
+    
+    // Handle output format
+    let result_image = match config.output_format {
+        OutputFormat::Png | OutputFormat::Rgba8 | OutputFormat::Tiff => {
+            image::DynamicImage::ImageRgba8(rgba_image)
+        },
+        OutputFormat::Jpeg => {
+            // Convert RGBA to RGB by dropping alpha channel
+            let (width, height) = rgba_image.dimensions();
+            let mut rgb_image = image::ImageBuffer::new(width, height);
+            for (x, y, pixel) in rgba_image.enumerate_pixels() {
+                rgb_image.put_pixel(x, y, image::Rgb([pixel[0], pixel[1], pixel[2]]));
+            }
+            image::DynamicImage::ImageRgb8(rgb_image)
+        },
+        OutputFormat::WebP => {
+            image::DynamicImage::ImageRgba8(rgba_image)
+        },
+    };
+    
+    let metadata = ProcessingMetadata::new("custom_backend".to_string());
+    Ok(RemovalResult::new(
+        result_image,
+        mask,
+        original_dimensions,
+        metadata,
+    ))
 }
 
 /// Remove background from an image file using first available embedded model
@@ -262,8 +343,20 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
     input_path: P,
     config: &RemovalConfig,
 ) -> Result<RemovalResult> {
-    let mut processor = ImageProcessor::new(config)?;
-    processor.remove_background(input_path).await
+    // Get first available embedded model
+    let available_models = get_available_embedded_models();
+    if available_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No embedded models available. Build with embed-* features or use remove_background_with_model()."
+        ));
+    }
+    let model_spec = ModelSpec {
+        source: ModelSource::Embedded(available_models[0].clone()),
+        variant: None,
+    };
+    
+    // Use the unified processor with first available model
+    remove_background_with_model(input_path, config, &model_spec).await
 }
 
 /// Process a `DynamicImage` directly for background removal
@@ -363,8 +456,35 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 /// For async processing or specific model selection, load the image and use
 /// `remove_background_with_model()` instead.
 pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Result<RemovalResult> {
-    let mut processor = ImageProcessor::new(config)?;
-    processor.process_image(image)
+    // Get first available embedded model
+    let available_models = get_available_embedded_models();
+    if available_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No embedded models available. Build with embed-* features."
+        ));
+    }
+    let model_spec = ModelSpec {
+        source: ModelSource::Embedded(available_models[0].clone()),
+        variant: None,
+    };
+    
+    // Convert RemovalConfig to ProcessorConfig for unified processor
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(model_spec)
+        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .execution_provider(config.execution_provider)
+        .output_format(config.output_format)
+        .jpeg_quality(config.jpeg_quality)
+        .webp_quality(config.webp_quality)
+        .debug(config.debug)
+        .intra_threads(config.intra_threads)
+        .inter_threads(config.inter_threads)
+        .color_management(config.color_management.clone())
+        .build()?;
+        
+    let backend_factory = Box::new(DefaultBackendFactory);
+    let mut unified_processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
+    unified_processor.process_image(image)
 }
 
 /// Extract foreground segmentation mask from an image without background removal
@@ -451,8 +571,35 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
     input_path: P,
     config: &RemovalConfig,
 ) -> Result<SegmentationMask> {
-    let mut processor = ImageProcessor::new(config)?;
-    processor.segment_foreground(input_path).await
+    // Get first available embedded model
+    let available_models = get_available_embedded_models();
+    if available_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No embedded models available. Build with embed-* features."
+        ));
+    }
+    let model_spec = ModelSpec {
+        source: ModelSource::Embedded(available_models[0].clone()),
+        variant: None,
+    };
+    
+    // Convert RemovalConfig to ProcessorConfig
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(model_spec)
+        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .execution_provider(config.execution_provider)
+        .output_format(config.output_format)
+        .jpeg_quality(config.jpeg_quality)
+        .webp_quality(config.webp_quality)
+        .debug(config.debug)
+        .intra_threads(config.intra_threads)
+        .inter_threads(config.inter_threads)
+        .color_management(config.color_management.clone())
+        .build()?;
+        
+    let backend_factory = Box::new(DefaultBackendFactory);
+    let mut unified_processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
+    unified_processor.segment_foreground(input_path).await
 }
 
 /// Apply a pre-computed segmentation mask to an image for background removal
@@ -562,8 +709,35 @@ pub async fn apply_segmentation_mask<P: AsRef<std::path::Path>>(
     mask: &SegmentationMask,
     config: &RemovalConfig,
 ) -> Result<RemovalResult> {
-    let processor = ImageProcessor::new(config)?;
-    processor.apply_mask(input_path, mask).await
+    // Get first available embedded model
+    let available_models = get_available_embedded_models();
+    if available_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No embedded models available. Build with embed-* features."
+        ));
+    }
+    let model_spec = ModelSpec {
+        source: ModelSource::Embedded(available_models[0].clone()),
+        variant: None,
+    };
+    
+    // Convert RemovalConfig to ProcessorConfig
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(model_spec)
+        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .execution_provider(config.execution_provider)
+        .output_format(config.output_format)
+        .jpeg_quality(config.jpeg_quality)
+        .webp_quality(config.webp_quality)
+        .debug(config.debug)
+        .intra_threads(config.intra_threads)
+        .inter_threads(config.inter_threads)
+        .color_management(config.color_management.clone())
+        .build()?;
+        
+    let backend_factory = Box::new(DefaultBackendFactory);
+    let unified_processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
+    unified_processor.apply_mask(input_path, mask).await
 }
 
 #[cfg(test)]

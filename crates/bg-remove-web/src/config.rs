@@ -2,7 +2,7 @@
 
 use bg_remove_core::{
     processor::{BackendType, ProcessorConfig, ProcessorConfigBuilder},
-    utils::ColorParser,
+    utils::ConfigValidator,
     config::{ColorManagementConfig, ExecutionProvider, OutputFormat},
     models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
@@ -35,18 +35,10 @@ impl WebConfigBuilder {
             }
         };
 
-        // Parse background color using core utilities
-        let background_color = ColorParser::parse_hex(&web_config.background_color)?;
 
-        // Parse output format
-        let output_format = match web_config.output_format.as_str() {
-            "png" => OutputFormat::Png,
-            "jpeg" | "jpg" => OutputFormat::Jpeg,
-            "webp" => OutputFormat::WebP,
-            "tiff" => OutputFormat::Tiff,
-            "rgba8" => OutputFormat::Rgba8,
-            _ => OutputFormat::Png, // Default fallback
-        };
+        // Parse and validate output format using shared validator
+        let output_format = ConfigValidator::parse_output_format(&web_config.output_format)
+            .unwrap_or(OutputFormat::Png); // Default fallback
 
         // Build configuration using unified builder
         let config = ProcessorConfigBuilder::new()
@@ -54,7 +46,6 @@ impl WebConfigBuilder {
             .backend_type(BackendType::Tract) // WASM only supports Tract
             .execution_provider(ExecutionProvider::Cpu) // WASM only supports CPU
             .output_format(output_format)
-            .background_color(background_color)
             .jpeg_quality(web_config.jpeg_quality)
             .webp_quality(web_config.webp_quality)
             .debug(web_config.debug)
@@ -71,36 +62,19 @@ impl WebConfigBuilder {
         Ok(config)
     }
 
-    /// Validate Web configuration
+    /// Validate Web configuration using shared validators
     pub(crate) fn validate_web_config(web_config: &WebRemovalConfig) -> Result<(), bg_remove_core::error::BgRemovalError> {
-        // Validate background color format using core utilities
-        ColorParser::parse_hex(&web_config.background_color)?;
+        // Validate quality settings using shared validator
+        ConfigValidator::validate_quality_settings(web_config.jpeg_quality, web_config.webp_quality)?;
 
-        // Validate quality settings
-        if web_config.jpeg_quality > 100 {
-            return Err(bg_remove_core::error::BgRemovalError::invalid_config("JPEG quality must be between 0 and 100"));
-        }
-        if web_config.webp_quality > 100 {
-            return Err(bg_remove_core::error::BgRemovalError::invalid_config("WebP quality must be between 0 and 100"));
-        }
-
-        // Validate output format
-        let valid_formats = ["png", "jpeg", "jpg", "webp", "tiff", "rgba8"];
-        if !valid_formats.contains(&web_config.output_format.to_lowercase().as_str()) {
-            return Err(bg_remove_core::error::BgRemovalError::invalid_config(
-                &format!("Invalid output format: {}", web_config.output_format)
-            ));
-        }
+        // Validate output format using shared validator
+        ConfigValidator::validate_output_format(&web_config.output_format)?;
 
         Ok(())
     }
 
     /// Convert ProcessorConfig back to WebRemovalConfig
     pub(crate) fn to_web_config(config: &ProcessorConfig) -> WebRemovalConfig {
-        let background_hex = format!("#{:02x}{:02x}{:02x}", 
-            config.background_color.r, 
-            config.background_color.g, 
-            config.background_color.b);
             
         let output_format = match config.output_format {
             OutputFormat::Png => "png",
@@ -114,7 +88,6 @@ impl WebConfigBuilder {
             output_format,
             jpeg_quality: config.jpeg_quality,
             webp_quality: config.webp_quality,
-            background_color: background_hex,
             debug: config.debug,
             intra_threads: config.intra_threads as u32,
             inter_threads: config.inter_threads as u32,
@@ -135,7 +108,6 @@ mod tests {
             output_format: "png".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
-            background_color: "#ffffff".to_string(),
             debug: false,
             intra_threads: 0,
             inter_threads: 0,
@@ -164,12 +136,7 @@ mod tests {
         let mut web_config = create_test_web_config();
         assert!(WebConfigBuilder::validate_web_config(&web_config).is_ok());
 
-        // Test invalid color
-        web_config.background_color = "invalid".to_string();
-        assert!(WebConfigBuilder::validate_web_config(&web_config).is_err());
-
-        // Reset and test invalid quality
-        web_config.background_color = "#ffffff".to_string();
+        // Test invalid quality
         web_config.jpeg_quality = 150;
         assert!(WebConfigBuilder::validate_web_config(&web_config).is_err());
 
