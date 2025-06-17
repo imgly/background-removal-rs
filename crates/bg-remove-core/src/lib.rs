@@ -37,7 +37,9 @@ pub mod error;
 pub mod image_processing;
 pub mod inference;
 pub mod models;
+pub mod processor;
 pub mod types;
+pub mod utils;
 
 // Public API exports
 pub use backends::MockBackend;
@@ -49,7 +51,12 @@ pub use error::{BgRemovalError, Result};
 pub use image_processing::{ImageProcessor, ProcessingOptions};
 pub use inference::InferenceBackend;
 pub use models::{get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
+pub use processor::{
+    BackendFactory, BackendType, BackgroundRemovalProcessor, DefaultBackendFactory,
+    ProcessorConfig, ProcessorConfigBuilder,
+};
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
+pub use utils::{ColorParser, ExecutionProviderManager, ModelSpecParser, ProviderInfo};
 
 /// Remove background from an image file with specific model selection
 ///
