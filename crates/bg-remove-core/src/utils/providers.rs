@@ -34,8 +34,11 @@ impl ExecutionProviderManager {
     /// ```rust
     /// use bg_remove_core::utils::ExecutionProviderManager;
     /// 
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:auto")?;
     /// let (backend, provider) = ExecutionProviderManager::parse_provider_string("tract:cpu")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn parse_provider_string(provider_str: &str) -> Result<(BackendType, ExecutionProvider)> {
         if let Some((backend, provider)) = provider_str.split_once(':') {
@@ -47,7 +50,7 @@ impl ExecutionProviderManager {
                         "cuda" => ExecutionProvider::Cuda,
                         "coreml" => ExecutionProvider::CoreMl,
                         _ => {
-                            return Err(BgRemovalError::configuration(&format!(
+                            return Err(BgRemovalError::invalid_config(&format!(
                                 "Unknown ONNX provider: {}. Supported: auto, cpu, cuda, coreml",
                                 provider
                             )));
@@ -59,7 +62,7 @@ impl ExecutionProviderManager {
                     let execution_provider = match provider {
                         "cpu" => ExecutionProvider::Cpu, // Tract only supports CPU
                         _ => {
-                            return Err(BgRemovalError::configuration(&format!(
+                            return Err(BgRemovalError::invalid_config(&format!(
                                 "Unknown Tract provider: {}. Tract only supports 'cpu'",
                                 provider
                             )));
@@ -71,7 +74,7 @@ impl ExecutionProviderManager {
                     let execution_provider = match provider {
                         "cpu" => ExecutionProvider::Cpu,
                         _ => {
-                            return Err(BgRemovalError::configuration(&format!(
+                            return Err(BgRemovalError::invalid_config(&format!(
                                 "Unknown Mock provider: {}. Mock only supports 'cpu'",
                                 provider
                             )));
@@ -79,7 +82,7 @@ impl ExecutionProviderManager {
                     };
                     Ok((BackendType::Mock, execution_provider))
                 }
-                _ => Err(BgRemovalError::configuration(&format!(
+                _ => Err(BgRemovalError::invalid_config(&format!(
                     "Unknown backend: {}. Supported backends: onnx, tract, mock",
                     backend
                 ))),
@@ -90,7 +93,7 @@ impl ExecutionProviderManager {
                 "onnx" => Ok((BackendType::Onnx, ExecutionProvider::Auto)),
                 "tract" => Ok((BackendType::Tract, ExecutionProvider::Cpu)),
                 "mock" => Ok((BackendType::Mock, ExecutionProvider::Cpu)),
-                _ => Err(BgRemovalError::configuration(
+                _ => Err(BgRemovalError::invalid_config(
                     "Invalid provider format. Use backend:provider (e.g., onnx:auto, tract:cpu)",
                 )),
             }

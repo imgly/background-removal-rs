@@ -20,9 +20,12 @@ impl ColorParser {
     /// ```rust
     /// use bg_remove_core::utils::ColorParser;
     /// 
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let white = ColorParser::parse_hex("#ffffff")?;
     /// let red = ColorParser::parse_hex("#f00")?;
     /// let blue = ColorParser::parse_hex("0000ff")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn parse_hex(hex: &str) -> Result<BackgroundColor> {
         let hex = hex.trim_start_matches('#');
@@ -30,25 +33,25 @@ impl ColorParser {
         if hex.len() == 6 {
             // Parse #RRGGBB format
             let r = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid red component in hex color"))?;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid red component in hex color"))?;
             let g = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid green component in hex color"))?;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid green component in hex color"))?;
             let b = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid blue component in hex color"))?;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid blue component in hex color"))?;
             
             Ok(BackgroundColor::new(r, g, b))
         } else if hex.len() == 3 {
             // Parse #RGB format (expand to #RRGGBB)
             let r = u8::from_str_radix(&hex[0..1], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid red component in hex color"))? * 17;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid red component in hex color"))? * 17;
             let g = u8::from_str_radix(&hex[1..2], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid green component in hex color"))? * 17;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid green component in hex color"))? * 17;
             let b = u8::from_str_radix(&hex[2..3], 16)
-                .map_err(|_| BgRemovalError::configuration("Invalid blue component in hex color"))? * 17;
+                .map_err(|_| BgRemovalError::invalid_config("Invalid blue component in hex color"))? * 17;
             
             Ok(BackgroundColor::new(r, g, b))
         } else {
-            Err(BgRemovalError::configuration(
+            Err(BgRemovalError::invalid_config(
                 "Color must be in #RRGGBB or #RGB format"
             ))
         }

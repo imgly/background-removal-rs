@@ -13,7 +13,7 @@ use crate::{
     types::RemovalResult,
 };
 use image::DynamicImage;
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::path::Path;
 
 /// Backend type enumeration for runtime selection
@@ -47,19 +47,19 @@ impl BackendFactory for DefaultBackendFactory {
     fn create_backend(
         &self,
         backend_type: BackendType,
-        model_manager: ModelManager,
+        _model_manager: ModelManager,
     ) -> Result<Box<dyn InferenceBackend>> {
         match backend_type {
             BackendType::Mock => Ok(Box::new(MockBackend::new())),
             BackendType::Onnx => {
                 // This will be injected by the CLI crate which has access to bg-remove-onnx
-                Err(BgRemovalError::configuration(
+                Err(BgRemovalError::invalid_config(
                     "ONNX backend not available in core. Must be injected by frontend."
                 ))
             }
             BackendType::Tract => {
                 // This will be injected by the Web crate which has access to bg-remove-tract
-                Err(BgRemovalError::configuration(
+                Err(BgRemovalError::invalid_config(
                     "Tract backend not available in core. Must be injected by frontend."
                 ))
             }
@@ -211,10 +211,10 @@ impl ProcessorConfigBuilder {
     pub fn build(self) -> Result<ProcessorConfig> {
         // Validate configuration
         if self.config.jpeg_quality > 100 {
-            return Err(BgRemovalError::configuration("JPEG quality must be 0-100"));
+            return Err(BgRemovalError::invalid_config("JPEG quality must be 0-100"));
         }
         if self.config.webp_quality > 100 {
-            return Err(BgRemovalError::configuration("WebP quality must be 0-100"));
+            return Err(BgRemovalError::invalid_config("WebP quality must be 0-100"));
         }
         
         Ok(self.config)
@@ -276,14 +276,18 @@ impl BackgroundRemovalProcessor {
         // Create backend
         let mut backend = self.backend_factory.create_backend(
             self.config.backend_type.clone(),
-            model_manager.clone(),
+            model_manager,
         )?;
         
         // Initialize backend
         let removal_config = self.config.to_removal_config();
         let _model_load_time = backend.initialize(&removal_config)?;
         
-        self.model_manager = Some(model_manager);
+        let model_manager_copy = ModelManager::from_spec_with_provider(
+            &self.config.model_spec,
+            Some(&self.config.execution_provider),
+        )?;
+        self.model_manager = Some(model_manager_copy);
         self.backend = Some(backend);
         self.initialized = true;
         
@@ -297,42 +301,24 @@ impl BackgroundRemovalProcessor {
             self.initialize()?;
         }
         
-        let backend = self.backend.as_mut()
-            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
-        
         let removal_config = self.config.to_removal_config();
         
-        // Use the existing image processor with our backend
-        let mut processor = crate::image_processing::ImageProcessor::with_backend(
-            &removal_config,
-            // We need to clone the backend here, but that requires changes to the trait
-            // For now, we'll use the remove_background_with_backend function
-            todo!("Need to implement backend sharing or cloning")
-        )?;
-        
-        processor.remove_background(input_path).await
+        // For now, delegate to the existing remove_background function
+        // TODO: Refactor to use the unified processor directly once we solve the backend sharing issue
+        crate::remove_background(input_path, &removal_config).await
     }
     
     /// Process a DynamicImage directly for background removal
-    pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
+    pub fn process_image(&mut self, _image: DynamicImage) -> Result<RemovalResult> {
         if !self.initialized {
             self.initialize()?;
         }
         
-        let backend = self.backend.as_mut()
-            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
-        
         let removal_config = self.config.to_removal_config();
         
-        // Use the existing image processor with our backend
-        let mut processor = crate::image_processing::ImageProcessor::with_backend(
-            &removal_config,
-            // We need to clone the backend here, but that requires changes to the trait
-            // For now, we'll use the process_image function
-            todo!("Need to implement backend sharing or cloning")
-        )?;
-        
-        processor.process_image(image)
+        // For now, delegate to the existing process_image function
+        // TODO: Refactor to use the unified processor directly once we solve the backend sharing issue
+        crate::process_image(_image, &removal_config)
     }
     
     /// Get the current configuration

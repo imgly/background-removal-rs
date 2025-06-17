@@ -84,7 +84,7 @@ impl ModelSpecParser {
             if available_variants.contains(&variant.to_string()) {
                 return Ok(variant.to_string());
             } else {
-                return Err(BgRemovalError::configuration(&format!(
+                return Err(BgRemovalError::invalid_config(&format!(
                     "Variant '{}' not available. Available variants: {:?}",
                     variant, available_variants
                 )));
@@ -96,7 +96,7 @@ impl ModelSpecParser {
             if available_variants.contains(variant) {
                 return Ok(variant.clone());
             } else {
-                return Err(BgRemovalError::configuration(&format!(
+                return Err(BgRemovalError::invalid_config(&format!(
                     "Variant '{}' not available. Available variants: {:?}",
                     variant, available_variants
                 )));
@@ -117,7 +117,7 @@ impl ModelSpecParser {
             return Ok(first.clone());
         }
 
-        Err(BgRemovalError::configuration(
+        Err(BgRemovalError::invalid_config(
             "No variants available for model"
         ))
     }
@@ -129,13 +129,13 @@ impl ModelSpecParser {
         match &model_spec.source {
             ModelSource::External(path) => {
                 if !path.exists() {
-                    return Err(BgRemovalError::configuration(&format!(
+                    return Err(BgRemovalError::invalid_config(&format!(
                         "External model path does not exist: {}",
                         path.display()
                     )));
                 }
                 if !path.is_dir() {
-                    return Err(BgRemovalError::configuration(&format!(
+                    return Err(BgRemovalError::invalid_config(&format!(
                         "External model path must be a directory: {}",
                         path.display()
                     )));
@@ -144,14 +144,14 @@ impl ModelSpecParser {
             ModelSource::Embedded(name) => {
                 // Basic validation - check for valid characters
                 if name.is_empty() {
-                    return Err(BgRemovalError::configuration(
+                    return Err(BgRemovalError::invalid_config(
                         "Embedded model name cannot be empty"
                     ));
                 }
                 
                 // Check for reasonable model name format
                 if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-                    return Err(BgRemovalError::configuration(&format!(
+                    return Err(BgRemovalError::invalid_config(&format!(
                         "Invalid characters in embedded model name: {}",
                         name
                     )));
@@ -162,14 +162,14 @@ impl ModelSpecParser {
         // Validate variant if specified
         if let Some(variant) = &model_spec.variant {
             if variant.is_empty() {
-                return Err(BgRemovalError::configuration(
+                return Err(BgRemovalError::invalid_config(
                     "Model variant cannot be empty"
                 ));
             }
             
             // Check for valid variant format
             if !variant.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-                return Err(BgRemovalError::configuration(&format!(
+                return Err(BgRemovalError::invalid_config(&format!(
                     "Invalid characters in model variant: {}",
                     variant
                 )));
