@@ -108,7 +108,7 @@ pub use utils::{
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
 /// let model_spec = ModelSpec {
-///     source: ModelSource::Embedded("isnet-fp16".to_string()),
+///     source: ModelSource::Embedded("isnet-fp32".to_string()),
 ///     variant: None,
 /// };
 /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
@@ -270,10 +270,11 @@ pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
 /// # Automatic Model Selection
 ///
 /// Selects the first available embedded model in this priority order:
-/// 1. `isnet-fp16` - Fast general-purpose model
-/// 2. `birefnet-fp16` - High-quality portrait model  
-/// 3. `birefnet-lite-fp32` - Balanced performance model
-/// 4. Any other available embedded models
+/// 1. `isnet-fp32` - Fast general-purpose model (default)
+/// 2. `isnet-fp16` - Fast general-purpose model (FP16 variant)
+/// 3. `birefnet-fp16` - High-quality portrait model  
+/// 4. `birefnet-lite-fp32` - Balanced performance model
+/// 5. Any other available embedded models
 ///
 /// # Arguments
 ///

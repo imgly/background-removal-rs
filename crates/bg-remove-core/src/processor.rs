@@ -142,7 +142,7 @@ impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
             model_spec: ModelSpec {
-                source: ModelSource::Embedded("isnet-fp16".to_string()),
+                source: ModelSource::Embedded("isnet-fp32".to_string()),
                 variant: None,
             },
             backend_type: BackendType::Mock,
