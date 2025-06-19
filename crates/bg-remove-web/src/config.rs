@@ -1,19 +1,22 @@
 //! Configuration conversion utilities for Web/WASM environments
 
+use crate::WebRemovalConfig;
 use bg_remove_core::{
-    processor::{BackendType, ProcessorConfig, ProcessorConfigBuilder},
-    utils::ConfigValidator,
     config::{ExecutionProvider, OutputFormat},
     models::{get_available_embedded_models, ModelSource, ModelSpec},
+    processor::{BackendType, ProcessorConfig, ProcessorConfigBuilder},
+    utils::ConfigValidator,
 };
-use crate::WebRemovalConfig;
 
 /// Convert Web configuration to unified ProcessorConfig
 pub(crate) struct WebConfigBuilder;
 
 impl WebConfigBuilder {
     /// Build ProcessorConfig from WebRemovalConfig
-    pub(crate) fn from_web_config(web_config: &WebRemovalConfig, model_name: Option<String>) -> Result<ProcessorConfig, bg_remove_core::error::BgRemovalError> {
+    pub(crate) fn from_web_config(
+        web_config: &WebRemovalConfig,
+        model_name: Option<String>,
+    ) -> Result<ProcessorConfig, bg_remove_core::error::BgRemovalError> {
         // Determine model specification
         let model_spec = if let Some(model_name) = model_name {
             ModelSpec {
@@ -34,7 +37,6 @@ impl WebConfigBuilder {
                 variant: None,
             }
         };
-
 
         // Parse and validate output format using shared validator
         let output_format = ConfigValidator::parse_output_format(&web_config.output_format)
@@ -58,9 +60,14 @@ impl WebConfigBuilder {
     }
 
     /// Validate Web configuration using shared validators
-    pub(crate) fn validate_web_config(web_config: &WebRemovalConfig) -> Result<(), bg_remove_core::error::BgRemovalError> {
+    pub(crate) fn validate_web_config(
+        web_config: &WebRemovalConfig,
+    ) -> Result<(), bg_remove_core::error::BgRemovalError> {
         // Validate quality settings using shared validator
-        ConfigValidator::validate_quality_settings(web_config.jpeg_quality, web_config.webp_quality)?;
+        ConfigValidator::validate_quality_settings(
+            web_config.jpeg_quality,
+            web_config.webp_quality,
+        )?;
 
         // Validate output format using shared validator
         ConfigValidator::validate_output_format(&web_config.output_format)?;
@@ -70,14 +77,14 @@ impl WebConfigBuilder {
 
     /// Convert ProcessorConfig back to WebRemovalConfig
     pub(crate) fn to_web_config(config: &ProcessorConfig) -> WebRemovalConfig {
-            
         let output_format = match config.output_format {
             OutputFormat::Png => "png",
             OutputFormat::Jpeg => "jpeg",
             OutputFormat::WebP => "webp",
             OutputFormat::Tiff => "tiff",
             OutputFormat::Rgba8 => "rgba8",
-        }.to_string();
+        }
+        .to_string();
 
         WebRemovalConfig {
             output_format,
@@ -110,8 +117,9 @@ mod tests {
     #[test]
     fn test_web_config_conversion() {
         let web_config = create_test_web_config();
-        let config = WebConfigBuilder::from_web_config(&web_config, Some("test-model".to_string())).unwrap();
-        
+        let config =
+            WebConfigBuilder::from_web_config(&web_config, Some("test-model".to_string())).unwrap();
+
         assert_eq!(config.backend_type, BackendType::Tract);
         assert_eq!(config.execution_provider, ExecutionProvider::Cpu);
         assert_eq!(config.output_format, OutputFormat::Png);

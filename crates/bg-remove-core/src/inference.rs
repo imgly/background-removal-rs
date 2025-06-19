@@ -1,10 +1,6 @@
 //! Inference backend abstraction and registry
 
-use crate::{
-    backends::MockBackend,
-    config::RemovalConfig,
-    error::Result,
-};
+use crate::{backends::MockBackend, config::RemovalConfig, error::Result};
 use ndarray::Array4;
 
 // Use instant crate for cross-platform time compatibility
@@ -118,7 +114,7 @@ mod tests {
         // Test that default backends are registered (ONNX moved to separate crate)
         assert!(registry.get("mock").is_some());
         assert!(registry.get("nonexistent").is_none());
-        
+
         // Test registering a custom backend
         registry.register("custom", Box::new(MockBackend::new()));
         assert!(registry.get("custom").is_some());

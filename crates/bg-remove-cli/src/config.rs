@@ -1,13 +1,13 @@
 //! Configuration conversion utilities for CLI arguments
 
+use crate::Cli;
 use anyhow::{Context, Result};
 use bg_remove_core::{
-    processor::{ProcessorConfig, ProcessorConfigBuilder},
-    utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
     config::OutputFormat,
     models::{get_available_embedded_models, ModelSource, ModelSpec},
+    processor::{ProcessorConfig, ProcessorConfigBuilder},
+    utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
 };
-use crate::Cli;
 
 /// Convert CLI arguments to unified ProcessorConfig
 pub(crate) struct CliConfigBuilder;
@@ -36,9 +36,9 @@ impl CliConfigBuilder {
         };
 
         // Parse execution provider and backend type
-        let (backend_type, execution_provider) = ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
-            .context("Invalid execution provider format")?;
-
+        let (backend_type, execution_provider) =
+            ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
+                .context("Invalid execution provider format")?;
 
         // Parse output format
         let output_format = match cli.format {
@@ -81,7 +81,6 @@ impl CliConfigBuilder {
         ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
             .context("Invalid execution provider format")?;
 
-
         // Validate quality settings using shared validator
         ConfigValidator::validate_quality_settings(cli.jpeg_quality, cli.webp_quality)
             .context("Invalid quality settings")?;
@@ -89,8 +88,7 @@ impl CliConfigBuilder {
         // Validate model specification if provided
         if let Some(model_arg) = &cli.model {
             let model_spec = ModelSpecParser::parse(model_arg);
-            ModelSpecParser::validate(&model_spec)
-                .context("Invalid model specification")?;
+            ModelSpecParser::validate(&model_spec).context("Invalid model specification")?;
         }
 
         Ok(())
@@ -101,10 +99,7 @@ impl CliConfigBuilder {
 mod tests {
     use super::*;
     use crate::{Cli, CliOutputFormat};
-    use bg_remove_core::{
-        processor::BackendType,
-        config::ExecutionProvider,
-    };
+    use bg_remove_core::{config::ExecutionProvider, processor::BackendType};
 
     fn create_test_cli() -> Cli {
         Cli {
@@ -130,7 +125,7 @@ mod tests {
     fn test_cli_config_conversion() {
         let cli = create_test_cli();
         let config = CliConfigBuilder::from_cli(&cli).unwrap();
-        
+
         assert_eq!(config.backend_type, BackendType::Onnx);
         assert_eq!(config.execution_provider, ExecutionProvider::Auto);
         assert_eq!(config.output_format, OutputFormat::Png);

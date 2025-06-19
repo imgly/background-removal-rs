@@ -1,10 +1,10 @@
 //! Shared image preprocessing utilities
 //!
-//! This module consolidates image preprocessing logic that was previously 
+//! This module consolidates image preprocessing logic that was previously
 //! duplicated between ImageProcessor and BackgroundRemovalProcessor.
 
 use crate::{
-    error::{BgRemovalError, Result}, 
+    error::{BgRemovalError, Result},
     models::PreprocessingConfig,
 };
 use image::{DynamicImage, ImageBuffer, RgbImage};
@@ -123,7 +123,7 @@ impl ImagePreprocessor {
                 "Target size too large for usize conversion in tensor allocation",
             )
         })?;
-        
+
         let tensor = Self::canvas_to_tensor(&canvas, preprocessing_config, target_size_usize)?;
 
         // Return preprocessed image if requested
@@ -208,7 +208,8 @@ impl ImagePreprocessor {
             padding_color,
             return_preprocessed_image: true,
         };
-        let (preprocessed_opt, tensor) = Self::preprocess_image(image, preprocessing_config, &options)?;
+        let (preprocessed_opt, tensor) =
+            Self::preprocess_image(image, preprocessing_config, &options)?;
         let preprocessed = preprocessed_opt.ok_or_else(|| {
             BgRemovalError::processing("Expected preprocessed image but none returned")
         })?;
@@ -230,7 +231,8 @@ mod tests {
     }
 
     fn create_test_image() -> DynamicImage {
-        let img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(100, 100, Rgb([255, 0, 0]));
+        let img: ImageBuffer<Rgb<u8>, Vec<u8>> =
+            ImageBuffer::from_pixel(100, 100, Rgb([255, 0, 0]));
         DynamicImage::ImageRgb8(img)
     }
 
@@ -238,9 +240,9 @@ mod tests {
     fn test_preprocess_for_inference() {
         let image = create_test_image();
         let config = create_test_preprocessing_config();
-        
+
         let tensor = ImagePreprocessor::preprocess_for_inference(&image, &config).unwrap();
-        
+
         assert_eq!(tensor.shape(), &[1, 3, 1024, 1024]);
     }
 
@@ -249,9 +251,10 @@ mod tests {
         let image = create_test_image();
         let config = create_test_preprocessing_config();
         let padding = [128, 128, 128]; // Gray padding
-        
-        let (preprocessed, tensor) = ImagePreprocessor::preprocess_with_padding(&image, &config, padding).unwrap();
-        
+
+        let (preprocessed, tensor) =
+            ImagePreprocessor::preprocess_with_padding(&image, &config, padding).unwrap();
+
         assert_eq!(tensor.shape(), &[1, 3, 1024, 1024]);
         assert_eq!(preprocessed.width(), 1024);
         assert_eq!(preprocessed.height(), 1024);
@@ -265,9 +268,10 @@ mod tests {
             padding_color: [0, 255, 0], // Green padding
             return_preprocessed_image: true,
         };
-        
-        let (preprocessed_opt, tensor) = ImagePreprocessor::preprocess_image(&image, &config, &options).unwrap();
-        
+
+        let (preprocessed_opt, tensor) =
+            ImagePreprocessor::preprocess_image(&image, &config, &options).unwrap();
+
         assert!(preprocessed_opt.is_some());
         assert_eq!(tensor.shape(), &[1, 3, 1024, 1024]);
     }
@@ -280,9 +284,10 @@ mod tests {
             padding_color: [255, 255, 255],
             return_preprocessed_image: false,
         };
-        
-        let (preprocessed_opt, tensor) = ImagePreprocessor::preprocess_image(&image, &config, &options).unwrap();
-        
+
+        let (preprocessed_opt, tensor) =
+            ImagePreprocessor::preprocess_image(&image, &config, &options).unwrap();
+
         assert!(preprocessed_opt.is_none());
         assert_eq!(tensor.shape(), &[1, 3, 1024, 1024]);
     }

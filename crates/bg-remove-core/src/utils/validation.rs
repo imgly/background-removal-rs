@@ -20,14 +20,14 @@ impl ConfigValidator {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::utils::ConfigValidator;
-    /// 
+    ///
     /// assert!(ConfigValidator::validate_jpeg_quality(90).is_ok());
     /// assert!(ConfigValidator::validate_jpeg_quality(150).is_err());
     /// ```
     pub fn validate_jpeg_quality(quality: u8) -> Result<()> {
         if quality > 100 {
             return Err(BgRemovalError::invalid_config(
-                "JPEG quality must be between 0 and 100"
+                "JPEG quality must be between 0 and 100",
             ));
         }
         Ok(())
@@ -44,14 +44,14 @@ impl ConfigValidator {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::utils::ConfigValidator;
-    /// 
+    ///
     /// assert!(ConfigValidator::validate_webp_quality(85).is_ok());
     /// assert!(ConfigValidator::validate_webp_quality(150).is_err());
     /// ```
     pub fn validate_webp_quality(quality: u8) -> Result<()> {
         if quality > 100 {
             return Err(BgRemovalError::invalid_config(
-                "WebP quality must be between 0 and 100"
+                "WebP quality must be between 0 and 100",
             ));
         }
         Ok(())
@@ -82,18 +82,18 @@ impl ConfigValidator {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::utils::ConfigValidator;
-    /// 
+    ///
     /// assert!(ConfigValidator::validate_output_format("png").is_ok());
     /// assert!(ConfigValidator::validate_output_format("invalid").is_err());
     /// ```
     pub fn validate_output_format(format: &str) -> Result<()> {
         let valid_formats = ["png", "jpeg", "jpg", "webp", "tiff", "rgba8"];
         if !valid_formats.contains(&format.to_lowercase().as_str()) {
-            return Err(BgRemovalError::invalid_config(
-                &format!("Invalid output format: {}. Valid formats: {}", 
-                        format, 
-                        valid_formats.join(", "))
-            ));
+            return Err(BgRemovalError::invalid_config(&format!(
+                "Invalid output format: {}. Valid formats: {}",
+                format,
+                valid_formats.join(", ")
+            )));
         }
         Ok(())
     }
@@ -109,13 +109,13 @@ impl ConfigValidator {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::{utils::ConfigValidator, config::OutputFormat};
-    /// 
+    ///
     /// assert_eq!(ConfigValidator::parse_output_format("png").unwrap(), OutputFormat::Png);
     /// assert_eq!(ConfigValidator::parse_output_format("jpeg").unwrap(), OutputFormat::Jpeg);
     /// ```
     pub fn parse_output_format(format: &str) -> Result<OutputFormat> {
         Self::validate_output_format(format)?;
-        
+
         match format.to_lowercase().as_str() {
             "png" => Ok(OutputFormat::Png),
             "jpeg" | "jpg" => Ok(OutputFormat::Jpeg),
@@ -196,13 +196,34 @@ mod tests {
 
     #[test]
     fn test_parse_output_format() {
-        assert_eq!(ConfigValidator::parse_output_format("png").unwrap(), OutputFormat::Png);
-        assert_eq!(ConfigValidator::parse_output_format("PNG").unwrap(), OutputFormat::Png);
-        assert_eq!(ConfigValidator::parse_output_format("jpeg").unwrap(), OutputFormat::Jpeg);
-        assert_eq!(ConfigValidator::parse_output_format("jpg").unwrap(), OutputFormat::Jpeg);
-        assert_eq!(ConfigValidator::parse_output_format("webp").unwrap(), OutputFormat::WebP);
-        assert_eq!(ConfigValidator::parse_output_format("tiff").unwrap(), OutputFormat::Tiff);
-        assert_eq!(ConfigValidator::parse_output_format("rgba8").unwrap(), OutputFormat::Rgba8);
+        assert_eq!(
+            ConfigValidator::parse_output_format("png").unwrap(),
+            OutputFormat::Png
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("PNG").unwrap(),
+            OutputFormat::Png
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("jpeg").unwrap(),
+            OutputFormat::Jpeg
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("jpg").unwrap(),
+            OutputFormat::Jpeg
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("webp").unwrap(),
+            OutputFormat::WebP
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("tiff").unwrap(),
+            OutputFormat::Tiff
+        );
+        assert_eq!(
+            ConfigValidator::parse_output_format("rgba8").unwrap(),
+            OutputFormat::Rgba8
+        );
         assert!(ConfigValidator::parse_output_format("invalid").is_err());
     }
 

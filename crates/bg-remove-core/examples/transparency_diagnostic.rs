@@ -11,8 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Transparency Diagnostic Tool");
     println!("==============================");
 
-    let test_image =
-        "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let test_image = "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
     let js_reference =
         "../bg-remove-testing/assets/expected/portraits/portrait_single_simple_bg.png";
 

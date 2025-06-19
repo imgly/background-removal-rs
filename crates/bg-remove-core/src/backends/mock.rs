@@ -52,14 +52,14 @@ impl InferenceBackend for MockBackend {
             let center_y = h / 2;
             let center_x = w / 2;
             let radius = (h.min(w) / 3) as f32;
-            
+
             for y in 0..h {
                 for x in 0..w {
                     // Calculate distance from center
                     let dy = (y as f32 - center_y as f32).abs();
                     let dx = (x as f32 - center_x as f32).abs();
                     let distance = (dy * dy + dx * dx).sqrt();
-                    
+
                     // Create a circular mask with soft edges
                     let mask_value = if distance < radius {
                         1.0
@@ -69,7 +69,7 @@ impl InferenceBackend for MockBackend {
                     } else {
                         0.0
                     };
-                    
+
                     // Set the mask value
                     if let Some(elem) = output.get_mut([batch, 0, y, x]) {
                         *elem = mask_value.clamp(0.0, 1.0);

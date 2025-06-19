@@ -7,10 +7,7 @@ mod config;
 
 use anyhow::{Context, Result};
 use backend_factory::CliBackendFactory;
-use bg_remove_core::{
-    processor::BackgroundRemovalProcessor,
-    utils::ExecutionProviderManager,
-};
+use bg_remove_core::{processor::BackgroundRemovalProcessor, utils::ExecutionProviderManager};
 use clap::{Parser, ValueEnum};
 use config::CliConfigBuilder;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -121,7 +118,10 @@ async fn main() -> Result<()> {
         info!("🐛 DEBUG MODE: Using configured backend for testing");
     }
     info!("Input(s): {}", cli.input.join(", "));
-    info!("Backend: {:?}, Provider: {:?}", config.backend_type, config.execution_provider);
+    info!(
+        "Backend: {:?}, Provider: {:?}",
+        config.backend_type, config.execution_provider
+    );
     info!("Model: {:?}", config.model_spec);
 
     // Create unified processor with CLI backend factory
@@ -146,10 +146,10 @@ async fn main() -> Result<()> {
 /// Initialize logging based on verbosity level
 fn init_logging(verbose_count: u8) {
     let log_level = match verbose_count {
-        0 => "warn",        // Default: only warnings and errors
-        1 => "info",        // -v: user-actionable information
-        2 => "debug",       // -vv: internal state and computations  
-        _ => "trace",       // -vvv+: extremely detailed traces
+        0 => "warn",  // Default: only warnings and errors
+        1 => "info",  // -v: user-actionable information
+        2 => "debug", // -vv: internal state and computations
+        _ => "trace", // -vvv+: extremely detailed traces
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
@@ -184,7 +184,7 @@ fn show_provider_diagnostics() -> Result<()> {
 
     // Get provider information from core utilities
     let all_providers = ExecutionProviderManager::list_all_providers();
-    
+
     println!("\n🚀 Execution Providers:");
     for provider_info in all_providers {
         let status = if provider_info.available {
@@ -192,12 +192,15 @@ fn show_provider_diagnostics() -> Result<()> {
         } else {
             "❓ Unknown availability"
         };
-        println!("  • {}: {} - {}", provider_info.name, status, provider_info.description);
+        println!(
+            "  • {}: {} - {}",
+            provider_info.name, status, provider_info.description
+        );
     }
 
     // Try to get actual availability from backends
     println!("\n🔍 Checking Backend-Specific Availability:");
-    
+
     // Check ONNX providers
     match bg_remove_onnx::OnnxBackend::list_providers() {
         providers => {
@@ -208,9 +211,14 @@ fn show_provider_diagnostics() -> Result<()> {
                 } else {
                     "❌ Not Available"
                 };
-                println!("  • onnx:{}: {} - {}", name.to_lowercase(), status, description);
+                println!(
+                    "  • onnx:{}: {} - {}",
+                    name.to_lowercase(),
+                    status,
+                    description
+                );
             }
-        }
+        },
     }
 
     // Check Tract providers
@@ -222,7 +230,12 @@ fn show_provider_diagnostics() -> Result<()> {
         } else {
             "❌ Not Available"
         };
-        println!("  • tract:{}: {} - {}", name.to_lowercase(), status, description);
+        println!(
+            "  • tract:{}: {} - {}",
+            name.to_lowercase(),
+            status,
+            description
+        );
     }
 
     println!("\n💡 Usage Examples:");
@@ -246,10 +259,7 @@ fn show_provider_diagnostics() -> Result<()> {
 }
 
 /// Process multiple inputs efficiently using the unified processor
-async fn process_inputs(
-    cli: &Cli,
-    processor: &mut BackgroundRemovalProcessor,
-) -> Result<usize> {
+async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -> Result<usize> {
     // Handle stdin specially (single input)
     if cli.input.len() == 1 && cli.input[0] == "-" {
         return process_stdin(&cli.output, processor).await;
@@ -257,10 +267,10 @@ async fn process_inputs(
 
     // Collect all image files from inputs (files and directories)
     let mut all_files = Vec::new();
-    
+
     for input in &cli.input {
         let path = PathBuf::from(input);
-        
+
         if path.is_file() {
             // Single file - validate it's an image
             if is_image_file(&path, &["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"]) {
@@ -293,7 +303,9 @@ async fn process_inputs(
         let pb = ProgressBar::new(all_files.len() as u64);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
+                )
                 .unwrap()
                 .progress_chars("#>-"),
         );
@@ -355,8 +367,14 @@ async fn process_inputs(
         info!("  ├─ Files processed: {}", processed_count);
         info!("  ├─ Files failed: {}", failed_count);
         info!("  ├─ Total time: {:.2}s", batch_total_time.as_secs_f64());
-        info!("  └─ Average per file: {:.2}s", 
-              if processed_count > 0 { batch_total_time.as_secs_f64() / (processed_count as f64) } else { 0.0 });
+        info!(
+            "  └─ Average per file: {:.2}s",
+            if processed_count > 0 {
+                batch_total_time.as_secs_f64() / (processed_count as f64)
+            } else {
+                0.0
+            }
+        );
     }
 
     Ok(processed_count)
@@ -377,7 +395,9 @@ async fn process_stdin(
     let temp_file = temp_dir.join("stdin_input.tmp");
     std::fs::write(&temp_file, &image_data)?;
 
-    let result = processor.process_file(&temp_file).await
+    let result = processor
+        .process_file(&temp_file)
+        .await
         .context("Failed to remove background")?;
 
     // Clean up temp file
@@ -435,23 +455,40 @@ async fn process_single_file(
     input_path: &Path,
     output_path: &Option<String>,
 ) -> Result<usize> {
-    let mut result = processor.process_file(input_path).await
+    let mut result = processor
+        .process_file(input_path)
+        .await
         .context("Failed to remove background")?;
 
     // Show detailed timing breakdown
     let timings = result.timings();
     let breakdown = timings.breakdown_percentages();
-    
+
     info!("📊 Processing breakdown for {}:", input_path.display());
-    
+
     if timings.model_load_ms > 0 {
-        info!("  ├─ Model Load: {}ms ({:.1}%)", timings.model_load_ms, breakdown.model_load_pct);
+        info!(
+            "  ├─ Model Load: {}ms ({:.1}%)",
+            timings.model_load_ms, breakdown.model_load_pct
+        );
     }
-    
-    info!("  ├─ Image Decode: {}ms ({:.1}%)", timings.image_decode_ms, breakdown.decode_pct);
-    info!("  ├─ Preprocessing: {}ms ({:.1}%)", timings.preprocessing_ms, breakdown.preprocessing_pct);
-    info!("  ├─ Inference: {}ms ({:.1}%)", timings.inference_ms, breakdown.inference_pct);
-    info!("  ├─ Postprocessing: {}ms ({:.1}%)", timings.postprocessing_ms, breakdown.postprocessing_pct);
+
+    info!(
+        "  ├─ Image Decode: {}ms ({:.1}%)",
+        timings.image_decode_ms, breakdown.decode_pct
+    );
+    info!(
+        "  ├─ Preprocessing: {}ms ({:.1}%)",
+        timings.preprocessing_ms, breakdown.preprocessing_pct
+    );
+    info!(
+        "  ├─ Inference: {}ms ({:.1}%)",
+        timings.inference_ms, breakdown.inference_pct
+    );
+    info!(
+        "  ├─ Postprocessing: {}ms ({:.1}%)",
+        timings.postprocessing_ms, breakdown.postprocessing_pct
+    );
 
     // Handle output
     let config = processor.config();
@@ -460,7 +497,11 @@ async fn process_single_file(
             // Output to stdout
             let output_data = result.to_bytes(config.output_format, config.jpeg_quality)?;
             write_stdout(&output_data)?;
-            info!("  └─ Total: {}ms ({:.2}s) - output to stdout", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
+            info!(
+                "  └─ Total: {}ms ({:.2}s) - output to stdout",
+                result.timings().total_ms,
+                result.timings().total_ms as f64 / 1000.0
+            );
         },
         Some(target) => {
             // Output to specific file
@@ -478,13 +519,20 @@ async fn process_single_file(
                     .save_timed(&output_path, config.output_format, config.jpeg_quality)
                     .context("Failed to save result")?;
             }
-            
+
             if let Some(encode_ms) = result.timings().image_encode_ms {
                 let encode_breakdown = result.timings().breakdown_percentages();
-                info!("  ├─ Image Encode: {}ms ({:.1}%)", encode_ms, encode_breakdown.encode_pct);
+                info!(
+                    "  ├─ Image Encode: {}ms ({:.1}%)",
+                    encode_ms, encode_breakdown.encode_pct
+                );
             }
-            
-            info!("  └─ Total: {}ms ({:.2}s)", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
+
+            info!(
+                "  └─ Total: {}ms ({:.2}s)",
+                result.timings().total_ms,
+                result.timings().total_ms as f64 / 1000.0
+            );
         },
         None => {
             // Generate default output filename
@@ -502,13 +550,20 @@ async fn process_single_file(
                     .save_timed(&output_path, config.output_format, config.jpeg_quality)
                     .context("Failed to save result")?;
             }
-            
+
             if let Some(encode_ms) = result.timings().image_encode_ms {
                 let encode_breakdown = result.timings().breakdown_percentages();
-                info!("  ├─ Image Encode: {}ms ({:.1}%)", encode_ms, encode_breakdown.encode_pct);
+                info!(
+                    "  ├─ Image Encode: {}ms ({:.1}%)",
+                    encode_ms, encode_breakdown.encode_pct
+                );
             }
-            
-            info!("  └─ Total: {}ms ({:.2}s)", result.timings().total_ms, result.timings().total_ms as f64 / 1000.0);
+
+            info!(
+                "  └─ Total: {}ms ({:.2}s)",
+                result.timings().total_ms,
+                result.timings().total_ms as f64 / 1000.0
+            );
         },
     }
 

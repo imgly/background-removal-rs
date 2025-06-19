@@ -35,7 +35,7 @@ impl OnnxBackend {
     /// # Examples
     /// ```rust
     /// use bg_remove_onnx::OnnxBackend;
-    /// 
+    ///
     /// let providers = OnnxBackend::list_providers();
     /// for (name, available, description) in providers {
     ///     println!("{}: {} - {}", name, if available { "✅" } else { "❌" }, description);
@@ -186,9 +186,17 @@ impl OnnxBackend {
 
         // Create ONNX Runtime session with specified execution provider
         let mut session_builder = Session::builder()
-            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to create session builder: {e}")))?
+            .map_err(|e| {
+                bg_remove_core::error::BgRemovalError::inference(format!(
+                    "Failed to create session builder: {e}"
+                ))
+            })?
             .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set optimization level: {e}")))?;
+            .map_err(|e| {
+                bg_remove_core::error::BgRemovalError::inference(format!(
+                    "Failed to set optimization level: {e}"
+                ))
+            })?;
 
         // Configure execution providers with availability checking
         session_builder = match config.execution_provider {
@@ -215,7 +223,9 @@ impl OnnxBackend {
                     log::info!("🍎 CoreML execution provider is available and will be used");
                     log::debug!("CoreML provider details:");
                     log::debug!("  - This will use Apple Neural Engine and GPU acceleration");
-                    log::debug!("  - Expected significant performance improvement on Apple Silicon");
+                    log::debug!(
+                        "  - Expected significant performance improvement on Apple Silicon"
+                    );
                     log::debug!("  - Provider configuration: {coreml_provider:?}");
 
                     // Add CoreML-specific configuration for better performance
@@ -239,8 +249,13 @@ impl OnnxBackend {
                         "✅ Hardware acceleration enabled with {count} provider(s)",
                         count = providers.len()
                     );
-                    session_builder.with_execution_providers(providers)
-                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set auto execution providers: {e}")))?
+                    session_builder
+                        .with_execution_providers(providers)
+                        .map_err(|e| {
+                            bg_remove_core::error::BgRemovalError::inference(format!(
+                                "Failed to set auto execution providers: {e}"
+                            ))
+                        })?
                 }
             },
             ExecutionProvider::Cpu => {
@@ -253,8 +268,13 @@ impl OnnxBackend {
                 let cuda_provider = CUDAExecutionProvider::default();
                 if OrtExecutionProvider::is_available(&cuda_provider).unwrap_or(false) {
                     log::info!("Using CUDA execution provider");
-                    session_builder.with_execution_providers([cuda_provider.build()])
-                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set CUDA execution provider: {e}")))?
+                    session_builder
+                        .with_execution_providers([cuda_provider.build()])
+                        .map_err(|e| {
+                            bg_remove_core::error::BgRemovalError::inference(format!(
+                                "Failed to set CUDA execution provider: {e}"
+                            ))
+                        })?
                 } else {
                     log::warn!(
                         "CUDA execution provider requested but not available, falling back to CPU"
@@ -280,8 +300,13 @@ impl OnnxBackend {
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
 
                     log::debug!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
-                    session_builder.with_execution_providers([enhanced_coreml_provider.build()])
-                        .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to set CoreML execution provider: {e}")))?
+                    session_builder
+                        .with_execution_providers([enhanced_coreml_provider.build()])
+                        .map_err(|e| {
+                            bg_remove_core::error::BgRemovalError::inference(format!(
+                                "Failed to set CoreML execution provider: {e}"
+                            ))
+                        })?
                 } else {
                     log::error!("🚫 CoreML execution provider requested but not available!");
                     log::error!("  - This is unexpected on Apple Silicon Mac");
@@ -330,7 +355,9 @@ impl OnnxBackend {
         let model_info = self
             .model_manager
             .as_ref()
-            .ok_or_else(|| bg_remove_core::error::BgRemovalError::internal("Model manager not initialized"))?
+            .ok_or_else(|| {
+                bg_remove_core::error::BgRemovalError::internal("Model manager not initialized")
+            })?
             .get_info()?;
         log::debug!("✅ ONNX Runtime session created successfully");
         log::debug!("Session configuration:");
@@ -398,7 +425,7 @@ impl OnnxBackend {
             "📊 Model loading complete: {:.0}ms",
             model_load_time.as_secs_f64() * 1000.0
         );
-        
+
         Ok(model_load_time)
     }
 }
@@ -440,7 +467,9 @@ impl InferenceBackend for OnnxBackend {
         // Convert ndarray to ort Value
         let tensor_conversion_start = Instant::now();
         let input_value = Value::from_array(input.clone()).map_err(|e| {
-            bg_remove_core::error::BgRemovalError::processing(format!("Failed to convert input tensor: {e}"))
+            bg_remove_core::error::BgRemovalError::processing(format!(
+                "Failed to convert input tensor: {e}"
+            ))
         })?;
         let tensor_conversion_time = tensor_conversion_start.elapsed();
         log::debug!(
@@ -505,7 +534,9 @@ impl InferenceBackend for OnnxBackend {
                 outputs
                     .get(first_key)
                     .ok_or_else(|| {
-                        bg_remove_core::error::BgRemovalError::processing("First output key not found")
+                        bg_remove_core::error::BgRemovalError::processing(
+                            "First output key not found",
+                        )
                     })?
                     .try_extract_array::<f32>()
                     .map_err(|e| {

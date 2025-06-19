@@ -1,10 +1,10 @@
 //! Backend factory implementation for CLI that injects ONNX and Tract backends
 
 use bg_remove_core::{
-    processor::{BackendFactory, BackendType},
+    error::Result,
     inference::InferenceBackend,
     models::ModelManager,
-    error::Result,
+    processor::{BackendFactory, BackendType},
 };
 use bg_remove_onnx::OnnxBackend;
 use bg_remove_tract::TractBackend;
@@ -22,24 +22,20 @@ impl BackendFactory for CliBackendFactory {
             BackendType::Onnx => {
                 let backend = OnnxBackend::with_model_manager(model_manager);
                 Ok(Box::new(backend))
-            }
+            },
             BackendType::Tract => {
                 let backend = TractBackend::with_model_manager(model_manager);
                 Ok(Box::new(backend))
-            }
+            },
             BackendType::Mock => {
                 let backend = bg_remove_core::MockBackend::new();
                 Ok(Box::new(backend))
-            }
+            },
         }
     }
-    
+
     fn available_backends(&self) -> Vec<BackendType> {
-        vec![
-            BackendType::Onnx,
-            BackendType::Tract,
-            BackendType::Mock,
-        ]
+        vec![BackendType::Onnx, BackendType::Tract, BackendType::Mock]
     }
 }
 

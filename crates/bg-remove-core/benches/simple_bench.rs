@@ -45,7 +45,8 @@ fn bench_execution_providers(c: &mut Criterion) {
                     // Create ONNX backend for benchmarking
                     use bg_remove_onnx::OnnxBackend;
                     let backend = Box::new(OnnxBackend::new());
-                    let mut processor = ImageProcessor::with_backend(black_box(&config), backend).unwrap();
+                    let mut processor =
+                        ImageProcessor::with_backend(black_box(&config), backend).unwrap();
                     let result = processor.process_image(black_box(test_image.clone()));
                     black_box(result.unwrap())
                 })
@@ -83,7 +84,8 @@ fn bench_image_sizes(c: &mut Criterion) {
                     // Create ONNX backend for benchmarking
                     use bg_remove_onnx::OnnxBackend;
                     let backend = Box::new(OnnxBackend::new());
-                    let mut processor = ImageProcessor::with_backend(black_box(&config), backend).unwrap();
+                    let mut processor =
+                        ImageProcessor::with_backend(black_box(&config), backend).unwrap();
                     let result = processor.process_image(black_box(test_image.clone()));
                     black_box(result.unwrap())
                 })

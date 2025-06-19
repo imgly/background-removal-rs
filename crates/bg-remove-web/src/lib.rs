@@ -7,14 +7,13 @@
 mod backend_factory;
 mod config;
 
-use wasm_bindgen::prelude::*;
 use backend_factory::WebBackendFactory;
-use config::WebConfigBuilder;
 use bg_remove_core::{
-    processor::BackgroundRemovalProcessor,
-    models::get_available_embedded_models,
+    models::get_available_embedded_models, processor::BackgroundRemovalProcessor,
 };
+use config::WebConfigBuilder;
 use js_sys::{Array, Promise, Uint8Array};
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
 // Import console.log for debugging
@@ -117,33 +116,45 @@ impl WebRemovalConfig {
         }
     }
 
-
     // Additional getters/setters (simplified for brevity)
     #[wasm_bindgen(getter)]
-    pub fn jpeg_quality(&self) -> u8 { self.jpeg_quality }
-    
+    pub fn jpeg_quality(&self) -> u8 {
+        self.jpeg_quality
+    }
+
     #[wasm_bindgen(setter)]
-    pub fn set_jpeg_quality(&mut self, quality: u8) { self.jpeg_quality = quality.clamp(0, 100); }
+    pub fn set_jpeg_quality(&mut self, quality: u8) {
+        self.jpeg_quality = quality.clamp(0, 100);
+    }
 
     #[wasm_bindgen(getter)]
-    pub fn debug(&self) -> bool { self.debug }
-    
+    pub fn debug(&self) -> bool {
+        self.debug
+    }
+
     #[wasm_bindgen(setter)]
-    pub fn set_debug(&mut self, debug: bool) { self.debug = debug; }
+    pub fn set_debug(&mut self, debug: bool) {
+        self.debug = debug;
+    }
 
     /// Validate configuration using core utilities
     pub fn validate(&self) -> Result<(), WasmError> {
-        WebConfigBuilder::validate_web_config(self)
-            .map_err(WasmError::from)
+        WebConfigBuilder::validate_web_config(self).map_err(WasmError::from)
     }
 
     /// Convert to unified ProcessorConfig
-    pub(crate) fn to_processor_config(&self, model_name: Option<String>) -> Result<bg_remove_core::processor::ProcessorConfig, bg_remove_core::error::BgRemovalError> {
+    pub(crate) fn to_processor_config(
+        &self,
+        model_name: Option<String>,
+    ) -> Result<bg_remove_core::processor::ProcessorConfig, bg_remove_core::error::BgRemovalError>
+    {
         WebConfigBuilder::from_web_config(self, model_name)
     }
 
     /// Create WebRemovalConfig from unified ProcessorConfig
-    pub(crate) fn from_processor_config(config: &bg_remove_core::processor::ProcessorConfig) -> Self {
+    pub(crate) fn from_processor_config(
+        config: &bg_remove_core::processor::ProcessorConfig,
+    ) -> Self {
         WebConfigBuilder::to_web_config(config)
     }
 }
@@ -176,7 +187,7 @@ impl BackgroundRemover {
     #[wasm_bindgen(constructor)]
     pub fn new(config: Option<WebRemovalConfig>) -> Self {
         console_log!("🌐 Creating new BackgroundRemover instance");
-        
+
         // Set up better panic messages
         #[cfg(feature = "console_error_panic_hook")]
         console_error_panic_hook::set_once();
@@ -192,7 +203,7 @@ impl BackgroundRemover {
     #[wasm_bindgen]
     pub fn initialize(&mut self, model_name: Option<String>) -> Promise {
         console_log!("🚀 Initializing BackgroundRemover with unified processor");
-        
+
         let model_name = model_name.unwrap_or_else(|| {
             let available = get_available_embedded_models();
             if available.is_empty() {
@@ -206,33 +217,32 @@ impl BackgroundRemover {
 
         let config_result = self.config.to_processor_config(Some(model_name));
         let self_ptr = self as *mut Self;
-        
+
         future_to_promise(async move {
             match config_result {
-                Ok(config) => {
-                    match Self::initialize_impl(config).await {
-                        Ok((processor, final_config)) => {
-                            console_log!("✅ BackgroundRemover initialized successfully");
-                            
-                            #[allow(unsafe_code)]
-                            unsafe {
-                                (*self_ptr).processor = Some(processor);
-                                (*self_ptr).config = WebRemovalConfig::from_processor_config(&final_config);
-                                (*self_ptr).initialized = true;
-                            }
-                            
-                            Ok(JsValue::TRUE)
-                        },
-                        Err(e) => {
-                            console_log!("❌ Failed to initialize BackgroundRemover: {}", e);
-                            Err(JsValue::from(WasmError::from(e)))
+                Ok(config) => match Self::initialize_impl(config).await {
+                    Ok((processor, final_config)) => {
+                        console_log!("✅ BackgroundRemover initialized successfully");
+
+                        #[allow(unsafe_code)]
+                        unsafe {
+                            (*self_ptr).processor = Some(processor);
+                            (*self_ptr).config =
+                                WebRemovalConfig::from_processor_config(&final_config);
+                            (*self_ptr).initialized = true;
                         }
-                    }
+
+                        Ok(JsValue::TRUE)
+                    },
+                    Err(e) => {
+                        console_log!("❌ Failed to initialize BackgroundRemover: {}", e);
+                        Err(JsValue::from(WasmError::from(e)))
+                    },
                 },
                 Err(e) => {
                     console_log!("❌ Invalid configuration: {}", e);
                     Err(JsValue::from(WasmError::from(e)))
-                }
+                },
             }
         })
     }
@@ -240,10 +250,16 @@ impl BackgroundRemover {
     /// Internal async initialization implementation using unified processor
     async fn initialize_impl(
         config: bg_remove_core::processor::ProcessorConfig,
-    ) -> Result<(BackgroundRemovalProcessor, bg_remove_core::processor::ProcessorConfig), bg_remove_core::error::BgRemovalError> {
+    ) -> Result<
+        (
+            BackgroundRemovalProcessor,
+            bg_remove_core::processor::ProcessorConfig,
+        ),
+        bg_remove_core::error::BgRemovalError,
+    > {
         let backend_factory = Box::new(WebBackendFactory::new());
         let processor = BackgroundRemovalProcessor::with_factory(config.clone(), backend_factory)?;
-        
+
         console_log!("✅ Unified processor created successfully");
         Ok((processor, config))
     }
@@ -265,11 +281,11 @@ impl BackgroundRemover {
     pub fn get_available_models() -> Array {
         let models = get_available_embedded_models();
         let js_array = Array::new();
-        
+
         for model in models {
             js_array.push(&JsValue::from_str(&model));
         }
-        
+
         js_array
     }
 
@@ -277,14 +293,17 @@ impl BackgroundRemover {
     #[wasm_bindgen]
     pub fn remove_background_from_bytes(&self, image_bytes: Uint8Array) -> Promise {
         if !self.initialized {
-            return Promise::reject(&JsValue::from(WasmError::new("BackgroundRemover not initialized")));
+            return Promise::reject(&JsValue::from(WasmError::new(
+                "BackgroundRemover not initialized",
+            )));
         }
 
         let bytes: Vec<u8> = image_bytes.to_vec();
         console_log!("🖼️ Processing image bytes: {} bytes", bytes.len());
 
-        let processor_ptr = self.processor.as_ref().unwrap() as *const BackgroundRemovalProcessor as *mut BackgroundRemovalProcessor;
-        
+        let processor_ptr = self.processor.as_ref().unwrap() as *const BackgroundRemovalProcessor
+            as *mut BackgroundRemovalProcessor;
+
         future_to_promise(async move {
             match Self::process_bytes_impl(bytes, processor_ptr).await {
                 Ok(result_bytes) => {
@@ -295,7 +314,7 @@ impl BackgroundRemover {
                 Err(e) => {
                     console_log!("❌ Failed to process image: {}", e);
                     Err(JsValue::from(WasmError::from(e)))
-                }
+                },
             }
         })
     }
@@ -307,22 +326,27 @@ impl BackgroundRemover {
         processor_ptr: *mut BackgroundRemovalProcessor,
     ) -> Result<Vec<u8>, bg_remove_core::error::BgRemovalError> {
         console_log!("🔧 Processing with unified processor...");
-        
+
         let processor = unsafe { &mut *processor_ptr };
-        
+
         // Decode image bytes to DynamicImage first
-        let dynamic_image = image::load_from_memory(&image_bytes)
-            .map_err(|e| bg_remove_core::error::BgRemovalError::processing(
-                format!("Failed to decode image: {}", e)
-            ))?;
-        
+        let dynamic_image = image::load_from_memory(&image_bytes).map_err(|e| {
+            bg_remove_core::error::BgRemovalError::processing(format!(
+                "Failed to decode image: {}",
+                e
+            ))
+        })?;
+
         // Process using the unified processor
         let result = processor.process_image(dynamic_image)?;
-        
+
         // Get result as bytes (PNG format)
         let result_bytes = result.to_bytes(bg_remove_core::config::OutputFormat::Png, 90)?;
-        
-        console_log!("✅ Processing completed, result: {} bytes", result_bytes.len());
+
+        console_log!(
+            "✅ Processing completed, result: {} bytes",
+            result_bytes.len()
+        );
         Ok(result_bytes)
     }
 }
@@ -337,7 +361,7 @@ impl Default for BackgroundRemover {
 #[wasm_bindgen(start)]
 pub fn init() {
     console_log!("🦀 bg-remove-web WASM module initialized");
-    
+
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
@@ -352,10 +376,15 @@ pub fn get_version() -> String {
 #[wasm_bindgen]
 pub fn get_wasm_providers() -> js_sys::Object {
     let info = js_sys::Object::new();
-    
+
     js_sys::Reflect::set(&info, &"tract_cpu".into(), &true.into()).unwrap();
-    js_sys::Reflect::set(&info, &"description".into(), &"Pure Rust CPU inference via Tract (WASM-compatible)".into()).unwrap();
+    js_sys::Reflect::set(
+        &info,
+        &"description".into(),
+        &"Pure Rust CPU inference via Tract (WASM-compatible)".into(),
+    )
+    .unwrap();
     js_sys::Reflect::set(&info, &"wasm_compatible".into(), &true.into()).unwrap();
-    
+
     info
 }

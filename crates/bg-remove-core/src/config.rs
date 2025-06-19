@@ -43,8 +43,6 @@ impl Default for OutputFormat {
     }
 }
 
-
-
 /// Configuration for background removal operations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovalConfig {
@@ -53,7 +51,6 @@ pub struct RemovalConfig {
 
     /// Output format
     pub output_format: OutputFormat,
-
 
     /// JPEG quality (0-100, only used for JPEG output)
     pub jpeg_quality: u8,
@@ -82,8 +79,8 @@ impl Default for RemovalConfig {
             jpeg_quality: 90,
             webp_quality: 85,
             debug: false,
-            intra_threads: 0, // Auto-detect optimal intra-op threads
-            inter_threads: 0, // Auto-detect optimal inter-op threads
+            intra_threads: 0,              // Auto-detect optimal intra-op threads
+            inter_threads: 0,              // Auto-detect optimal inter-op threads
             preserve_color_profiles: true, // Default: preserve color profiles
         }
     }
@@ -192,7 +189,6 @@ impl RemovalConfigBuilder {
         self.config.output_format = format;
         self
     }
-
 
     /// Set JPEG quality
     #[must_use]
@@ -359,5 +355,4 @@ mod tests {
         config.jpeg_quality = 150;
         assert!(config.validate().is_err());
     }
-
 }
