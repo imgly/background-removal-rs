@@ -154,14 +154,20 @@ impl RemovalConfig {
     /// ```
     pub fn validate(&self) -> crate::Result<()> {
         if self.jpeg_quality > 100 {
-            return Err(crate::error::BgRemovalError::invalid_config(
-                "JPEG quality must be between 0-100",
+            return Err(crate::error::BgRemovalError::config_value_error(
+                "JPEG quality",
+                self.jpeg_quality,
+                "0-100",
+                Some(90),
             ));
         }
 
         if self.webp_quality > 100 {
-            return Err(crate::error::BgRemovalError::invalid_config(
-                "WebP quality must be between 0-100",
+            return Err(crate::error::BgRemovalError::config_value_error(
+                "WebP quality",
+                self.webp_quality,
+                "0-100", 
+                Some(85),
             ));
         }
 

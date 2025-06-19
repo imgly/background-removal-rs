@@ -63,7 +63,8 @@ pub use services::{
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser,
-    PreprocessingOptions, ProviderInfo,
+    ModelValidator, NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo,
+    TensorValidator,
 };
 
 /// Remove background from an image file with specific model selection

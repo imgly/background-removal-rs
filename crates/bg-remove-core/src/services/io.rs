@@ -36,19 +36,19 @@ impl ImageIOService {
 
         // Check if file exists
         if !path_ref.exists() {
-            return Err(BgRemovalError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Image file does not exist: {}", path_ref.display()),
-            )));
+            return Err(BgRemovalError::file_io_error(
+                "read image file",
+                path_ref,
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "file does not exist",
+                ),
+            ));
         }
 
         // Load the image
         image::open(path_ref).map_err(|e| {
-            BgRemovalError::processing(format!(
-                "Failed to load image from {}: {}",
-                path_ref.display(),
-                e
-            ))
+            BgRemovalError::image_load_error(path_ref, e)
         })
     }
 
@@ -89,11 +89,7 @@ impl ImageIOService {
         // Create parent directory if it doesn't exist
         if let Some(parent) = path_ref.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                BgRemovalError::processing(format!(
-                    "Failed to create output directory {}: {}",
-                    parent.display(),
-                    e
-                ))
+                BgRemovalError::file_io_error("create output directory", parent, e)
             })?;
         }
 
@@ -107,22 +103,25 @@ impl ImageIOService {
                 // For raw RGBA8, we need to handle this specially
                 let rgba8 = image.to_rgba8();
                 std::fs::write(path_ref, rgba8.as_raw()).map_err(|e| {
-                    BgRemovalError::processing(format!(
-                        "Failed to write RGBA8 data to {}: {}",
-                        path_ref.display(),
-                        e
-                    ))
+                    BgRemovalError::file_io_error("write RGBA8 data", path_ref, e)
                 })?;
                 return Ok(());
             },
         };
 
         result.map_err(|e| {
-            BgRemovalError::processing(format!(
-                "Failed to save image to {}: {}",
-                path_ref.display(),
-                e
-            ))
+            let format_name = match format {
+                OutputFormat::Png => "PNG",
+                OutputFormat::Jpeg => "JPEG", 
+                OutputFormat::WebP => "WebP",
+                OutputFormat::Tiff => "TIFF",
+                OutputFormat::Rgba8 => "RGBA8",
+            };
+            BgRemovalError::processing_stage_error(
+                "image save",
+                &format!("Failed to save as {}: {}", format_name, e),
+                Some(&format!("format: {}, path: {}", format_name, path_ref.display())),
+            )
         })?;
 
         // TODO: Implement color profile preservation if requested
