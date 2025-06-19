@@ -10,7 +10,7 @@ use crate::{
     error::{BgRemovalError, Result},
     inference::InferenceBackend,
     models::{ModelManager, ModelSource, ModelSpec},
-    services::OutputFormatHandler,
+    services::{OutputFormatHandler, ProcessingStage, ProgressTracker},
     types::{ProcessingMetadata, ProcessingTimings, RemovalResult, SegmentationMask},
     utils::ImagePreprocessor,
 };
@@ -98,6 +98,8 @@ pub struct ProcessorConfig {
     pub inter_threads: usize,
     /// Preserve ICC color profiles from input images
     pub preserve_color_profiles: bool,
+    /// Enable verbose progress reporting
+    pub verbose_progress: bool,
 }
 
 impl ProcessorConfig {
@@ -137,6 +139,7 @@ impl Default for ProcessorConfig {
             intra_threads: 0,
             inter_threads: 0,
             preserve_color_profiles: true,
+            verbose_progress: false,
         }
     }
 }
@@ -203,6 +206,11 @@ impl ProcessorConfigBuilder {
         self
     }
 
+    pub fn verbose_progress(mut self, verbose: bool) -> Self {
+        self.config.verbose_progress = verbose;
+        self
+    }
+
     pub fn build(self) -> Result<ProcessorConfig> {
         // Validate configuration
         if self.config.jpeg_quality > 100 {
@@ -229,6 +237,7 @@ pub struct BackgroundRemovalProcessor {
     backend: Option<Box<dyn InferenceBackend>>,
     model_manager: Option<ModelManager>,
     initialized: bool,
+    progress_tracker: Option<ProgressTracker>,
 }
 
 impl BackgroundRemovalProcessor {
@@ -248,6 +257,7 @@ impl BackgroundRemovalProcessor {
             backend: None,
             model_manager: None,
             initialized: false,
+            progress_tracker: None,
         })
     }
 
@@ -295,6 +305,11 @@ impl BackgroundRemovalProcessor {
             self.initialize()?;
         }
 
+        // Report image loading progress
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::ImageLoading);
+        }
+
         // Load the image using the I/O service (separated from business logic)
         let image = crate::services::ImageIOService::load_image(&input_path)?;
 
@@ -324,6 +339,10 @@ impl BackgroundRemovalProcessor {
         );
 
         // 1. Extract color profile
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::ColorProfileExtraction);
+        }
+
         let _color_profile: Option<crate::types::ColorProfile> =
             if removal_config.preserve_color_profiles {
                 None // TODO: Implement color profile extraction for DynamicImage
@@ -332,6 +351,10 @@ impl BackgroundRemovalProcessor {
             };
 
         // 2. Preprocessing
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::Preprocessing);
+        }
+
         let preprocess_start = Instant::now();
         let original_dimensions = (image.width(), image.height());
 
@@ -342,13 +365,27 @@ impl BackgroundRemovalProcessor {
         timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
 
         // 3. Inference
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::Inference);
+        }
+
         let inference_start = Instant::now();
         let output_tensor = backend.infer(&input_tensor)?;
         timings.inference_ms = inference_start.elapsed().as_millis() as u64;
 
-        // 4. Postprocessing
+        // 4. Postprocessing - mask generation
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::MaskGeneration);
+        }
+
         let postprocess_start = Instant::now();
         let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
+
+        // 5. Background removal
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::BackgroundRemoval);
+        }
+
         let result_image = self.apply_background_removal(&image, &mask, &removal_config)?;
         timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
 
@@ -357,7 +394,12 @@ impl BackgroundRemovalProcessor {
 
         let mut metadata = ProcessingMetadata::new("unified_processor".to_string());
         metadata.model_precision = format!("{:?}", self.config.backend_type);
-        metadata.set_detailed_timings(timings);
+        metadata.set_detailed_timings(timings.clone());
+
+        // 6. Format conversion
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::FormatConversion);
+        }
 
         // Handle output format using the service
         let final_image =
@@ -365,6 +407,13 @@ impl BackgroundRemovalProcessor {
 
         let mut result = RemovalResult::new(final_image, mask, original_dimensions, metadata);
         result.color_profile = _color_profile;
+
+        // Report completion
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::Completed);
+            tracker.report_completion(timings);
+        }
+
         Ok(result)
     }
 

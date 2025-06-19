@@ -56,7 +56,10 @@ pub use processor::{
     BackendFactory, BackendType, BackgroundRemovalProcessor, DefaultBackendFactory,
     ProcessorConfig, ProcessorConfigBuilder,
 };
-pub use services::{ImageIOService, OutputFormatHandler};
+pub use services::{
+    ConsoleProgressReporter, ImageIOService, NoOpProgressReporter, OutputFormatHandler,
+    ProcessingStage, ProgressReporter, ProgressTracker, ProgressUpdate,
+};
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser,
