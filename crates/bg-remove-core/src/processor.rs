@@ -20,6 +20,21 @@ use log::{debug, info};
 use ndarray::Array4;
 use std::path::Path;
 
+/// Coordinate transformation parameters for tensor-to-mask conversion
+#[derive(Debug, Clone)]
+struct CoordinateTransformation {
+    /// Scale factor used during preprocessing
+    scale: f32,
+    /// X offset for centering
+    offset_x: u32,
+    /// Y offset for centering
+    offset_y: u32,
+    /// Mask width in tensor coordinates
+    mask_width: u32,
+    /// Mask height in tensor coordinates
+    mask_height: u32,
+}
+
 /// Backend type enumeration for runtime selection
 #[derive(Clone, Debug, PartialEq)]
 pub enum BackendType {
@@ -322,73 +337,157 @@ impl BackgroundRemovalProcessor {
             self.initialize()?;
         }
 
-        let backend = self
-            .backend
-            .as_mut()
-            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
-
-        let removal_config = self.config.to_removal_config();
-
-        // Initialize timing
         let mut timings = ProcessingTimings::default();
         let total_start = Instant::now();
+        let original_dimensions = (image.width(), image.height());
+        let removal_config = self.config.to_removal_config();
 
         info!(
             "Starting processing: {} - Backend: {:?}",
             "DynamicImage", self.config.backend_type
         );
 
-        // 1. Extract color profile
+        // Extract color profile
+        let color_profile = self.extract_color_profile(&removal_config)?;
+
+        // Preprocess image for inference
+        let input_tensor = self.preprocess_image_for_inference(&image, &mut timings)?;
+
+        // Perform inference
+        let output_tensor = self.perform_inference(&input_tensor, &mut timings)?;
+
+        // Generate mask and apply background removal
+        let (mask, result_image) = self.generate_mask_and_remove_background(
+            &output_tensor,
+            &image,
+            original_dimensions,
+            &removal_config,
+            &mut timings,
+        )?;
+
+        // Finalize result with format conversion and metadata
+        self.finalize_processing_result(
+            result_image,
+            mask,
+            original_dimensions,
+            color_profile,
+            timings,
+            total_start,
+        )
+    }
+
+    /// Extract color profile from image if configured
+    fn extract_color_profile(
+        &mut self,
+        removal_config: &RemovalConfig,
+    ) -> Result<Option<crate::types::ColorProfile>> {
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::ColorProfileExtraction);
         }
 
-        let _color_profile: Option<crate::types::ColorProfile> =
-            if removal_config.preserve_color_profiles {
-                None // TODO: Implement color profile extraction for DynamicImage
-            } else {
-                None
-            };
+        if removal_config.preserve_color_profiles {
+            // TODO: Implement color profile extraction for DynamicImage
+            Ok(None)
+        } else {
+            Ok(None)
+        }
+    }
 
-        // 2. Preprocessing
+    /// Preprocess image for inference with timing
+    fn preprocess_image_for_inference(
+        &mut self,
+        image: &DynamicImage,
+        timings: &mut ProcessingTimings,
+    ) -> Result<Array4<f32>> {
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::Preprocessing);
         }
 
         let preprocess_start = Instant::now();
-        let original_dimensions = (image.width(), image.height());
 
-        // Get preprocessing config from backend before borrowing mutably
+        let backend = self
+            .backend
+            .as_ref()
+            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
+
         let preprocessing_config = backend.get_preprocessing_config()?;
         let input_tensor =
-            ImagePreprocessor::preprocess_for_inference(&image, &preprocessing_config)?;
-        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+            ImagePreprocessor::preprocess_for_inference(image, &preprocessing_config)?;
 
-        // 3. Inference
+        timings.preprocessing_ms = preprocess_start.elapsed().as_millis() as u64;
+        Ok(input_tensor)
+    }
+
+    /// Perform inference with timing
+    fn perform_inference(
+        &mut self,
+        input_tensor: &Array4<f32>,
+        timings: &mut ProcessingTimings,
+    ) -> Result<Array4<f32>> {
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::Inference);
         }
 
         let inference_start = Instant::now();
-        let output_tensor = backend.infer(&input_tensor)?;
+
+        let backend = self
+            .backend
+            .as_mut()
+            .ok_or_else(|| BgRemovalError::processing("Backend not initialized"))?;
+
+        let output_tensor = backend.infer(input_tensor)?;
         timings.inference_ms = inference_start.elapsed().as_millis() as u64;
 
-        // 4. Postprocessing - mask generation
+        Ok(output_tensor)
+    }
+
+    /// Generate segmentation mask and apply background removal
+    fn generate_mask_and_remove_background(
+        &mut self,
+        output_tensor: &Array4<f32>,
+        image: &DynamicImage,
+        original_dimensions: (u32, u32),
+        removal_config: &RemovalConfig,
+        timings: &mut ProcessingTimings,
+    ) -> Result<(SegmentationMask, RgbaImage)> {
+        // Generate mask
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::MaskGeneration);
         }
 
         let postprocess_start = Instant::now();
-        let mask = self.tensor_to_mask(&output_tensor, original_dimensions)?;
+        let mask = self.tensor_to_mask(output_tensor, original_dimensions)?;
 
-        // 5. Background removal
+        // Apply background removal
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::BackgroundRemoval);
         }
 
-        let result_image = self.apply_background_removal(&image, &mask, &removal_config)?;
+        let result_image = self.apply_background_removal(image, &mask, removal_config)?;
         timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
 
+        Ok((mask, result_image))
+    }
+
+    /// Finalize processing result with format conversion and metadata
+    fn finalize_processing_result(
+        &mut self,
+        result_image: RgbaImage,
+        mask: SegmentationMask,
+        original_dimensions: (u32, u32),
+        color_profile: Option<crate::types::ColorProfile>,
+        mut timings: ProcessingTimings,
+        total_start: Instant,
+    ) -> Result<RemovalResult> {
+        // Format conversion
+        if let Some(ref mut tracker) = self.progress_tracker {
+            tracker.report_stage(ProcessingStage::FormatConversion);
+        }
+
+        let final_image =
+            OutputFormatHandler::convert_format(result_image, self.config.output_format)?;
+
+        // Finalize timing and metadata
         timings.total_ms = total_start.elapsed().as_millis() as u64;
         timings.image_decode_ms = 0; // Already decoded
 
@@ -396,17 +495,8 @@ impl BackgroundRemovalProcessor {
         metadata.model_precision = format!("{:?}", self.config.backend_type);
         metadata.set_detailed_timings(timings.clone());
 
-        // 6. Format conversion
-        if let Some(ref mut tracker) = self.progress_tracker {
-            tracker.report_stage(ProcessingStage::FormatConversion);
-        }
-
-        // Handle output format using the service
-        let final_image =
-            OutputFormatHandler::convert_format(result_image, self.config.output_format)?;
-
         let mut result = RemovalResult::new(final_image, mask, original_dimensions, metadata);
-        result.color_profile = _color_profile;
+        result.color_profile = color_profile;
 
         // Report completion
         if let Some(ref mut tracker) = self.progress_tracker {
@@ -438,11 +528,29 @@ impl BackgroundRemovalProcessor {
         tensor: &Array4<f32>,
         original_dimensions: (u32, u32),
     ) -> Result<SegmentationMask> {
+        self.validate_tensor_shape(tensor)?;
+        let transformation = self.calculate_inverse_transformation(tensor, original_dimensions);
+        let mask_data =
+            self.extract_mask_values_from_tensor(tensor, original_dimensions, &transformation);
+        Ok(SegmentationMask::new(mask_data, original_dimensions))
+    }
+
+    /// Validate tensor shape for mask generation
+    fn validate_tensor_shape(&self, tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
         if shape[0] != 1 || shape[1] != 1 {
             return Err(BgRemovalError::processing("Invalid output tensor shape"));
         }
+        Ok(())
+    }
 
+    /// Calculate transformation parameters for mapping coordinates
+    fn calculate_inverse_transformation(
+        &self,
+        tensor: &Array4<f32>,
+        original_dimensions: (u32, u32),
+    ) -> CoordinateTransformation {
+        let shape = tensor.shape();
         let mask_height = shape[2];
         let mask_width = shape[3];
         let (orig_width, orig_height) = original_dimensions;
@@ -464,35 +572,60 @@ impl BackgroundRemovalProcessor {
         let offset_x = (target_size as u32 - scaled_width) / 2;
         let offset_y = (target_size as u32 - scaled_height) / 2;
 
-        // Create mask data with proper inverse transformation
+        CoordinateTransformation {
+            scale,
+            offset_x,
+            offset_y,
+            mask_width: mask_width as u32,
+            mask_height: mask_height as u32,
+        }
+    }
+
+    /// Extract mask values from tensor using coordinate transformation
+    fn extract_mask_values_from_tensor(
+        &self,
+        tensor: &Array4<f32>,
+        original_dimensions: (u32, u32),
+        transformation: &CoordinateTransformation,
+    ) -> Vec<u8> {
+        let (orig_width, orig_height) = original_dimensions;
         let mut mask_data = Vec::with_capacity((orig_width * orig_height) as usize);
 
         for y in 0..orig_height {
             for x in 0..orig_width {
-                // Map original coordinates to scaled coordinates
-                let scaled_x = (x as f32 * scale).round() as u32;
-                let scaled_y = (y as f32 * scale).round() as u32;
-
-                // Map scaled coordinates to tensor coordinates (accounting for centering)
-                let tensor_x = scaled_x + offset_x;
-                let tensor_y = scaled_y + offset_y;
-
-                let mask_value = if tensor_x < mask_width as u32 && tensor_y < mask_height as u32 {
-                    // Safe indexing with bounds check
-                    if let Some(value) = tensor.get([0, 0, tensor_y as usize, tensor_x as usize]) {
-                        *value
-                    } else {
-                        0.0
-                    }
-                } else {
-                    0.0 // Outside the model's prediction area
-                };
-
+                let mask_value = self.get_tensor_value_at_coordinate(tensor, x, y, transformation);
                 mask_data.push((mask_value.clamp(0.0, 1.0) * 255.0) as u8);
             }
         }
 
-        Ok(SegmentationMask::new(mask_data, original_dimensions))
+        mask_data
+    }
+
+    /// Get tensor value at mapped coordinates
+    fn get_tensor_value_at_coordinate(
+        &self,
+        tensor: &Array4<f32>,
+        x: u32,
+        y: u32,
+        transformation: &CoordinateTransformation,
+    ) -> f32 {
+        // Map original coordinates to scaled coordinates
+        let scaled_x = (x as f32 * transformation.scale).round() as u32;
+        let scaled_y = (y as f32 * transformation.scale).round() as u32;
+
+        // Map scaled coordinates to tensor coordinates (accounting for centering)
+        let tensor_x = scaled_x + transformation.offset_x;
+        let tensor_y = scaled_y + transformation.offset_y;
+
+        if tensor_x < transformation.mask_width && tensor_y < transformation.mask_height {
+            // Safe indexing with bounds check
+            tensor
+                .get([0, 0, tensor_y as usize, tensor_x as usize])
+                .copied()
+                .unwrap_or(0.0)
+        } else {
+            0.0 // Outside the model's prediction area
+        }
     }
 
     /// Apply background removal using the segmentation mask
