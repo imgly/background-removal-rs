@@ -78,32 +78,27 @@ impl BgRemovalError {
     pub fn file_io_error<P: AsRef<std::path::Path>>(
         operation: &str,
         path: P,
-        error: std::io::Error,
+        error: &std::io::Error,
     ) -> Self {
         let path_display = path.as_ref().display();
         Self::Io(std::io::Error::new(
             error.kind(),
-            format!("Failed to {} '{}': {}", operation, path_display, error),
+            format!("Failed to {operation} '{path_display}': {error}"),
         ))
     }
 
     /// Create image loading error with format context
-    pub fn image_load_error<P: AsRef<std::path::Path>>(
-        path: P,
-        error: image::ImageError,
-    ) -> Self {
+    pub fn image_load_error<P: AsRef<std::path::Path>>(path: P, error: &image::ImageError) -> Self {
         let path_display = path.as_ref().display();
-        let extension = path.as_ref()
+        let extension = path
+            .as_ref()
             .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
-        
+
         Self::Image(image::ImageError::IoError(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!(
-                "Failed to load image '{}' (format: {}): {}. Supported formats: PNG, JPEG, WebP, TIFF, BMP",
-                path_display, extension, error
-            ),
+            format!("Failed to load image '{path_display}' (format: {extension}): {error}. Supported formats: PNG, JPEG, WebP, TIFF, BMP"),
         )))
     }
 
@@ -120,11 +115,8 @@ impl BgRemovalError {
         } else {
             format!(" Suggestions: {}", suggestions.join(", "))
         };
-        
-        Self::Model(format!(
-            "Failed to {} model '{}': {}.{}",
-            operation, path_display, error, suggestion_text
-        ))
+
+        Self::Model(format!("Failed to {operation} model '{path_display}': {error}.{suggestion_text}"))
     }
 
     /// Create configuration error with valid ranges
@@ -135,17 +127,15 @@ impl BgRemovalError {
         recommended: Option<T>,
     ) -> Self {
         let recommendation = match recommended {
-            Some(rec) => format!(" Recommended: {}", rec),
+            Some(rec) => format!(" Recommended: {rec}"),
             None => String::new(),
         };
-        
-        Self::InvalidConfig(format!(
-            "Invalid {}: {} (valid range: {}).{}",
-            parameter, value, valid_range, recommendation
-        ))
+
+        Self::InvalidConfig(format!("Invalid {parameter}: {value} (valid range: {valid_range}).{recommendation}"))
     }
 
     /// Create inference error with provider context
+    #[must_use]
     pub fn inference_error_with_provider(
         provider: &str,
         operation: &str,
@@ -157,28 +147,19 @@ impl BgRemovalError {
         } else {
             format!(" Try: {}", fallback_suggestions.join(" or "))
         };
-        
-        Self::Inference(format!(
-            "{} failed using '{}' provider: {}.{}",
-            operation, provider, error, suggestions
-        ))
+
+        Self::Inference(format!("{operation} failed using '{provider}' provider: {error}.{suggestions}"))
     }
 
     /// Create processing error with stage context
-    pub fn processing_stage_error(
-        stage: &str,
-        details: &str,
-        input_info: Option<&str>,
-    ) -> Self {
+    #[must_use]
+    pub fn processing_stage_error(stage: &str, details: &str, input_info: Option<&str>) -> Self {
         let input_context = match input_info {
-            Some(info) => format!(" (input: {})", info),
+            Some(info) => format!(" (input: {info})"),
             None => String::new(),
         };
-        
-        Self::Processing(format!(
-            "Processing failed at stage '{}'{}: {}",
-            stage, input_context, details
-        ))
+
+        Self::Processing(format!("Processing failed at stage '{stage}'{input_context}: {details}"))
     }
 }
 
@@ -206,7 +187,11 @@ mod tests {
     fn test_enhanced_error_context() {
         // Test file I/O error with context
         let io_error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
-        let err = BgRemovalError::file_io_error("read config file", Path::new("/etc/config.json"), io_error);
+        let err = BgRemovalError::file_io_error(
+            "read config file",
+            Path::new("/etc/config.json"),
+            &io_error,
+        );
         let error_string = err.to_string();
         assert!(error_string.contains("read config file"));
         assert!(error_string.contains("/etc/config.json"));
@@ -216,7 +201,7 @@ mod tests {
             "initialize",
             Path::new("/models/invalid.onnx"),
             "file not found",
-            &["check file path", "verify permissions"]
+            &["check file path", "verify permissions"],
         );
         let error_string = err.to_string();
         assert!(error_string.contains("initialize"));
@@ -236,7 +221,7 @@ mod tests {
             "CUDA",
             "Model inference",
             "out of memory",
-            &["try CPU provider", "reduce batch size"]
+            &["try CPU provider", "reduce batch size"],
         );
         let error_string = err.to_string();
         assert!(error_string.contains("CUDA"));
@@ -247,7 +232,7 @@ mod tests {
         let err = BgRemovalError::processing_stage_error(
             "preprocessing",
             "invalid tensor shape",
-            Some("1920x1080 RGB")
+            Some("1920x1080 RGB"),
         );
         let error_string = err.to_string();
         assert!(error_string.contains("preprocessing"));

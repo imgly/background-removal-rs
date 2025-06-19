@@ -95,13 +95,13 @@ impl EmbeddedModelProvider {
             } else {
                 vec![
                     "check available models with --list-models",
-                    "use external model with --model /path/to/model"
+                    "use external model with --model /path/to/model",
                 ]
             };
             return Err(crate::error::BgRemovalError::model_error_with_context(
                 "load embedded model",
                 Path::new(&model_name),
-                &format!("model '{}' not found. Available: {:?}", model_name, available),
+                &format!("model '{model_name}' not found. Available: {available:?}"),
                 &suggestions,
             ));
         }
@@ -258,13 +258,13 @@ impl ExternalModelProvider {
             } else {
                 vec![
                     "check model.json configuration",
-                    "verify model files are complete"
+                    "verify model files are complete",
                 ]
             };
             return Err(crate::error::BgRemovalError::model_error_with_context(
                 "load variant",
                 &model_path,
-                &format!("variant '{}' not found. Available: {:?}", resolved_variant, available),
+                &format!("variant '{resolved_variant}' not found. Available: {available:?}"),
                 &suggestions,
             ));
         }

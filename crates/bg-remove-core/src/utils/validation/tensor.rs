@@ -25,12 +25,16 @@ impl TensorValidator {
             )));
         }
 
-        let actual = (actual_shape[0], actual_shape[1], actual_shape[2], actual_shape[3]);
+        let actual = (
+            actual_shape[0],
+            actual_shape[1],
+            actual_shape[2],
+            actual_shape[3],
+        );
         if actual != expected_shape {
             return Err(BgRemovalError::processing(&format!(
                 "Tensor shape mismatch. Expected [{}, {}, {}, {}], got [{}, {}, {}, {}]",
-                batch, channels, height, width,
-                actual.0, actual.1, actual.2, actual.3
+                batch, channels, height, width, actual.0, actual.1, actual.2, actual.3
             )));
         }
 
@@ -42,7 +46,7 @@ impl TensorValidator {
         let shape = tensor.shape();
         if shape[0] != 1 || shape[1] != 1 {
             return Err(BgRemovalError::processing(
-                "Tensor must have batch size 1 and single channel for mask generation"
+                "Tensor must have batch size 1 and single channel for mask generation",
             ));
         }
         Ok(())
@@ -82,11 +86,7 @@ impl TensorValidator {
     }
 
     /// Validate tensor coordinate bounds
-    pub fn validate_tensor_coordinates(
-        tensor: &Array4<f32>,
-        x: usize,
-        y: usize,
-    ) -> Result<()> {
+    pub fn validate_tensor_coordinates(tensor: &Array4<f32>, x: usize, y: usize) -> Result<()> {
         let shape = tensor.shape();
         let height = shape[2];
         let width = shape[3];
@@ -119,7 +119,7 @@ impl TensorValidator {
             }
             if !value.is_finite() {
                 return Err(BgRemovalError::processing(
-                    "Tensor contains non-finite values (NaN or infinity)"
+                    "Tensor contains non-finite values (NaN or infinity)",
                 ));
             }
         }
@@ -127,11 +127,7 @@ impl TensorValidator {
     }
 
     /// Validate mask dimensions match original image dimensions
-    pub fn validate_mask_dimensions(
-        mask_data_len: usize,
-        width: u32,
-        height: u32,
-    ) -> Result<()> {
+    pub fn validate_mask_dimensions(mask_data_len: usize, width: u32, height: u32) -> Result<()> {
         let expected_len = (width * height) as usize;
         if mask_data_len != expected_len {
             return Err(BgRemovalError::processing(&format!(
@@ -160,7 +156,8 @@ impl TensorValidator {
         if width != height {
             log::warn!(
                 "Non-square target size {}x{} may affect model performance",
-                width, height
+                width,
+                height
             );
         }
 

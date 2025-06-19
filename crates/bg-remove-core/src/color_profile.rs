@@ -148,7 +148,15 @@ pub struct ProfileEmbedder;
 impl ProfileEmbedder {
     /// Embed ICC profile in output image using image-rs 0.25.6 unified API
     ///
-    /// Uses the standardized ImageEncoder::set_icc_profile() method for reliable ICC embedding
+    /// Uses the standardized `ImageEncoder::set_icc_profile()` method for reliable ICC embedding
+    ///
+    /// # Errors
+    /// 
+    /// Returns `BgRemovalError` for:
+    /// - File I/O errors when writing output
+    /// - Unsupported image formats for ICC embedding
+    /// - Invalid ICC profile data
+    #[allow(clippy::too_many_lines)]
     pub fn embed_in_output<P: AsRef<Path>>(
         image: &image::DynamicImage,
         profile: &ColorProfile,
@@ -287,10 +295,7 @@ impl ProfileEmbedder {
                 image.save_with_format(output_path, format)?;
 
                 if profile.icc_data.is_some() {
-                    log::debug!(
-                        "ICC profile embedding not implemented for format: {:?}",
-                        format
-                    );
+                    log::debug!("ICC profile embedding not implemented for format: {format:?}");
                     log::debug!("Image saved without ICC profile");
                 }
             },

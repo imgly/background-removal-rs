@@ -5,7 +5,6 @@
 //! by both CLI and Web frontends to ensure consistent behavior.
 
 use crate::{
-    backends::MockBackend,
     config::{ExecutionProvider, OutputFormat, RemovalConfig},
     error::{BgRemovalError, Result},
     inference::InferenceBackend,
@@ -42,13 +41,18 @@ pub enum BackendType {
     Onnx,
     /// Tract backend (pure Rust, WASM compatible)
     Tract,
-    /// Mock backend (for testing and debugging)
-    Mock,
 }
 
 /// Factory trait for creating inference backends
 pub trait BackendFactory: Send + Sync {
     /// Create a backend instance of the specified type with the given model manager
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Unsupported backend types
+    /// - Backend initialization failures
+    /// - Model loading errors
     fn create_backend(
         &self,
         backend_type: BackendType,
@@ -69,7 +73,6 @@ impl BackendFactory for DefaultBackendFactory {
         _model_manager: ModelManager,
     ) -> Result<Box<dyn InferenceBackend>> {
         match backend_type {
-            BackendType::Mock => Ok(Box::new(MockBackend::new())),
             BackendType::Onnx => {
                 // This will be injected by the CLI crate which has access to bg-remove-onnx
                 Err(BgRemovalError::invalid_config(
@@ -86,7 +89,7 @@ impl BackendFactory for DefaultBackendFactory {
     }
 
     fn available_backends(&self) -> Vec<BackendType> {
-        vec![BackendType::Mock]
+        vec![] // No backends available by default - must be injected
     }
 }
 
@@ -119,11 +122,13 @@ pub struct ProcessorConfig {
 
 impl ProcessorConfig {
     /// Create a new processor configuration builder
+    #[must_use]
     pub fn builder() -> ProcessorConfigBuilder {
         ProcessorConfigBuilder::new()
     }
 
-    /// Convert to RemovalConfig for backward compatibility
+    /// Convert to `RemovalConfig` for backward compatibility
+    #[must_use]
     pub fn to_removal_config(&self) -> RemovalConfig {
         RemovalConfig {
             execution_provider: self.execution_provider,
@@ -145,7 +150,7 @@ impl Default for ProcessorConfig {
                 source: ModelSource::Embedded("isnet-fp32".to_string()),
                 variant: None,
             },
-            backend_type: BackendType::Mock,
+            backend_type: BackendType::Onnx,
             execution_provider: ExecutionProvider::Auto,
             output_format: OutputFormat::Png,
             jpeg_quality: 90,
@@ -159,73 +164,92 @@ impl Default for ProcessorConfig {
     }
 }
 
-/// Builder for ProcessorConfig
+/// Builder for `ProcessorConfig`
 pub struct ProcessorConfigBuilder {
     config: ProcessorConfig,
 }
 
 impl ProcessorConfigBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: ProcessorConfig::default(),
         }
     }
 
+    #[must_use]
     pub fn model_spec(mut self, model_spec: ModelSpec) -> Self {
         self.config.model_spec = model_spec;
         self
     }
 
+    #[must_use]
     pub fn backend_type(mut self, backend_type: BackendType) -> Self {
         self.config.backend_type = backend_type;
         self
     }
 
+    #[must_use]
     pub fn execution_provider(mut self, provider: ExecutionProvider) -> Self {
         self.config.execution_provider = provider;
         self
     }
 
+    #[must_use]
     pub fn output_format(mut self, format: OutputFormat) -> Self {
         self.config.output_format = format;
         self
     }
 
+    #[must_use]
     pub fn jpeg_quality(mut self, quality: u8) -> Self {
         self.config.jpeg_quality = quality.clamp(0, 100);
         self
     }
 
+    #[must_use]
     pub fn webp_quality(mut self, quality: u8) -> Self {
         self.config.webp_quality = quality.clamp(0, 100);
         self
     }
 
+    #[must_use]
     pub fn debug(mut self, debug: bool) -> Self {
         self.config.debug = debug;
         self
     }
 
+    #[must_use]
     pub fn intra_threads(mut self, threads: usize) -> Self {
         self.config.intra_threads = threads;
         self
     }
 
+    #[must_use]
     pub fn inter_threads(mut self, threads: usize) -> Self {
         self.config.inter_threads = threads;
         self
     }
 
+    #[must_use]
     pub fn preserve_color_profiles(mut self, preserve: bool) -> Self {
         self.config.preserve_color_profiles = preserve;
         self
     }
 
+    #[must_use]
     pub fn verbose_progress(mut self, verbose: bool) -> Self {
         self.config.verbose_progress = verbose;
         self
     }
 
+    /// Build the processor configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Invalid quality values (> 100)
+    /// - Configuration validation failures
     pub fn build(self) -> Result<ProcessorConfig> {
         // Validate configuration
         if self.config.jpeg_quality > 100 {
@@ -257,11 +281,23 @@ pub struct BackgroundRemovalProcessor {
 
 impl BackgroundRemovalProcessor {
     /// Create a new processor with the default backend factory
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Invalid processor configuration
+    /// - Backend factory initialization failures
     pub fn new(config: ProcessorConfig) -> Result<Self> {
         Self::with_factory(config, Box::new(DefaultBackendFactory))
     }
 
     /// Create a new processor with a custom backend factory
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Invalid processor configuration
+    /// - Backend factory initialization failures
     pub fn with_factory(
         config: ProcessorConfig,
         backend_factory: Box<dyn BackendFactory>,
@@ -277,6 +313,13 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Initialize the processor with the configured model and backend
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Model loading failures
+    /// - Backend initialization errors
+    /// - Execution provider setup failures
     pub fn initialize(&mut self) -> Result<()> {
         if self.initialized {
             return Ok(());
@@ -315,6 +358,13 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Process an image file for background removal
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - File I/O errors when reading input
+    /// - Image format parsing failures
+    /// - Processing and inference errors
     pub async fn process_file<P: AsRef<Path>>(&mut self, input_path: P) -> Result<RemovalResult> {
         if !self.initialized {
             self.initialize()?;
@@ -328,11 +378,18 @@ impl BackgroundRemovalProcessor {
         // Load the image using the I/O service (separated from business logic)
         let image = crate::services::ImageIOService::load_image(&input_path)?;
 
-        self.process_image(image)
+        self.process_image(&image)
     }
 
-    /// Process a DynamicImage directly for background removal
-    pub fn process_image(&mut self, image: DynamicImage) -> Result<RemovalResult> {
+    /// Process a `DynamicImage` directly for background removal
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Image preprocessing failures
+    /// - Inference execution errors
+    /// - Mask generation and application errors
+    pub fn process_image(&mut self, image: &DynamicImage) -> Result<RemovalResult> {
         if !self.initialized {
             self.initialize()?;
         }
@@ -348,10 +405,10 @@ impl BackgroundRemovalProcessor {
         );
 
         // Extract color profile
-        let color_profile = self.extract_color_profile(&removal_config)?;
+        let color_profile = self.extract_color_profile(&removal_config);
 
         // Preprocess image for inference
-        let input_tensor = self.preprocess_image_for_inference(&image, &mut timings)?;
+        let input_tensor = self.preprocess_image_for_inference(image, &mut timings)?;
 
         // Perform inference
         let output_tensor = self.perform_inference(&input_tensor, &mut timings)?;
@@ -359,7 +416,7 @@ impl BackgroundRemovalProcessor {
         // Generate mask and apply background removal
         let (mask, result_image) = self.generate_mask_and_remove_background(
             &output_tensor,
-            &image,
+            image,
             original_dimensions,
             &removal_config,
             &mut timings,
@@ -380,16 +437,16 @@ impl BackgroundRemovalProcessor {
     fn extract_color_profile(
         &mut self,
         removal_config: &RemovalConfig,
-    ) -> Result<Option<crate::types::ColorProfile>> {
+    ) -> Option<crate::types::ColorProfile> {
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::ColorProfileExtraction);
         }
 
         if removal_config.preserve_color_profiles {
             // TODO: Implement color profile extraction for DynamicImage
-            Ok(None)
+            None
         } else {
-            Ok(None)
+            None
         }
     }
 
@@ -508,16 +565,19 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Get the current configuration
+    #[must_use]
     pub fn config(&self) -> &ProcessorConfig {
         &self.config
     }
 
     /// Check if the processor is initialized
+    #[must_use]
     pub fn is_initialized(&self) -> bool {
         self.initialized
     }
 
     /// Get available backends from the factory
+    #[must_use]
     pub fn available_backends(&self) -> Vec<BackendType> {
         self.backend_factory.available_backends()
     }
@@ -528,17 +588,17 @@ impl BackgroundRemovalProcessor {
         tensor: &Array4<f32>,
         original_dimensions: (u32, u32),
     ) -> Result<SegmentationMask> {
-        self.validate_tensor_shape(tensor)?;
-        let transformation = self.calculate_inverse_transformation(tensor, original_dimensions);
+        Self::validate_tensor_shape(tensor)?;
+        let transformation = Self::calculate_inverse_transformation(tensor, original_dimensions);
         let mask_data =
             self.extract_mask_values_from_tensor(tensor, original_dimensions, &transformation);
         Ok(SegmentationMask::new(mask_data, original_dimensions))
     }
 
     /// Validate tensor shape for mask generation
-    fn validate_tensor_shape(&self, tensor: &Array4<f32>) -> Result<()> {
+    fn validate_tensor_shape(tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
-        if shape[0] != 1 || shape[1] != 1 {
+        if shape.len() < 4 || shape.first().copied().unwrap_or(0) != 1 || shape.get(1).copied().unwrap_or(0) != 1 {
             return Err(BgRemovalError::processing("Invalid output tensor shape"));
         }
         Ok(())
@@ -546,13 +606,12 @@ impl BackgroundRemovalProcessor {
 
     /// Calculate transformation parameters for mapping coordinates
     fn calculate_inverse_transformation(
-        &self,
         tensor: &Array4<f32>,
         original_dimensions: (u32, u32),
     ) -> CoordinateTransformation {
         let shape = tensor.shape();
-        let mask_height = shape[2];
-        let mask_width = shape[3];
+        let mask_height = shape.get(2).copied().unwrap_or(0);
+        let mask_width = shape.get(3).copied().unwrap_or(0);
         let (orig_width, orig_height) = original_dimensions;
 
         // Reproduce the preprocessing calculations to get the inverse transformation

@@ -1,3 +1,9 @@
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::unused_async)]
+
 //! # Background Removal Core Library
 //!
 //! A high-performance Rust library for background removal using ONNX Runtime and `ISNet` models.
@@ -30,7 +36,7 @@
 //! # }
 //! ```
 
-pub mod backends;
+// pub mod backends; // Removed - mock backend eliminated
 pub mod color_profile;
 pub mod config;
 pub mod error;
@@ -46,7 +52,7 @@ use crate::types::ProcessingMetadata;
 use image::GenericImageView;
 
 // Public API exports
-pub use backends::MockBackend;
+// pub use backends::MockBackend; // Removed with mock backend
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
 pub use error::{BgRemovalError, Result};
@@ -62,9 +68,8 @@ pub use services::{
 };
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
-    ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser,
-    ModelValidator, NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo,
-    TensorValidator,
+    ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, ModelValidator,
+    NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo, TensorValidator,
 };
 
 /// Remove background from an image file with specific model selection
@@ -171,7 +176,7 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     // Convert RemovalConfig to ProcessorConfig for unified processor
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec.clone())
-        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
         .execution_provider(config.execution_provider)
         .output_format(config.output_format)
         .jpeg_quality(config.jpeg_quality)
@@ -345,7 +350,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
         ));
     }
     let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models[0].clone()),
+        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
         variant: None,
     };
 
@@ -449,6 +454,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 /// This function is synchronous and uses the first available embedded model.
 /// For async processing or specific model selection, load the image and use
 /// `remove_background_with_model()` instead.
+#[allow(clippy::needless_pass_by_value)]
 pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Result<RemovalResult> {
     // Get first available embedded model
     let available_models = get_available_embedded_models();
@@ -458,14 +464,14 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
         ));
     }
     let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models[0].clone()),
+        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
         variant: None,
     };
 
     // Convert RemovalConfig to ProcessorConfig for unified processor
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec)
-        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
         .execution_provider(config.execution_provider)
         .output_format(config.output_format)
         .jpeg_quality(config.jpeg_quality)
@@ -479,7 +485,7 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
     let backend_factory = Box::new(DefaultBackendFactory);
     let mut unified_processor =
         BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.process_image(image)
+    unified_processor.process_image(&image)
 }
 
 /// Extract foreground segmentation mask from an image without background removal
@@ -574,14 +580,14 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
         ));
     }
     let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models[0].clone()),
+        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
         variant: None,
     };
 
     // Convert RemovalConfig to ProcessorConfig
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec)
-        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
         .execution_provider(config.execution_provider)
         .output_format(config.output_format)
         .jpeg_quality(config.jpeg_quality)
@@ -713,14 +719,14 @@ pub async fn apply_segmentation_mask<P: AsRef<std::path::Path>>(
         ));
     }
     let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models[0].clone()),
+        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
         variant: None,
     };
 
     // Convert RemovalConfig to ProcessorConfig
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec)
-        .backend_type(BackendType::Mock) // Use Mock for legacy API
+        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
         .execution_provider(config.execution_provider)
         .output_format(config.output_format)
         .jpeg_quality(config.jpeg_quality)

@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test current implementation (should use GPU if available)
     println!("🧪 Testing current implementation (GPU-enabled)...");
     let processor_config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)  // Use Mock backend for example
+        .backend_type(BackendType::Onnx)  // Use Mock backend for example
         .debug(false)
         .build()?;
 

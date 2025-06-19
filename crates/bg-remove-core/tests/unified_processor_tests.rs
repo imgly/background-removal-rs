@@ -42,7 +42,7 @@ fn save_test_image() -> PathBuf {
 async fn test_unified_processor_basic_workflow() -> Result<()> {
     // Create processor config
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .execution_provider(ExecutionProvider::Cpu)
         .output_format(OutputFormat::Png)
         .build()?;
@@ -69,7 +69,7 @@ async fn test_unified_processor_basic_workflow() -> Result<()> {
 fn test_unified_processor_direct_image_processing() -> Result<()> {
     // Create processor config
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .execution_provider(ExecutionProvider::Cpu)
         .output_format(OutputFormat::Png)
         .build()?;
@@ -79,7 +79,7 @@ fn test_unified_processor_direct_image_processing() -> Result<()> {
 
     // Process image directly
     let test_image = create_test_image();
-    let result = processor.process_image(test_image)?;
+    let result = processor.process_image(&test_image)?;
 
     // Verify result
     assert_eq!(result.original_dimensions, (100, 100));
@@ -94,19 +94,19 @@ fn test_processor_config_builder() -> Result<()> {
     // Test various configurations
     let configs = vec![
         ProcessorConfigBuilder::new()
-            .backend_type(BackendType::Mock)
+            .backend_type(BackendType::Onnx)
             .execution_provider(ExecutionProvider::Cpu)
             .output_format(OutputFormat::Png)
             .jpeg_quality(95)
             .build()?,
         ProcessorConfigBuilder::new()
-            .backend_type(BackendType::Mock)
+            .backend_type(BackendType::Onnx)
             .execution_provider(ExecutionProvider::Auto)
             .output_format(OutputFormat::Jpeg)
             .jpeg_quality(85)
             .build()?,
         ProcessorConfigBuilder::new()
-            .backend_type(BackendType::Mock)
+            .backend_type(BackendType::Onnx)
             .execution_provider(ExecutionProvider::Cpu)
             .output_format(OutputFormat::WebP)
             .webp_quality(90)
@@ -124,7 +124,7 @@ fn test_processor_config_builder() -> Result<()> {
 #[test]
 fn test_processor_initialization() -> Result<()> {
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .build()?;
 
     let mut processor = BackgroundRemovalProcessor::new(config)?;
@@ -165,7 +165,7 @@ async fn test_output_format_handling() -> Result<()> {
 
     // Test PNG output
     let config_png = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .output_format(OutputFormat::Png)
         .build()?;
     let mut processor_png = BackgroundRemovalProcessor::new(config_png)?;
@@ -181,7 +181,7 @@ async fn test_output_format_handling() -> Result<()> {
 
     // Test JPEG output
     let config_jpeg = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .output_format(OutputFormat::Jpeg)
         .build()?;
     let mut processor_jpeg = BackgroundRemovalProcessor::new(config_jpeg)?;
@@ -204,7 +204,7 @@ async fn test_output_format_handling() -> Result<()> {
 #[tokio::test]
 async fn test_segment_foreground() -> Result<()> {
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .build()?;
 
     let mut processor = BackgroundRemovalProcessor::new(config)?;
@@ -246,7 +246,7 @@ async fn test_apply_mask() -> Result<()> {
     let _metadata = std::fs::metadata(&test_path).expect("Cannot read test file metadata");
 
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .output_format(OutputFormat::Png)
         .build()?;
 
@@ -274,14 +274,14 @@ async fn test_apply_mask() -> Result<()> {
 #[test]
 fn test_available_backends() -> Result<()> {
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .build()?;
 
     let processor = BackgroundRemovalProcessor::new(config)?;
     let backends = processor.available_backends();
 
     // Default factory should at least have Mock backend
-    assert!(backends.contains(&BackendType::Mock));
+    assert!(backends.contains(&BackendType::Onnx));
 
     Ok(())
 }
@@ -312,7 +312,7 @@ fn test_config_validation() {
 #[test]
 fn test_processor_debug_mode() -> Result<()> {
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .debug(true)
         .build()?;
 
@@ -325,7 +325,7 @@ fn test_processor_debug_mode() -> Result<()> {
 #[test]
 fn test_processor_thread_configuration() -> Result<()> {
     let config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)
+        .backend_type(BackendType::Onnx)
         .intra_threads(4)
         .inter_threads(2)
         .build()?;
@@ -344,7 +344,7 @@ mod timing_tests {
     #[tokio::test]
     async fn test_processing_timings() -> Result<()> {
         let config = ProcessorConfigBuilder::new()
-            .backend_type(BackendType::Mock)
+            .backend_type(BackendType::Onnx)
             .build()?;
 
         let mut processor = BackgroundRemovalProcessor::new(config)?;

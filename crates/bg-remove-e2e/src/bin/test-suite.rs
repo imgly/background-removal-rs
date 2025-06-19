@@ -1,7 +1,7 @@
 //! Main test suite runner for background removal testing
 
 use bg_remove_core::{process_image, ExecutionProvider, RemovalConfig};
-use bg_remove_testing::{
+use bg_remove_e2e::{
     ImageComparison, ReportGenerator, TestFixtures, TestResult, TestSession, TestingError,
     ValidationThresholds,
 };
@@ -220,7 +220,7 @@ impl TestRunner {
         Ok(session)
     }
 
-    fn get_test_cases_to_run(&self) -> Result<Vec<&bg_remove_testing::TestCase>, TestingError> {
+    fn get_test_cases_to_run(&self) -> Result<Vec<&bg_remove_e2e::TestCase>, TestingError> {
         let default_categories = vec![TestCategory::All];
         let categories = self.args.categories.as_ref().unwrap_or(&default_categories);
 
@@ -239,7 +239,7 @@ impl TestRunner {
 
     async fn run_single_test(
         &self,
-        test_case: &bg_remove_testing::TestCase,
+        test_case: &bg_remove_e2e::TestCase,
     ) -> Result<TestResult, Box<dyn std::error::Error>> {
         let start_time = Instant::now();
 

@@ -85,8 +85,7 @@ impl NumericValidator {
         if value > MAX_THREADS {
             return Err(BgRemovalError::invalid_config(&format!(
                 "Thread count {} exceeds maximum allowed ({})",
-                value,
-                MAX_THREADS
+                value, MAX_THREADS
             )));
         }
 
@@ -137,20 +136,15 @@ impl NumericValidator {
 
     /// Safely multiply two u32 values checking for overflow
     pub fn safe_multiply_u32(a: u32, b: u32) -> Result<u32> {
-        a.checked_mul(b)
-            .ok_or_else(|| BgRemovalError::processing(&format!(
-                "Multiplication overflow: {} * {}",
-                a, b
-            )))
+        a.checked_mul(b).ok_or_else(|| {
+            BgRemovalError::processing(&format!("Multiplication overflow: {} * {}", a, b))
+        })
     }
 
     /// Safely add two u32 values checking for overflow
     pub fn safe_add_u32(a: u32, b: u32) -> Result<u32> {
         a.checked_add(b)
-            .ok_or_else(|| BgRemovalError::processing(&format!(
-                "Addition overflow: {} + {}",
-                a, b
-            )))
+            .ok_or_else(|| BgRemovalError::processing(&format!("Addition overflow: {} + {}", a, b)))
     }
 
     /// Validate normalization parameters (mean and std arrays)
@@ -202,7 +196,8 @@ impl NumericValidator {
             if value > 10.0 {
                 log::warn!(
                     "Unusually large std value at index {}: {} (typical range: 0.1-2.0)",
-                    i, value
+                    i,
+                    value
                 );
             }
         }
@@ -220,7 +215,10 @@ mod tests {
         // Valid conversions
         assert_eq!(NumericValidator::validate_f32_to_u32(0.0).unwrap(), 0);
         assert_eq!(NumericValidator::validate_f32_to_u32(100.5).unwrap(), 100);
-        assert_eq!(NumericValidator::validate_f32_to_u32(u32::MAX as f32).unwrap(), u32::MAX);
+        assert_eq!(
+            NumericValidator::validate_f32_to_u32(u32::MAX as f32).unwrap(),
+            u32::MAX
+        );
 
         // Invalid conversions
         assert!(NumericValidator::validate_f32_to_u32(-1.0).is_err());
@@ -285,7 +283,10 @@ mod tests {
     #[test]
     fn test_safe_arithmetic() {
         // Valid operations
-        assert_eq!(NumericValidator::safe_multiply_u32(100, 200).unwrap(), 20000);
+        assert_eq!(
+            NumericValidator::safe_multiply_u32(100, 200).unwrap(),
+            20000
+        );
         assert_eq!(NumericValidator::safe_add_u32(100, 200).unwrap(), 300);
 
         // Overflow

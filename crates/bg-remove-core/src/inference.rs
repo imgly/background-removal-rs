@@ -1,6 +1,6 @@
 //! Inference backend abstraction and registry
 
-use crate::{backends::MockBackend, config::RemovalConfig, error::Result};
+use crate::{config::RemovalConfig, error::Result};
 use ndarray::Array4;
 
 // Use instant crate for cross-platform time compatibility
@@ -57,15 +57,13 @@ pub struct BackendRegistry {
 impl BackendRegistry {
     #[must_use]
     pub fn new() -> Self {
-        let mut registry = Self {
+        let registry = Self {
             backends: std::collections::HashMap::new(),
         };
 
         // Register default backends
         // TODO: ONNX backend moved to separate crate - need backend injection mechanism
-        // let onnx_backend = OnnxBackend::new();
-        // registry.register("onnx", Box::new(onnx_backend));
-        registry.register("mock", Box::new(MockBackend::new()));
+        // Backends must now be injected via BackendFactory pattern
 
         registry
     }
@@ -88,35 +86,13 @@ impl Default for BackendRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::RemovalConfig;
-
-    #[test]
-    fn test_mock_backend() {
-        let mut backend = MockBackend::new();
-        let config = RemovalConfig::default();
-
-        backend.initialize(&config).unwrap();
-
-        // Test shapes
-        assert_eq!(backend.input_shape(), (1, 3, 1024, 1024));
-        assert_eq!(backend.output_shape(), (1, 1, 1024, 1024));
-
-        // Test inference with small tensor
-        let input = Array4::<f32>::zeros((1, 3, 4, 4));
-        let output = backend.infer(&input).unwrap();
-        assert_eq!(output.dim(), (1, 1, 4, 4));
-    }
 
     #[test]
     fn test_backend_registry() {
-        let mut registry = BackendRegistry::new();
-
-        // Test that default backends are registered (ONNX moved to separate crate)
-        assert!(registry.get("mock").is_some());
-        assert!(registry.get("nonexistent").is_none());
-
-        // Test registering a custom backend
-        registry.register("custom", Box::new(MockBackend::new()));
-        assert!(registry.get("custom").is_some());
+        let registry = BackendRegistry::new();
+        
+        // Registry should be empty by default - backends injected via factory pattern
+        // This test validates the registry can be created without mock backends
+        assert_eq!(registry.backends.len(), 0);
     }
 }

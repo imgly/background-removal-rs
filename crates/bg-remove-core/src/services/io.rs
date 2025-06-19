@@ -39,17 +39,12 @@ impl ImageIOService {
             return Err(BgRemovalError::file_io_error(
                 "read image file",
                 path_ref,
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "file does not exist",
-                ),
+                &std::io::Error::new(std::io::ErrorKind::NotFound, "file does not exist"),
             ));
         }
 
         // Load the image
-        image::open(path_ref).map_err(|e| {
-            BgRemovalError::image_load_error(path_ref, e)
-        })
+        image::open(path_ref).map_err(|e| BgRemovalError::image_load_error(path_ref, &e))
     }
 
     /// Save an image to a file with the specified format and color profile preservation
@@ -88,9 +83,8 @@ impl ImageIOService {
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = path_ref.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                BgRemovalError::file_io_error("create output directory", parent, e)
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| BgRemovalError::file_io_error("create output directory", parent, &e))?;
         }
 
         // Save based on format
@@ -102,9 +96,8 @@ impl ImageIOService {
             OutputFormat::Rgba8 => {
                 // For raw RGBA8, we need to handle this specially
                 let rgba8 = image.to_rgba8();
-                std::fs::write(path_ref, rgba8.as_raw()).map_err(|e| {
-                    BgRemovalError::file_io_error("write RGBA8 data", path_ref, e)
-                })?;
+                std::fs::write(path_ref, rgba8.as_raw())
+                    .map_err(|e| BgRemovalError::file_io_error("write RGBA8 data", path_ref, &e))?;
                 return Ok(());
             },
         };
@@ -112,7 +105,7 @@ impl ImageIOService {
         result.map_err(|e| {
             let format_name = match format {
                 OutputFormat::Png => "PNG",
-                OutputFormat::Jpeg => "JPEG", 
+                OutputFormat::Jpeg => "JPEG",
                 OutputFormat::WebP => "WebP",
                 OutputFormat::Tiff => "TIFF",
                 OutputFormat::Rgba8 => "RGBA8",
@@ -120,7 +113,11 @@ impl ImageIOService {
             BgRemovalError::processing_stage_error(
                 "image save",
                 &format!("Failed to save as {}: {}", format_name, e),
-                Some(&format!("format: {}, path: {}", format_name, path_ref.display())),
+                Some(&format!(
+                    "format: {}, path: {}",
+                    format_name,
+                    path_ref.display()
+                )),
             )
         })?;
 

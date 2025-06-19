@@ -1,6 +1,6 @@
 //! Generate HTML reports from test results
 
-use bg_remove_testing::{ReportGenerator, TestCase, TestMetrics, TestResult, TestSession};
+use bg_remove_e2e::{ReportGenerator, TestCase, TestMetrics, TestResult, TestSession};
 use clap::Parser;
 use std::path::PathBuf;
 use walkdir::WalkDir;
@@ -193,7 +193,7 @@ impl ReportBuilder {
         test_case: &TestCase,
         rust_output_path: &PathBuf,
     ) -> Result<TestResult, Box<dyn std::error::Error>> {
-        use bg_remove_testing::ImageComparison;
+        use bg_remove_e2e::ImageComparison;
 
         // Load images
         let rust_output = image::open(rust_output_path)?;
@@ -259,7 +259,7 @@ impl ReportBuilder {
         &self,
         session: &TestSession,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        use bg_remove_testing::ImageComparison;
+        use bg_remove_e2e::ImageComparison;
 
         let comparison_dir = self.output_dir.join("comparisons");
         std::fs::create_dir_all(&comparison_dir)?;

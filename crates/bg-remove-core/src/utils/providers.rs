@@ -70,18 +70,6 @@ impl ExecutionProviderManager {
                     };
                     Ok((BackendType::Tract, execution_provider))
                 },
-                "mock" => {
-                    let execution_provider = match provider {
-                        "cpu" => ExecutionProvider::Cpu,
-                        _ => {
-                            return Err(BgRemovalError::invalid_config(&format!(
-                                "Unknown Mock provider: {}. Mock only supports 'cpu'",
-                                provider
-                            )));
-                        },
-                    };
-                    Ok((BackendType::Mock, execution_provider))
-                },
                 _ => Err(BgRemovalError::invalid_config(&format!(
                     "Unknown backend: {}. Supported backends: onnx, tract, mock",
                     backend
@@ -92,7 +80,6 @@ impl ExecutionProviderManager {
             match provider_str {
                 "onnx" => Ok((BackendType::Onnx, ExecutionProvider::Auto)),
                 "tract" => Ok((BackendType::Tract, ExecutionProvider::Cpu)),
-                "mock" => Ok((BackendType::Mock, ExecutionProvider::Cpu)),
                 _ => Err(BgRemovalError::invalid_config(
                     "Invalid provider format. Use backend:provider (e.g., onnx:auto, tract:cpu)",
                 )),
@@ -143,14 +130,6 @@ impl ExecutionProviderManager {
                 available: true, // Tract CPU is always available
                 description: "Pure Rust CPU inference via Tract".to_string(),
             },
-            // Mock providers
-            ProviderInfo {
-                name: "mock:cpu".to_string(),
-                backend_type: BackendType::Mock,
-                execution_provider: ExecutionProvider::Cpu,
-                available: true, // Mock is always available
-                description: "Mock backend for testing and debugging".to_string(),
-            },
         ]
     }
 
@@ -164,7 +143,6 @@ impl ExecutionProviderManager {
         match backend_type {
             BackendType::Onnx => ExecutionProvider::Auto,
             BackendType::Tract => ExecutionProvider::Cpu,
-            BackendType::Mock => ExecutionProvider::Cpu,
         }
     }
 
@@ -173,7 +151,6 @@ impl ExecutionProviderManager {
         let backend_str = match backend_type {
             BackendType::Onnx => "onnx",
             BackendType::Tract => "tract",
-            BackendType::Mock => "mock",
         };
 
         let provider_str = match provider {

@@ -166,7 +166,7 @@ impl RemovalConfig {
             return Err(crate::error::BgRemovalError::config_value_error(
                 "WebP quality",
                 self.webp_quality,
-                "0-100", 
+                "0-100",
                 Some(85),
             ));
         }

@@ -94,12 +94,11 @@ impl ModelSpecParser {
         if let Some(variant) = &model_spec.variant {
             if available_variants.contains(variant) {
                 return Ok(variant.clone());
-            } else {
-                return Err(BgRemovalError::invalid_config(&format!(
-                    "Variant '{}' not available. Available variants: {:?}",
-                    variant, available_variants
-                )));
             }
+            return Err(BgRemovalError::invalid_config(&format!(
+                "Variant '{}' not available. Available variants: {:?}",
+                variant, available_variants
+            )));
         }
 
         // 3. Auto-detection: prefer fp16, fallback to fp32

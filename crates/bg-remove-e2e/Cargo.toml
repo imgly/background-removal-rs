@@ -1,8 +1,8 @@
 [package]
-name = "bg-remove-testing"
+name = "bg-remove-e2e"
 version = "0.1.0"
 edition = "2021"
-description = "Testing utilities and tools for the background removal library"
+description = "End-to-end testing and benchmarking utilities for the background removal library"
 
 # Inherit workspace lints for zero-warning policy
 [lints]
@@ -29,7 +29,8 @@ name = "benchmark-runner"
 path = "src/bin/benchmark-runner.rs"
 
 [dependencies]
-bg-remove-core = { path = "../bg-remove-core" }
+bg-remove-core = { path = "../bg-remove-core", features = ["embed-isnet-fp32"] }
+bg-remove-onnx = { path = "../bg-remove-onnx" }
 image = { version = "0.25.6", features = ["jpeg", "png", "webp"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -51,7 +52,14 @@ default = []
 benchmarking = ["criterion"]
 expensive-tests = []
 regression-tests = []
+# Model embedding features (passed through to bg-remove-core)
+embed-isnet-fp32 = ["bg-remove-core/embed-isnet-fp32"]
+embed-isnet-fp16 = ["bg-remove-core/embed-isnet-fp16"]
 
 [dev-dependencies]
 criterion = "0.5"
 futures = "0.3"
+
+[[bench]]
+name = "background_removal"
+harness = false
