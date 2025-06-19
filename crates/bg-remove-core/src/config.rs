@@ -44,71 +44,6 @@ impl Default for OutputFormat {
 }
 
 
-/// Color management configuration
-///
-/// By default, ICC color profiles are preserved and embedded for professional color accuracy.
-/// This ensures consistent color reproduction across different devices and applications.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[allow(clippy::struct_excessive_bools)] // Configuration struct with logical boolean options
-pub struct ColorManagementConfig {
-    /// Preserve ICC color profiles from input images (default: true)
-    pub preserve_color_profile: bool,
-
-    /// Force sRGB output regardless of input profile (default: false)
-    pub force_srgb_output: bool,
-
-    /// Fallback to sRGB when color space detection fails (default: true)
-    pub fallback_to_srgb: bool,
-
-    /// Embed color profile in output when supported by format (default: true)
-    pub embed_profile_in_output: bool,
-}
-
-impl Default for ColorManagementConfig {
-    fn default() -> Self {
-        Self {
-            preserve_color_profile: true, // Default: preserve color profiles
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true, // Default: embed profiles in output
-        }
-    }
-}
-
-impl ColorManagementConfig {
-    /// Create a configuration that preserves color profiles
-    #[must_use]
-    pub fn preserve() -> Self {
-        Self {
-            preserve_color_profile: true,
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true,
-        }
-    }
-
-    /// Create a configuration that ignores color profiles (legacy behavior)
-    #[must_use]
-    pub fn ignore() -> Self {
-        Self {
-            preserve_color_profile: false,
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: false,
-        }
-    }
-
-    /// Create a configuration that forces sRGB output
-    #[must_use]
-    pub fn force_srgb() -> Self {
-        Self {
-            preserve_color_profile: true,
-            force_srgb_output: true,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true,
-        }
-    }
-}
 
 /// Configuration for background removal operations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -135,8 +70,8 @@ pub struct RemovalConfig {
     /// Number of inter-op threads for inference (0 = auto)
     pub inter_threads: usize,
 
-    /// Color management configuration
-    pub color_management: ColorManagementConfig,
+    /// Preserve ICC color profiles from input images (default: true)
+    pub preserve_color_profiles: bool,
 }
 
 impl Default for RemovalConfig {
@@ -149,7 +84,7 @@ impl Default for RemovalConfig {
             debug: false,
             intra_threads: 0, // Auto-detect optimal intra-op threads
             inter_threads: 0, // Auto-detect optimal inter-op threads
-            color_management: ColorManagementConfig::default(),
+            preserve_color_profiles: true, // Default: preserve color profiles
         }
     }
 }
@@ -336,31 +271,10 @@ impl RemovalConfigBuilder {
         self
     }
 
-    /// Set color management configuration
-    #[must_use]
-    pub fn color_management(mut self, color_management: ColorManagementConfig) -> Self {
-        self.config.color_management = color_management;
-        self
-    }
-
     /// Enable or disable ICC color profile preservation
     #[must_use]
-    pub fn preserve_color_profile(mut self, preserve: bool) -> Self {
-        self.config.color_management.preserve_color_profile = preserve;
-        self
-    }
-
-    /// Force sRGB output regardless of input color profile
-    #[must_use]
-    pub fn force_srgb_output(mut self, force: bool) -> Self {
-        self.config.color_management.force_srgb_output = force;
-        self
-    }
-
-    /// Enable or disable embedding ICC profiles in output images
-    #[must_use]
-    pub fn embed_profile_in_output(mut self, embed: bool) -> Self {
-        self.config.color_management.embed_profile_in_output = embed;
+    pub fn preserve_color_profiles(mut self, preserve: bool) -> Self {
+        self.config.preserve_color_profiles = preserve;
         self
     }
 

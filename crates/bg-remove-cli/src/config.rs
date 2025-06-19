@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use bg_remove_core::{
     processor::{ProcessorConfig, ProcessorConfigBuilder},
     utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
-    config::{ColorManagementConfig, OutputFormat},
+    config::OutputFormat,
     models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
 use crate::Cli;
@@ -68,11 +68,7 @@ impl CliConfigBuilder {
             // This provides optimal performance in most cases
             .intra_threads(cli.threads)
             .inter_threads(cli.threads)
-            .color_management(if cli.preserve_color_profiles {
-                ColorManagementConfig::preserve()
-            } else {
-                ColorManagementConfig::ignore()
-            })
+            .preserve_color_profiles(cli.preserve_color_profiles)
             .build()
             .context("Invalid configuration")?;
 

@@ -402,7 +402,7 @@ async fn process_stdin(
             // Output to file
             let output_path = PathBuf::from(target);
             let config = processor.config();
-            if config.color_management.preserve_color_profile {
+            if config.preserve_color_profiles {
                 result
                     .save_with_color_profile(
                         &output_path,
@@ -465,7 +465,7 @@ async fn process_single_file(
         Some(target) => {
             // Output to specific file
             let output_path = PathBuf::from(target);
-            if config.color_management.preserve_color_profile {
+            if config.preserve_color_profiles {
                 result
                     .save_with_color_profile_timed(
                         &output_path,
@@ -489,7 +489,7 @@ async fn process_single_file(
         None => {
             // Generate default output filename
             let output_path = generate_output_path(input_path, config.output_format);
-            if config.color_management.preserve_color_profile {
+            if config.preserve_color_profiles {
                 result
                     .save_with_color_profile_timed(
                         &output_path,

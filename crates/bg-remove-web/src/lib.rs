@@ -91,12 +91,6 @@ pub struct WebRemovalConfig {
     inter_threads: u32,
     /// Whether to preserve color profiles
     preserve_color_profile: bool,
-    /// Force sRGB output regardless of input profile
-    force_srgb_output: bool,
-    /// Fallback to sRGB when color space detection fails
-    fallback_to_srgb: bool,
-    /// Embed color profile in output when supported
-    embed_profile_in_output: bool,
 }
 
 #[wasm_bindgen]
@@ -164,9 +158,6 @@ impl Default for WebRemovalConfig {
             intra_threads: 0,
             inter_threads: 0,
             preserve_color_profile: true,
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true,
         }
     }
 }

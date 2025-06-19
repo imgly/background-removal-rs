@@ -3,7 +3,7 @@
 use bg_remove_core::{
     processor::{BackendType, ProcessorConfig, ProcessorConfigBuilder},
     utils::ConfigValidator,
-    config::{ColorManagementConfig, ExecutionProvider, OutputFormat},
+    config::{ExecutionProvider, OutputFormat},
     models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
 use crate::WebRemovalConfig;
@@ -51,12 +51,7 @@ impl WebConfigBuilder {
             .debug(web_config.debug)
             .intra_threads(web_config.intra_threads as usize)
             .inter_threads(web_config.inter_threads as usize)
-            .color_management(ColorManagementConfig {
-                preserve_color_profile: web_config.preserve_color_profile,
-                force_srgb_output: web_config.force_srgb_output,
-                fallback_to_srgb: web_config.fallback_to_srgb,
-                embed_profile_in_output: web_config.embed_profile_in_output,
-            })
+            .preserve_color_profiles(web_config.preserve_color_profile)
             .build()?;
 
         Ok(config)
@@ -91,10 +86,7 @@ impl WebConfigBuilder {
             debug: config.debug,
             intra_threads: config.intra_threads as u32,
             inter_threads: config.inter_threads as u32,
-            preserve_color_profile: config.color_management.preserve_color_profile,
-            force_srgb_output: config.color_management.force_srgb_output,
-            fallback_to_srgb: config.color_management.fallback_to_srgb,
-            embed_profile_in_output: config.color_management.embed_profile_in_output,
+            preserve_color_profile: config.preserve_color_profiles,
         }
     }
 }
@@ -112,9 +104,6 @@ mod tests {
             intra_threads: 0,
             inter_threads: 0,
             preserve_color_profile: true,
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true,
         }
     }
 

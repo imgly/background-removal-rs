@@ -770,8 +770,7 @@ impl RemovalResult {
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
-    ///     .preserve_color_profile(true)
-    ///     .embed_profile_in_output(true)
+    ///     .preserve_color_profiles(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
     ///
@@ -928,7 +927,7 @@ impl RemovalResult {
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
-    ///     .preserve_color_profile(true)
+    ///     .preserve_color_profiles(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
     ///

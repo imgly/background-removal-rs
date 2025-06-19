@@ -48,7 +48,7 @@ use crate::types::ProcessingMetadata;
 pub use backends::MockBackend;
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{
-    ColorManagementConfig, ExecutionProvider, OutputFormat, RemovalConfig,
+    ExecutionProvider, OutputFormat, RemovalConfig,
 };
 pub use error::{BgRemovalError, Result};
 pub use inference::InferenceBackend;
@@ -172,7 +172,7 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
         .debug(config.debug)
         .intra_threads(config.intra_threads)
         .inter_threads(config.inter_threads)
-        .color_management(config.color_management.clone())
+        .preserve_color_profiles(config.preserve_color_profiles)
         .build()?;
         
     let backend_factory = Box::new(DefaultBackendFactory);
@@ -479,7 +479,7 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
         .debug(config.debug)
         .intra_threads(config.intra_threads)
         .inter_threads(config.inter_threads)
-        .color_management(config.color_management.clone())
+        .preserve_color_profiles(config.preserve_color_profiles)
         .build()?;
         
     let backend_factory = Box::new(DefaultBackendFactory);
@@ -594,7 +594,7 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
         .debug(config.debug)
         .intra_threads(config.intra_threads)
         .inter_threads(config.inter_threads)
-        .color_management(config.color_management.clone())
+        .preserve_color_profiles(config.preserve_color_profiles)
         .build()?;
         
     let backend_factory = Box::new(DefaultBackendFactory);
@@ -732,7 +732,7 @@ pub async fn apply_segmentation_mask<P: AsRef<std::path::Path>>(
         .debug(config.debug)
         .intra_threads(config.intra_threads)
         .inter_threads(config.inter_threads)
-        .color_management(config.color_management.clone())
+        .preserve_color_profiles(config.preserve_color_profiles)
         .build()?;
         
     let backend_factory = Box::new(DefaultBackendFactory);

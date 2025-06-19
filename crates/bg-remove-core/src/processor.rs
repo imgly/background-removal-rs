@@ -95,8 +95,8 @@ pub struct ProcessorConfig {
     pub intra_threads: usize,
     /// Number of inter-op threads (0 = auto)
     pub inter_threads: usize,
-    /// Color management configuration
-    pub color_management: crate::config::ColorManagementConfig,
+    /// Preserve ICC color profiles from input images
+    pub preserve_color_profiles: bool,
 }
 
 impl ProcessorConfig {
@@ -115,7 +115,7 @@ impl ProcessorConfig {
             debug: self.debug,
             intra_threads: self.intra_threads,
             inter_threads: self.inter_threads,
-            color_management: self.color_management.clone(),
+            preserve_color_profiles: self.preserve_color_profiles,
         }
     }
 }
@@ -135,7 +135,7 @@ impl Default for ProcessorConfig {
             debug: false,
             intra_threads: 0,
             inter_threads: 0,
-            color_management: crate::config::ColorManagementConfig::default(),
+            preserve_color_profiles: true,
         }
     }
 }
@@ -198,8 +198,8 @@ impl ProcessorConfigBuilder {
         self
     }
     
-    pub fn color_management(mut self, color_management: crate::config::ColorManagementConfig) -> Self {
-        self.config.color_management = color_management;
+    pub fn preserve_color_profiles(mut self, preserve: bool) -> Self {
+        self.config.preserve_color_profiles = preserve;
         self
     }
     
@@ -323,7 +323,7 @@ impl BackgroundRemovalProcessor {
               self.config.backend_type);
         
         // 1. Extract color profile
-        let _color_profile: Option<crate::types::ColorProfile> = if removal_config.color_management.preserve_color_profile {
+        let _color_profile: Option<crate::types::ColorProfile> = if removal_config.preserve_color_profiles {
             None // TODO: Implement color profile extraction for DynamicImage
         } else {
             None
