@@ -63,7 +63,6 @@ async fn test_execution_provider_compatibility() {
 
 #[tokio::test]
 async fn test_output_format_options() {
-
     let input_path = "assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !Path::new(input_path).exists() {

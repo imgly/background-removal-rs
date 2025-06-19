@@ -260,7 +260,8 @@ impl RemovalResult {
     pub fn save_jpeg<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
         let rgb_image = self.image.to_rgb8();
         let mut file = std::fs::File::create(path)?;
-        let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, quality);
+        let mut jpeg_encoder =
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, quality);
         jpeg_encoder.encode_image(&rgb_image)?;
         Ok(())
     }
@@ -304,7 +305,8 @@ impl RemovalResult {
     /// Returns `BgRemovalError` for file I/O errors, permission issues,
     /// or disk space problems.
     pub fn save_tiff<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        self.image.save_with_format(path, image::ImageFormat::Tiff)?;
+        self.image
+            .save_with_format(path, image::ImageFormat::Tiff)?;
         Ok(())
     }
 
@@ -429,13 +431,12 @@ impl RemovalResult {
                 let mut buffer = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut buffer);
                 let rgb_image = self.image.to_rgb8();
-                let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
+                let mut jpeg_encoder =
+                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
                 jpeg_encoder.encode_image(&rgb_image)?;
                 Ok(buffer)
             },
-            OutputFormat::WebP => {
-                Ok(self.encode_webp(quality))
-            },
+            OutputFormat::WebP => Ok(self.encode_webp(quality)),
             OutputFormat::Tiff => {
                 let mut buffer = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut buffer);
@@ -483,10 +484,7 @@ impl RemovalResult {
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
         // Log encoding completion at debug level
-        log::debug!(
-            "Image Encoding completed in {}ms",
-            encode_ms
-        );
+        log::debug!("Image Encoding completed in {}ms", encode_ms);
 
         // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -524,7 +522,7 @@ impl RemovalResult {
     pub fn save_jpeg_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
         let encode_start = Instant::now();
-        
+
         // Convert to RGB and apply background color for JPEG
         let rgb_image = self.image.to_rgb8();
         let mut jpeg_encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
@@ -532,7 +530,7 @@ impl RemovalResult {
             quality,
         );
         jpeg_encoder.encode_image(&rgb_image)?;
-        
+
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
             crate::error::BgRemovalError::processing("JPEG encoding time too large for u64")
         })?;
@@ -541,10 +539,7 @@ impl RemovalResult {
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
         // Log encoding completion at debug level
-        log::debug!(
-            "Image Encoding completed in {}ms",
-            encode_ms
-        );
+        log::debug!("Image Encoding completed in {}ms", encode_ms);
 
         // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -570,11 +565,11 @@ impl RemovalResult {
     pub fn save_webp_timed<P: AsRef<Path>>(&mut self, path: P, quality: u8) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
         let encode_start = Instant::now();
-        
+
         // Use the existing WebP encoding method
         let webp_data = self.encode_webp(quality);
         std::fs::write(&path, webp_data)?;
-        
+
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
             crate::error::BgRemovalError::processing("WebP encoding time too large for u64")
         })?;
@@ -583,10 +578,7 @@ impl RemovalResult {
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
         // Log encoding completion at debug level
-        log::debug!(
-            "Image Encoding completed in {}ms",
-            encode_ms
-        );
+        log::debug!("Image Encoding completed in {}ms", encode_ms);
 
         // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -612,10 +604,11 @@ impl RemovalResult {
     pub fn save_tiff_timed<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path_str = path.as_ref().display().to_string();
         let encode_start = Instant::now();
-        
+
         // Save as TIFF with RGBA transparency
-        self.image.save_with_format(&path, image::ImageFormat::Tiff)?;
-        
+        self.image
+            .save_with_format(&path, image::ImageFormat::Tiff)?;
+
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
             crate::error::BgRemovalError::processing("TIFF encoding time too large for u64")
         })?;
@@ -624,10 +617,7 @@ impl RemovalResult {
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
         // Log encoding completion at debug level
-        log::debug!(
-            "Image Encoding completed in {}ms",
-            encode_ms
-        );
+        log::debug!("Image Encoding completed in {}ms", encode_ms);
 
         // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -650,7 +640,12 @@ impl RemovalResult {
     /// - Image encoding errors specific to the chosen format
     /// - Timing conversion errors if encoding time exceeds u64 range
     /// - Path conversion errors for logging purposes
-    pub fn save_timed<P: AsRef<Path>>(&mut self, path: P, format: OutputFormat, quality: u8) -> Result<()> {
+    pub fn save_timed<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<()> {
         match format {
             OutputFormat::Png => self.save_png_timed(path),
             OutputFormat::Jpeg => self.save_jpeg_timed(path, quality),
@@ -659,23 +654,22 @@ impl RemovalResult {
             OutputFormat::Rgba8 => {
                 let path_str = path.as_ref().display().to_string();
                 let encode_start = Instant::now();
-                
+
                 // For RGBA8 format, save the raw RGBA bytes
                 let rgba_image = self.image.to_rgba8();
                 std::fs::write(&path, rgba_image.as_raw())?;
-                
+
                 let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-                    crate::error::BgRemovalError::processing("RGBA8 encoding time too large for u64")
+                    crate::error::BgRemovalError::processing(
+                        "RGBA8 encoding time too large for u64",
+                    )
                 })?;
 
                 // Update the timings
                 self.metadata.timings.image_encode_ms = Some(encode_ms);
 
                 // Log encoding completion at debug level
-                log::debug!(
-                    "Image Encoding completed in {}ms",
-                    encode_ms
-                );
+                log::debug!("Image Encoding completed in {}ms", encode_ms);
 
                 // Log final completion with total processing time
                 let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -698,10 +692,7 @@ impl RemovalResult {
         let t = &self.metadata.timings;
         let breakdown = t.breakdown_percentages();
 
-        let mut summary = format!(
-            "Total: {}ms",
-            t.total_ms
-        );
+        let mut summary = format!("Total: {}ms", t.total_ms);
 
         // Add model load timing if present (only for first time)
         if t.model_load_ms > 0 {
@@ -770,8 +761,7 @@ impl RemovalResult {
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
-    ///     .preserve_color_profile(true)
-    ///     .embed_profile_in_output(true)
+    ///     .preserve_color_profiles(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
     ///
@@ -888,17 +878,16 @@ impl RemovalResult {
         }
 
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("Color profile encoding time too large for u64")
+            crate::error::BgRemovalError::processing(
+                "Color profile encoding time too large for u64",
+            )
         })?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
 
         // Log encoding completion at debug level
-        log::debug!(
-            "Image Encoding completed in {}ms",
-            encode_ms
-        );
+        log::debug!("Image Encoding completed in {}ms", encode_ms);
 
         // Log final completion with total processing time
         let total_time_s = self.metadata.timings.total_ms as f64 / 1000.0;
@@ -928,7 +917,7 @@ impl RemovalResult {
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
-    ///     .preserve_color_profile(true)
+    ///     .preserve_color_profiles(true)
     ///     .build()?;
     /// let result = remove_background("photo.jpg", &config).await?;
     ///
@@ -977,20 +966,22 @@ impl RemovalResult {
     #[cfg(feature = "webp-support")]
     fn encode_webp(&self, _quality: u8) -> Vec<u8> {
         use image::ImageEncoder;
-        
+
         let rgba_image = self.image.to_rgba8();
         let mut buffer = Vec::new();
-        
+
         // Note: image 0.25.6 only supports lossless WebP encoding
         // Using lossless for all qualities to avoid external dependencies
         let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut buffer);
-        encoder.write_image(
-            rgba_image.as_raw(),
-            rgba_image.width(),
-            rgba_image.height(),
-            image::ExtendedColorType::Rgba8,
-        ).expect("WebP encoding failed");
-        
+        encoder
+            .write_image(
+                rgba_image.as_raw(),
+                rgba_image.width(),
+                rgba_image.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+            .expect("WebP encoding failed");
+
         buffer
     }
 

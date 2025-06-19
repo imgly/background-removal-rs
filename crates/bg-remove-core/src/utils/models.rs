@@ -24,13 +24,13 @@ impl ModelSpecParser {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::utils::ModelSpecParser;
-    /// 
+    ///
     /// // Embedded model without variant
     /// let spec = ModelSpecParser::parse("isnet-fp16");
-    /// 
+    ///
     /// // Embedded model with variant
     /// let spec = ModelSpecParser::parse("birefnet:fp32");
-    /// 
+    ///
     /// // External model path
     /// let spec = ModelSpecParser::parse("/path/to/model");
     /// ```
@@ -61,7 +61,7 @@ impl ModelSpecParser {
             variant: None,
         }
     }
-    
+
     /// Resolve the final variant to use based on precedence rules
     ///
     /// Precedence order:
@@ -83,24 +83,22 @@ impl ModelSpecParser {
         if let Some(variant) = cli_variant {
             if available_variants.contains(&variant.to_string()) {
                 return Ok(variant.to_string());
-            } else {
-                return Err(BgRemovalError::invalid_config(&format!(
-                    "Variant '{}' not available. Available variants: {:?}",
-                    variant, available_variants
-                )));
             }
+            return Err(BgRemovalError::invalid_config(&format!(
+                "Variant '{}' not available. Available variants: {:?}",
+                variant, available_variants
+            )));
         }
 
         // 2. Suffix syntax has medium precedence
         if let Some(variant) = &model_spec.variant {
             if available_variants.contains(variant) {
                 return Ok(variant.clone());
-            } else {
-                return Err(BgRemovalError::invalid_config(&format!(
-                    "Variant '{}' not available. Available variants: {:?}",
-                    variant, available_variants
-                )));
             }
+            return Err(BgRemovalError::invalid_config(&format!(
+                "Variant '{}' not available. Available variants: {:?}",
+                variant, available_variants
+            )));
         }
 
         // 3. Auto-detection: prefer fp16, fallback to fp32
@@ -118,10 +116,10 @@ impl ModelSpecParser {
         }
 
         Err(BgRemovalError::invalid_config(
-            "No variants available for model"
+            "No variants available for model",
         ))
     }
-    
+
     /// Validate model specification
     ///
     /// Checks if embedded model name is valid or external path exists
@@ -140,45 +138,51 @@ impl ModelSpecParser {
                         path.display()
                     )));
                 }
-            }
+            },
             ModelSource::Embedded(name) => {
                 // Basic validation - check for valid characters
                 if name.is_empty() {
                     return Err(BgRemovalError::invalid_config(
-                        "Embedded model name cannot be empty"
+                        "Embedded model name cannot be empty",
                     ));
                 }
-                
+
                 // Check for reasonable model name format
-                if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+                if !name
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+                {
                     return Err(BgRemovalError::invalid_config(&format!(
                         "Invalid characters in embedded model name: {}",
                         name
                     )));
                 }
-            }
+            },
         }
-        
+
         // Validate variant if specified
         if let Some(variant) = &model_spec.variant {
             if variant.is_empty() {
                 return Err(BgRemovalError::invalid_config(
-                    "Model variant cannot be empty"
+                    "Model variant cannot be empty",
                 ));
             }
-            
+
             // Check for valid variant format
-            if !variant.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            if !variant
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+            {
                 return Err(BgRemovalError::invalid_config(&format!(
                     "Invalid characters in model variant: {}",
                     variant
                 )));
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Convert ModelSpec back to string representation
     ///
     /// Reconstructs the original string format used to create the ModelSpec
@@ -187,33 +191,32 @@ impl ModelSpecParser {
             ModelSource::External(path) => path.to_string_lossy().to_string(),
             ModelSource::Embedded(name) => name.clone(),
         };
-        
+
         if let Some(variant) = &model_spec.variant {
             format!("{}:{}", base, variant)
         } else {
             base
         }
     }
-    
+
     /// Check if a model specification represents an embedded model
     pub fn is_embedded(model_spec: &ModelSpec) -> bool {
         matches!(model_spec.source, ModelSource::Embedded(_))
     }
-    
+
     /// Check if a model specification represents an external model
     pub fn is_external(model_spec: &ModelSpec) -> bool {
         matches!(model_spec.source, ModelSource::External(_))
     }
-    
+
     /// Get the model name (for embedded) or directory name (for external)
     pub fn get_model_name(model_spec: &ModelSpec) -> String {
         match &model_spec.source {
-            ModelSource::External(path) => {
-                path.file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string()
-            }
+            ModelSource::External(path) => path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             ModelSource::Embedded(name) => name.clone(),
         }
     }
@@ -261,7 +264,7 @@ mod tests {
             source: ModelSource::Embedded("test".to_string()),
             variant: Some("fp32".to_string()),
         };
-        
+
         // CLI parameter should win over suffix
         let result = ModelSpecParser::resolve_variant(&spec, Some("fp16"), &available).unwrap();
         assert_eq!(result, "fp16");
@@ -275,7 +278,7 @@ mod tests {
             source: ModelSource::Embedded("test".to_string()),
             variant: Some("fp32".to_string()),
         };
-        
+
         // Suffix should be used when no CLI param
         let result = ModelSpecParser::resolve_variant(&spec, None, &available).unwrap();
         assert_eq!(result, "fp32");
@@ -289,7 +292,7 @@ mod tests {
             source: ModelSource::Embedded("test".to_string()),
             variant: None,
         };
-        
+
         // Should prefer fp16 in auto-detection
         let result = ModelSpecParser::resolve_variant(&spec, None, &available).unwrap();
         assert_eq!(result, "fp16");
@@ -303,7 +306,7 @@ mod tests {
             source: ModelSource::Embedded("test".to_string()),
             variant: None,
         };
-        
+
         // Should fallback to fp32 if fp16 not available
         let result = ModelSpecParser::resolve_variant(&spec, None, &available).unwrap();
         assert_eq!(result, "fp32");
@@ -317,7 +320,7 @@ mod tests {
             source: ModelSource::Embedded("test".to_string()),
             variant: None,
         };
-        
+
         // Should error on invalid variant
         let result = ModelSpecParser::resolve_variant(&spec, Some("invalid"), &available);
         assert!(result.is_err());
@@ -376,7 +379,10 @@ mod tests {
             source: ModelSource::Embedded("isnet-fp16".to_string()),
             variant: None,
         };
-        assert_eq!(ModelSpecParser::get_model_name(&embedded_spec), "isnet-fp16");
+        assert_eq!(
+            ModelSpecParser::get_model_name(&embedded_spec),
+            "isnet-fp16"
+        );
 
         let external_spec = ModelSpec {
             source: ModelSource::External(PathBuf::from("/path/to/my_model")),

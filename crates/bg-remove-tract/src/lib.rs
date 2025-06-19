@@ -41,7 +41,7 @@ impl TractBackend {
     /// # Examples
     /// ```rust
     /// use bg_remove_tract::TractBackend;
-    /// 
+    ///
     /// let providers = TractBackend::list_providers();
     /// for (name, available, description) in providers {
     ///     println!("{}: {} - {}", name, if available { "✅" } else { "❌" }, description);
@@ -98,13 +98,13 @@ impl TractBackend {
     /// Load and initialize the model using Tract
     fn load_model(&mut self, _config: &RemovalConfig) -> Result<Duration> {
         let model_load_start = Instant::now();
-        
+
         // Get or create model manager
         let model_manager = if let Some(ref manager) = self.model_manager {
             manager
         } else {
             return Err(bg_remove_core::error::BgRemovalError::model(
-                "No model manager available for Tract backend"
+                "No model manager available for Tract backend",
             ));
         };
 
@@ -125,37 +125,64 @@ impl TractBackend {
 
         // Create Tract model from ONNX data
         log::debug!("Creating Tract model from ONNX data...");
-        
+
         // Use different optimization strategies for WASM vs native due to different optimization behavior
         #[cfg(target_arch = "wasm32")]
         let model = {
             log::debug!("WASM build: using typed model without aggressive optimization to avoid dimension conflicts");
             onnx()
                 .model_for_read(&mut std::io::Cursor::new(model_data))
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to load ONNX model: {e}"
+                    ))
+                })?
                 .into_typed()
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to create typed model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to create typed model: {e}"
+                    ))
+                })?
                 .into_runnable()
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to create runnable model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to create runnable model: {e}"
+                    ))
+                })?
         };
-        
+
         #[cfg(not(target_arch = "wasm32"))]
         let model = {
             log::debug!("Native build: using full optimization");
             onnx()
                 .model_for_read(&mut std::io::Cursor::new(model_data))
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to load ONNX model: {e}"
+                    ))
+                })?
                 .into_optimized()
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to optimize model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to optimize model: {e}"
+                    ))
+                })?
                 .into_runnable()
-                .map_err(|e| bg_remove_core::error::BgRemovalError::model(format!("Failed to create runnable model: {e}")))?
+                .map_err(|e| {
+                    bg_remove_core::error::BgRemovalError::model(format!(
+                        "Failed to create runnable model: {e}"
+                    ))
+                })?
         };
 
         self.model = Some(model);
         self.initialized = true;
 
         let model_load_time = model_load_start.elapsed();
-        log::info!("✅ Tract backend initialized in {:.2}ms", model_load_time.as_millis());
+        log::info!(
+            "✅ Tract backend initialized in {:.2}ms",
+            model_load_time.as_millis()
+        );
         log::info!("🎯 Ready for inference");
 
         Ok(model_load_time)
@@ -167,7 +194,7 @@ impl TractBackend {
             manager.get_input_name()
         } else {
             Err(bg_remove_core::error::BgRemovalError::model(
-                "Model manager not available"
+                "Model manager not available",
             ))
         }
     }
@@ -178,7 +205,7 @@ impl TractBackend {
             manager.get_output_name()
         } else {
             Err(bg_remove_core::error::BgRemovalError::model(
-                "Model manager not available"
+                "Model manager not available",
             ))
         }
     }
@@ -204,8 +231,9 @@ impl InferenceBackend for TractBackend {
         let _input_name = self.get_input_name()?;
         let _output_name = self.get_output_name()?;
 
-        let model = self.model.as_ref()
-            .ok_or_else(|| bg_remove_core::error::BgRemovalError::inference("Tract model not initialized"))?;
+        let model = self.model.as_ref().ok_or_else(|| {
+            bg_remove_core::error::BgRemovalError::inference("Tract model not initialized")
+        })?;
 
         log::debug!("🔮 Running Tract inference");
         log::debug!("  - Input tensor: {:?}", input.shape());
@@ -217,17 +245,25 @@ impl InferenceBackend for TractBackend {
         let input_tensor = Tensor::from(input.clone());
 
         // Run inference
-        let outputs = model.run(tvec![input_tensor.into()])
-            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Tract inference failed: {e}")))?;
+        let outputs = model.run(tvec![input_tensor.into()]).map_err(|e| {
+            bg_remove_core::error::BgRemovalError::inference(format!("Tract inference failed: {e}"))
+        })?;
 
         // Extract output tensor
-        let output_tensor = outputs.into_iter().next()
-            .ok_or_else(|| bg_remove_core::error::BgRemovalError::inference("No output tensor found"))?
+        let output_tensor = outputs
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                bg_remove_core::error::BgRemovalError::inference("No output tensor found")
+            })?
             .into_arc_tensor();
 
         // Convert back to ndarray
-        let output_data = output_tensor.to_array_view::<f32>()
-            .map_err(|e| bg_remove_core::error::BgRemovalError::inference(format!("Failed to convert output tensor: {e}")))?;
+        let output_data = output_tensor.to_array_view::<f32>().map_err(|e| {
+            bg_remove_core::error::BgRemovalError::inference(format!(
+                "Failed to convert output tensor: {e}"
+            ))
+        })?;
 
         let output_shape = output_data.shape();
         if output_shape.len() != 4 {
@@ -251,9 +287,12 @@ impl InferenceBackend for TractBackend {
                 "Failed to reshape output tensor: {e}"
             ))
         })?;
-        
+
         let inference_time = inference_start.elapsed();
-        log::debug!("✅ Tract inference completed in {:.2}ms", inference_time.as_millis());
+        log::debug!(
+            "✅ Tract inference completed in {:.2}ms",
+            inference_time.as_millis()
+        );
         log::debug!("  - Output tensor: {:?}", output_array.shape());
 
         Ok(output_array)

@@ -1,10 +1,10 @@
 //! Tract backend factory implementation for Web/WASM environments
 
 use bg_remove_core::{
-    processor::{BackendFactory, BackendType},
+    error::Result,
     inference::InferenceBackend,
     models::ModelManager,
-    error::Result,
+    processor::{BackendFactory, BackendType},
 };
 use bg_remove_tract::TractBackend;
 
@@ -21,25 +21,22 @@ impl BackendFactory for WebBackendFactory {
             BackendType::Tract => {
                 let backend = TractBackend::with_model_manager(model_manager);
                 Ok(Box::new(backend))
-            }
+            },
             BackendType::Mock => {
                 let backend = bg_remove_core::MockBackend::new();
                 Ok(Box::new(backend))
-            }
+            },
             BackendType::Onnx => {
                 // ONNX Runtime is not supported in WASM
                 Err(bg_remove_core::error::BgRemovalError::invalid_config(
                     "ONNX Runtime backend is not supported in WebAssembly environments. Use Tract backend instead."
                 ))
-            }
+            },
         }
     }
-    
+
     fn available_backends(&self) -> Vec<BackendType> {
-        vec![
-            BackendType::Tract,
-            BackendType::Mock,
-        ]
+        vec![BackendType::Tract, BackendType::Mock]
     }
 }
 

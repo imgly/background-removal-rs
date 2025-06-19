@@ -8,6 +8,7 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::panic)]
 #![allow(clippy::format_push_string)]
+#![allow(clippy::uninlined_format_args)]
 
 use std::env;
 use std::fs;
@@ -129,7 +130,7 @@ pub struct PreprocessingConfig {
         let workspace_root = env::var("CARGO_MANIFEST_DIR")
             .expect("CARGO_MANIFEST_DIR not set")
             .replace("/crates/bg-remove-core", ""); // Remove the crate subdirectory
-        let model_path = format!("{}/models/{}/model_{}.onnx", workspace_root, model_name, variant);
+        let model_path = format!("{workspace_root}/models/{model_name}/model_{variant}.onnx");
         let function_name = format!("load_{}", model_id.replace('-', "_"));
 
         generated_code.push_str(&format!(

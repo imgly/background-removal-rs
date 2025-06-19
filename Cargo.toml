@@ -5,7 +5,7 @@ members = [
     "crates/bg-remove-tract",
     "crates/bg-remove-web",
     "crates/bg-remove-cli",
-    "crates/bg-remove-testing",
+    "crates/bg-remove-e2e",
 ]
 resolver = "2"
 

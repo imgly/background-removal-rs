@@ -1,19 +1,22 @@
 //! Configuration conversion utilities for Web/WASM environments
 
+use crate::WebRemovalConfig;
 use bg_remove_core::{
+    config::{ExecutionProvider, OutputFormat},
+    models::{get_available_embedded_models, ModelSource, ModelSpec},
     processor::{BackendType, ProcessorConfig, ProcessorConfigBuilder},
     utils::ConfigValidator,
-    config::{ColorManagementConfig, ExecutionProvider, OutputFormat},
-    models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
-use crate::WebRemovalConfig;
 
 /// Convert Web configuration to unified ProcessorConfig
 pub(crate) struct WebConfigBuilder;
 
 impl WebConfigBuilder {
     /// Build ProcessorConfig from WebRemovalConfig
-    pub(crate) fn from_web_config(web_config: &WebRemovalConfig, model_name: Option<String>) -> Result<ProcessorConfig, bg_remove_core::error::BgRemovalError> {
+    pub(crate) fn from_web_config(
+        web_config: &WebRemovalConfig,
+        model_name: Option<String>,
+    ) -> Result<ProcessorConfig, bg_remove_core::error::BgRemovalError> {
         // Determine model specification
         let model_spec = if let Some(model_name) = model_name {
             ModelSpec {
@@ -35,7 +38,6 @@ impl WebConfigBuilder {
             }
         };
 
-
         // Parse and validate output format using shared validator
         let output_format = ConfigValidator::parse_output_format(&web_config.output_format)
             .unwrap_or(OutputFormat::Png); // Default fallback
@@ -51,21 +53,21 @@ impl WebConfigBuilder {
             .debug(web_config.debug)
             .intra_threads(web_config.intra_threads as usize)
             .inter_threads(web_config.inter_threads as usize)
-            .color_management(ColorManagementConfig {
-                preserve_color_profile: web_config.preserve_color_profile,
-                force_srgb_output: web_config.force_srgb_output,
-                fallback_to_srgb: web_config.fallback_to_srgb,
-                embed_profile_in_output: web_config.embed_profile_in_output,
-            })
+            .preserve_color_profiles(web_config.preserve_color_profile)
             .build()?;
 
         Ok(config)
     }
 
     /// Validate Web configuration using shared validators
-    pub(crate) fn validate_web_config(web_config: &WebRemovalConfig) -> Result<(), bg_remove_core::error::BgRemovalError> {
+    pub(crate) fn validate_web_config(
+        web_config: &WebRemovalConfig,
+    ) -> Result<(), bg_remove_core::error::BgRemovalError> {
         // Validate quality settings using shared validator
-        ConfigValidator::validate_quality_settings(web_config.jpeg_quality, web_config.webp_quality)?;
+        ConfigValidator::validate_quality_settings(
+            web_config.jpeg_quality,
+            web_config.webp_quality,
+        )?;
 
         // Validate output format using shared validator
         ConfigValidator::validate_output_format(&web_config.output_format)?;
@@ -75,14 +77,14 @@ impl WebConfigBuilder {
 
     /// Convert ProcessorConfig back to WebRemovalConfig
     pub(crate) fn to_web_config(config: &ProcessorConfig) -> WebRemovalConfig {
-            
         let output_format = match config.output_format {
             OutputFormat::Png => "png",
             OutputFormat::Jpeg => "jpeg",
             OutputFormat::WebP => "webp",
             OutputFormat::Tiff => "tiff",
             OutputFormat::Rgba8 => "rgba8",
-        }.to_string();
+        }
+        .to_string();
 
         WebRemovalConfig {
             output_format,
@@ -91,10 +93,7 @@ impl WebConfigBuilder {
             debug: config.debug,
             intra_threads: config.intra_threads as u32,
             inter_threads: config.inter_threads as u32,
-            preserve_color_profile: config.color_management.preserve_color_profile,
-            force_srgb_output: config.color_management.force_srgb_output,
-            fallback_to_srgb: config.color_management.fallback_to_srgb,
-            embed_profile_in_output: config.color_management.embed_profile_in_output,
+            preserve_color_profile: config.preserve_color_profiles,
         }
     }
 }
@@ -112,17 +111,15 @@ mod tests {
             intra_threads: 0,
             inter_threads: 0,
             preserve_color_profile: true,
-            force_srgb_output: false,
-            fallback_to_srgb: true,
-            embed_profile_in_output: true,
         }
     }
 
     #[test]
     fn test_web_config_conversion() {
         let web_config = create_test_web_config();
-        let config = WebConfigBuilder::from_web_config(&web_config, Some("test-model".to_string())).unwrap();
-        
+        let config =
+            WebConfigBuilder::from_web_config(&web_config, Some("test-model".to_string())).unwrap();
+
         assert_eq!(config.backend_type, BackendType::Tract);
         assert_eq!(config.execution_provider, ExecutionProvider::Cpu);
         assert_eq!(config.output_format, OutputFormat::Png);

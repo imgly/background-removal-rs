@@ -1,6 +1,6 @@
 //! Compare CPU vs GPU ONNX Runtime performance
 
-use bg_remove_core::{RemovalConfig, BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
+use bg_remove_core::{BackendType, BackgroundRemovalProcessor, ProcessorConfigBuilder};
 use std::time::Instant;
 
 #[tokio::main]
@@ -8,8 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ CPU vs GPU ONNX Runtime Performance Test");
     println!("==========================================");
 
-    let test_image =
-        "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
+    let test_image = "../bg-remove-testing/assets/input/portraits/portrait_single_simple_bg.jpg";
 
     if !std::path::Path::new(test_image).exists() {
         println!("❌ Test image not found: {test_image}");
@@ -19,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test current implementation (should use GPU if available)
     println!("🧪 Testing current implementation (GPU-enabled)...");
     let processor_config = ProcessorConfigBuilder::new()
-        .backend_type(BackendType::Mock)  // Use Mock backend for example
+        .backend_type(BackendType::Onnx)  // Use Mock backend for example
         .debug(false)
         .build()?;
 

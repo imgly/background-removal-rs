@@ -16,8 +16,8 @@ description = "Core background removal library using ONNX Runtime and ISNet mode
 workspace = true
 
 [features]
-# Default: basic features with WebP support
-default = ["webp-support"]
+# Default: basic features with WebP support and ISNet FP32 model
+default = ["webp-support", "embed-isnet-fp32"]
 
 # WebP support (pure Rust, WASM-compatible via image crate)
 webp-support = ["image/webp"]
@@ -36,8 +36,6 @@ embed-all-birefnet = ["embed-birefnet-fp16", "embed-birefnet-fp32"]
 embed-all-birefnet-lite = ["embed-birefnet-lite-fp16", "embed-birefnet-lite-fp32"]
 embed-all = ["embed-all-isnet", "embed-all-birefnet", "embed-all-birefnet-lite"]
 
-# Development features
-benchmark-details = []    # Enable detailed benchmark output
 
 [dependencies]
 # Core dependencies
@@ -69,13 +67,6 @@ tokio = { workspace = true, features = ["test-util"] }
 env_logger = "0.11"
 bg-remove-onnx = { path = "../bg-remove-onnx" }
 
-[[bench]]
-name = "background_removal"
-harness = false
-
-[[bench]]
-name = "simple_bench"
-harness = false
 
 [build-dependencies]
 serde_json = { workspace = true }

@@ -1,13 +1,13 @@
 //! Configuration conversion utilities for CLI arguments
 
+use crate::Cli;
 use anyhow::{Context, Result};
 use bg_remove_core::{
+    config::OutputFormat,
+    models::{get_available_embedded_models, ModelSource, ModelSpec},
     processor::{ProcessorConfig, ProcessorConfigBuilder},
     utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
-    config::{ColorManagementConfig, OutputFormat},
-    models::{get_available_embedded_models, ModelSource, ModelSpec},
 };
-use crate::Cli;
 
 /// Convert CLI arguments to unified ProcessorConfig
 pub(crate) struct CliConfigBuilder;
@@ -36,9 +36,9 @@ impl CliConfigBuilder {
         };
 
         // Parse execution provider and backend type
-        let (backend_type, execution_provider) = ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
-            .context("Invalid execution provider format")?;
-
+        let (backend_type, execution_provider) =
+            ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
+                .context("Invalid execution provider format")?;
 
         // Parse output format
         let output_format = match cli.format {
@@ -64,22 +64,11 @@ impl CliConfigBuilder {
             .jpeg_quality(cli.jpeg_quality)
             .webp_quality(cli.webp_quality)
             .debug(cli.debug)
-            .intra_threads(if cli.intra_threads > 0 {
-                cli.intra_threads
-            } else {
-                0
-            })
-            .inter_threads(if cli.inter_threads > 0 {
-                cli.inter_threads
-            } else {
-                0
-            })
-            .color_management(ColorManagementConfig {
-                preserve_color_profile: cli.preserve_color_profile && !cli.no_preserve_color_profile,
-                force_srgb_output: cli.force_srgb,
-                fallback_to_srgb: true,
-                embed_profile_in_output: cli.embed_profile && !cli.no_embed_profile,
-            })
+            // Use the same thread count for both intra and inter operations
+            // This provides optimal performance in most cases
+            .intra_threads(cli.threads)
+            .inter_threads(cli.threads)
+            .preserve_color_profiles(cli.preserve_color_profiles)
             .build()
             .context("Invalid configuration")?;
 
@@ -92,7 +81,6 @@ impl CliConfigBuilder {
         ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
             .context("Invalid execution provider format")?;
 
-
         // Validate quality settings using shared validator
         ConfigValidator::validate_quality_settings(cli.jpeg_quality, cli.webp_quality)
             .context("Invalid quality settings")?;
@@ -100,8 +88,7 @@ impl CliConfigBuilder {
         // Validate model specification if provided
         if let Some(model_arg) = &cli.model {
             let model_spec = ModelSpecParser::parse(model_arg);
-            ModelSpecParser::validate(&model_spec)
-                .context("Invalid model specification")?;
+            ModelSpecParser::validate(&model_spec).context("Invalid model specification")?;
         }
 
         Ok(())
@@ -112,10 +99,7 @@ impl CliConfigBuilder {
 mod tests {
     use super::*;
     use crate::{Cli, CliOutputFormat};
-    use bg_remove_core::{
-        processor::BackendType,
-        config::ExecutionProvider,
-    };
+    use bg_remove_core::{config::ExecutionProvider, processor::BackendType};
 
     fn create_test_cli() -> Cli {
         Cli {
@@ -125,8 +109,6 @@ mod tests {
             execution_provider: "onnx:auto".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
-            intra_threads: 0,
-            inter_threads: 0,
             threads: 0,
             debug: false,
             verbose: 0,
@@ -135,11 +117,7 @@ mod tests {
             show_providers: false,
             model: None,
             variant: None,
-            preserve_color_profile: true,
-            no_preserve_color_profile: false,
-            force_srgb: false,
-            embed_profile: true,
-            no_embed_profile: false,
+            preserve_color_profiles: true,
         }
     }
 
@@ -147,7 +125,7 @@ mod tests {
     fn test_cli_config_conversion() {
         let cli = create_test_cli();
         let config = CliConfigBuilder::from_cli(&cli).unwrap();
-        
+
         assert_eq!(config.backend_type, BackendType::Onnx);
         assert_eq!(config.execution_provider, ExecutionProvider::Auto);
         assert_eq!(config.output_format, OutputFormat::Png);

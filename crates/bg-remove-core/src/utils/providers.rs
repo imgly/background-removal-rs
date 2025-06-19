@@ -33,7 +33,7 @@ impl ExecutionProviderManager {
     /// # Examples
     /// ```rust
     /// use bg_remove_core::utils::ExecutionProviderManager;
-    /// 
+    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:auto")?;
     /// let (backend, provider) = ExecutionProviderManager::parse_provider_string("tract:cpu")?;
@@ -54,10 +54,10 @@ impl ExecutionProviderManager {
                                 "Unknown ONNX provider: {}. Supported: auto, cpu, cuda, coreml",
                                 provider
                             )));
-                        }
+                        },
                     };
                     Ok((BackendType::Onnx, execution_provider))
-                }
+                },
                 "tract" => {
                     let execution_provider = match provider {
                         "cpu" => ExecutionProvider::Cpu, // Tract only supports CPU
@@ -66,22 +66,10 @@ impl ExecutionProviderManager {
                                 "Unknown Tract provider: {}. Tract only supports 'cpu'",
                                 provider
                             )));
-                        }
+                        },
                     };
                     Ok((BackendType::Tract, execution_provider))
-                }
-                "mock" => {
-                    let execution_provider = match provider {
-                        "cpu" => ExecutionProvider::Cpu,
-                        _ => {
-                            return Err(BgRemovalError::invalid_config(&format!(
-                                "Unknown Mock provider: {}. Mock only supports 'cpu'",
-                                provider
-                            )));
-                        }
-                    };
-                    Ok((BackendType::Mock, execution_provider))
-                }
+                },
                 _ => Err(BgRemovalError::invalid_config(&format!(
                     "Unknown backend: {}. Supported backends: onnx, tract, mock",
                     backend
@@ -92,14 +80,13 @@ impl ExecutionProviderManager {
             match provider_str {
                 "onnx" => Ok((BackendType::Onnx, ExecutionProvider::Auto)),
                 "tract" => Ok((BackendType::Tract, ExecutionProvider::Cpu)),
-                "mock" => Ok((BackendType::Mock, ExecutionProvider::Cpu)),
                 _ => Err(BgRemovalError::invalid_config(
                     "Invalid provider format. Use backend:provider (e.g., onnx:auto, tract:cpu)",
                 )),
             }
         }
     }
-    
+
     /// Get a list of all theoretical provider combinations
     ///
     /// Note: This returns all possible combinations, not necessarily available ones.
@@ -143,46 +130,36 @@ impl ExecutionProviderManager {
                 available: true, // Tract CPU is always available
                 description: "Pure Rust CPU inference via Tract".to_string(),
             },
-            // Mock providers
-            ProviderInfo {
-                name: "mock:cpu".to_string(),
-                backend_type: BackendType::Mock,
-                execution_provider: ExecutionProvider::Cpu,
-                available: true, // Mock is always available
-                description: "Mock backend for testing and debugging".to_string(),
-            },
         ]
     }
-    
+
     /// Validate a provider string without parsing
     pub fn is_valid_provider_string(provider_str: &str) -> bool {
         Self::parse_provider_string(provider_str).is_ok()
     }
-    
+
     /// Get the default provider for a given backend type
     pub fn default_provider_for_backend(backend_type: &BackendType) -> ExecutionProvider {
         match backend_type {
             BackendType::Onnx => ExecutionProvider::Auto,
             BackendType::Tract => ExecutionProvider::Cpu,
-            BackendType::Mock => ExecutionProvider::Cpu,
         }
     }
-    
+
     /// Convert backend type and execution provider back to string
     pub fn provider_to_string(backend_type: &BackendType, provider: &ExecutionProvider) -> String {
         let backend_str = match backend_type {
             BackendType::Onnx => "onnx",
-            BackendType::Tract => "tract", 
-            BackendType::Mock => "mock",
+            BackendType::Tract => "tract",
         };
-        
+
         let provider_str = match provider {
             ExecutionProvider::Auto => "auto",
             ExecutionProvider::Cpu => "cpu",
             ExecutionProvider::Cuda => "cuda",
             ExecutionProvider::CoreMl => "coreml",
         };
-        
+
         format!("{}:{}", backend_str, provider_str)
     }
 }
@@ -193,26 +170,31 @@ mod tests {
 
     #[test]
     fn test_parse_onnx_providers() {
-        let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:auto").unwrap();
+        let (backend, provider) =
+            ExecutionProviderManager::parse_provider_string("onnx:auto").unwrap();
         assert_eq!(backend, BackendType::Onnx);
         assert_eq!(provider, ExecutionProvider::Auto);
 
-        let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:cpu").unwrap();
+        let (backend, provider) =
+            ExecutionProviderManager::parse_provider_string("onnx:cpu").unwrap();
         assert_eq!(backend, BackendType::Onnx);
         assert_eq!(provider, ExecutionProvider::Cpu);
 
-        let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:cuda").unwrap();
+        let (backend, provider) =
+            ExecutionProviderManager::parse_provider_string("onnx:cuda").unwrap();
         assert_eq!(backend, BackendType::Onnx);
         assert_eq!(provider, ExecutionProvider::Cuda);
 
-        let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:coreml").unwrap();
+        let (backend, provider) =
+            ExecutionProviderManager::parse_provider_string("onnx:coreml").unwrap();
         assert_eq!(backend, BackendType::Onnx);
         assert_eq!(provider, ExecutionProvider::CoreMl);
     }
 
     #[test]
     fn test_parse_tract_providers() {
-        let (backend, provider) = ExecutionProviderManager::parse_provider_string("tract:cpu").unwrap();
+        let (backend, provider) =
+            ExecutionProviderManager::parse_provider_string("tract:cpu").unwrap();
         assert_eq!(backend, BackendType::Tract);
         assert_eq!(provider, ExecutionProvider::Cpu);
 
@@ -241,20 +223,34 @@ mod tests {
 
     #[test]
     fn test_is_valid_provider_string() {
-        assert!(ExecutionProviderManager::is_valid_provider_string("onnx:auto"));
-        assert!(ExecutionProviderManager::is_valid_provider_string("tract:cpu"));
-        assert!(!ExecutionProviderManager::is_valid_provider_string("invalid"));
-        assert!(!ExecutionProviderManager::is_valid_provider_string("onnx:invalid"));
+        assert!(ExecutionProviderManager::is_valid_provider_string(
+            "onnx:auto"
+        ));
+        assert!(ExecutionProviderManager::is_valid_provider_string(
+            "tract:cpu"
+        ));
+        assert!(!ExecutionProviderManager::is_valid_provider_string(
+            "invalid"
+        ));
+        assert!(!ExecutionProviderManager::is_valid_provider_string(
+            "onnx:invalid"
+        ));
     }
 
     #[test]
     fn test_provider_to_string() {
         assert_eq!(
-            ExecutionProviderManager::provider_to_string(&BackendType::Onnx, &ExecutionProvider::Auto),
+            ExecutionProviderManager::provider_to_string(
+                &BackendType::Onnx,
+                &ExecutionProvider::Auto
+            ),
             "onnx:auto"
         );
         assert_eq!(
-            ExecutionProviderManager::provider_to_string(&BackendType::Tract, &ExecutionProvider::Cpu),
+            ExecutionProviderManager::provider_to_string(
+                &BackendType::Tract,
+                &ExecutionProvider::Cpu
+            ),
             "tract:cpu"
         );
     }
@@ -263,7 +259,7 @@ mod tests {
     fn test_list_all_providers() {
         let providers = ExecutionProviderManager::list_all_providers();
         assert!(!providers.is_empty());
-        
+
         // Check that we have expected providers
         let names: Vec<&String> = providers.iter().map(|p| &p.name).collect();
         assert!(names.contains(&&"onnx:auto".to_string()));

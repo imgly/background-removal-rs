@@ -14,4 +14,6 @@ pub mod validation;
 pub use models::ModelSpecParser;
 pub use preprocessing::{ImagePreprocessor, PreprocessingOptions};
 pub use providers::{ExecutionProviderManager, ProviderInfo};
-pub use validation::ConfigValidator;
+pub use validation::{
+    ConfigValidator, ModelValidator, NumericValidator, PathValidator, TensorValidator,
+};

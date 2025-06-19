@@ -89,10 +89,21 @@ impl EmbeddedModelProvider {
     pub fn new(model_name: String) -> Result<Self> {
         // Validate model exists in registry
         if EmbeddedModelRegistry::get_model(&model_name).is_none() {
-            return Err(crate::error::BgRemovalError::invalid_config(format!(
-                "Embedded model '{model_name}' not found. Available models: {:?}",
-                EmbeddedModelRegistry::list_available()
-            )));
+            let available = EmbeddedModelRegistry::list_available();
+            let suggestions: Vec<&str> = if available.is_empty() {
+                vec!["rebuild with --features embed-isnet or embed-birefnet"]
+            } else {
+                vec![
+                    "check available models with --list-models",
+                    "use external model with --model /path/to/model",
+                ]
+            };
+            return Err(crate::error::BgRemovalError::model_error_with_context(
+                "load embedded model",
+                Path::new(&model_name),
+                &format!("model '{model_name}' not found. Available: {available:?}"),
+                &suggestions,
+            ));
         }
 
         Ok(Self { model_name })
@@ -242,9 +253,20 @@ impl ExternalModelProvider {
             })?;
         if !variants_obj.contains_key(&resolved_variant) {
             let available: Vec<String> = variants_obj.keys().cloned().collect();
-            return Err(crate::error::BgRemovalError::invalid_config(format!(
-                "Variant '{resolved_variant}' not found. Available variants: {available:?}"
-            )));
+            let suggestions: Vec<&str> = if available.is_empty() {
+                vec![]
+            } else {
+                vec![
+                    "check model.json configuration",
+                    "verify model files are complete",
+                ]
+            };
+            return Err(crate::error::BgRemovalError::model_error_with_context(
+                "load variant",
+                &model_path,
+                &format!("variant '{resolved_variant}' not found. Available: {available:?}"),
+                &suggestions,
+            ));
         }
 
         Ok(Self {
