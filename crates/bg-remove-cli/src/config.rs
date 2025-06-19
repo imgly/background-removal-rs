@@ -64,21 +64,14 @@ impl CliConfigBuilder {
             .jpeg_quality(cli.jpeg_quality)
             .webp_quality(cli.webp_quality)
             .debug(cli.debug)
-            .intra_threads(if cli.intra_threads > 0 {
-                cli.intra_threads
+            // Use the same thread count for both intra and inter operations
+            // This provides optimal performance in most cases
+            .intra_threads(cli.threads)
+            .inter_threads(cli.threads)
+            .color_management(if cli.preserve_color_profiles {
+                ColorManagementConfig::preserve()
             } else {
-                0
-            })
-            .inter_threads(if cli.inter_threads > 0 {
-                cli.inter_threads
-            } else {
-                0
-            })
-            .color_management(ColorManagementConfig {
-                preserve_color_profile: cli.preserve_color_profile && !cli.no_preserve_color_profile,
-                force_srgb_output: cli.force_srgb,
-                fallback_to_srgb: true,
-                embed_profile_in_output: cli.embed_profile && !cli.no_embed_profile,
+                ColorManagementConfig::ignore()
             })
             .build()
             .context("Invalid configuration")?;
@@ -125,8 +118,6 @@ mod tests {
             execution_provider: "onnx:auto".to_string(),
             jpeg_quality: 90,
             webp_quality: 85,
-            intra_threads: 0,
-            inter_threads: 0,
             threads: 0,
             debug: false,
             verbose: 0,
@@ -135,11 +126,7 @@ mod tests {
             show_providers: false,
             model: None,
             variant: None,
-            preserve_color_profile: true,
-            no_preserve_color_profile: false,
-            force_srgb: false,
-            embed_profile: true,
-            no_embed_profile: false,
+            preserve_color_profiles: true,
         }
     }
 

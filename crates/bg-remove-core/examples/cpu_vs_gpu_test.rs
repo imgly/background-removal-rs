@@ -1,6 +1,6 @@
 //! Compare CPU vs GPU ONNX Runtime performance
 
-use bg_remove_core::{RemovalConfig, BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
+use bg_remove_core::{BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
 use std::time::Instant;
 
 #[tokio::main]

@@ -48,16 +48,7 @@ pub struct Cli {
     #[arg(long, default_value_t = 85)]
     pub webp_quality: u8,
 
-
-    /// Number of intra-op threads (0 = auto, optimal for compute)
-    #[arg(long, default_value_t = 0)]
-    pub intra_threads: usize,
-
-    /// Number of inter-op threads (0 = auto, optimal for coordination)  
-    #[arg(long, default_value_t = 0)]
-    pub inter_threads: usize,
-
-    /// Number of threads - sets both intra and inter optimally (0 = auto)
+    /// Number of threads (0 = auto-detect optimal threading)
     #[arg(short, long, default_value_t = 0)]
     pub threads: usize,
 
@@ -89,25 +80,9 @@ pub struct Cli {
     #[arg(long)]
     pub variant: Option<String>,
 
-    /// Preserve ICC color profiles from input images (enabled by default)
+    /// Preserve ICC color profiles from input images (default: true)
     #[arg(long, default_value_t = true)]
-    pub preserve_color_profile: bool,
-
-    /// Disable ICC color profile preservation
-    #[arg(long, conflicts_with = "preserve_color_profile")]
-    pub no_preserve_color_profile: bool,
-
-    /// Force sRGB output regardless of input color profile
-    #[arg(long)]
-    pub force_srgb: bool,
-
-    /// Embed color profile in output when supported by format (enabled by default)
-    #[arg(long, default_value_t = true)]
-    pub embed_profile: bool,
-
-    /// Disable embedding color profiles in output
-    #[arg(long, conflicts_with = "embed_profile")]
-    pub no_embed_profile: bool,
+    pub preserve_color_profiles: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
