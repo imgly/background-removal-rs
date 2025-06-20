@@ -27,15 +27,11 @@ impl BackendFactory for CliBackendFactory {
                 let backend = TractBackend::with_model_manager(model_manager);
                 Ok(Box::new(backend))
             },
-            BackendType::Mock => {
-                let backend = bg_remove_core::MockBackend::new();
-                Ok(Box::new(backend))
-            },
         }
     }
 
     fn available_backends(&self) -> Vec<BackendType> {
-        vec![BackendType::Onnx, BackendType::Tract, BackendType::Mock]
+        vec![BackendType::Onnx, BackendType::Tract]
     }
 }
 

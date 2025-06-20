@@ -22,10 +22,6 @@ impl BackendFactory for WebBackendFactory {
                 let backend = TractBackend::with_model_manager(model_manager);
                 Ok(Box::new(backend))
             },
-            BackendType::Mock => {
-                let backend = bg_remove_core::MockBackend::new();
-                Ok(Box::new(backend))
-            },
             BackendType::Onnx => {
                 // ONNX Runtime is not supported in WASM
                 Err(bg_remove_core::error::BgRemovalError::invalid_config(
@@ -36,7 +32,7 @@ impl BackendFactory for WebBackendFactory {
     }
 
     fn available_backends(&self) -> Vec<BackendType> {
-        vec![BackendType::Tract, BackendType::Mock]
+        vec![BackendType::Tract]
     }
 }
 

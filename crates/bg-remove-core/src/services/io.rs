@@ -43,8 +43,37 @@ impl ImageIOService {
             ));
         }
 
-        // Load the image
-        image::open(path_ref).map_err(|e| BgRemovalError::image_load_error(path_ref, &e))
+        // First try to load the image using extension-based format detection
+        match image::open(path_ref) {
+            Ok(img) => Ok(img),
+            Err(e) => {
+                // If extension-based loading fails, try content-based detection
+                log::debug!("Extension-based loading failed for {}: {}. Attempting content-based detection.", path_ref.display(), e);
+                
+                // Read the file and try to guess the format from content
+                let data = std::fs::read(path_ref)
+                    .map_err(|io_err| BgRemovalError::file_io_error("read image data", path_ref, &io_err))?;
+                
+                // Try to load using image::load_from_memory which attempts format detection
+                image::load_from_memory(&data)
+                    .map_err(|content_err| {
+                        // If both methods fail, provide a comprehensive error message
+                        let extension = path_ref
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("unknown");
+                        
+                        BgRemovalError::processing_stage_error(
+                            "image loading",
+                            &format!(
+                                "Failed to load image with both extension-based ({}) and content-based detection. Extension error: {}. Content error: {}",
+                                extension, e, content_err
+                            ),
+                            Some(&format!("path: {}, size: {} bytes", path_ref.display(), data.len()))
+                        )
+                    })
+            }
+        }
     }
 
     /// Save an image to a file with the specified format and color profile preservation
