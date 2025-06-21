@@ -370,15 +370,24 @@ impl BackgroundRemovalProcessor {
             self.initialize()?;
         }
 
+        let input_path_ref = input_path.as_ref();
+
         // Report image loading progress
         if let Some(ref mut tracker) = self.progress_tracker {
             tracker.report_stage(ProcessingStage::ImageLoading);
         }
 
         // Load the image using the I/O service (separated from business logic)
-        let image = crate::services::ImageIOService::load_image(&input_path)?;
+        let image = crate::services::ImageIOService::load_image(input_path_ref)?;
 
-        self.process_image(&image)
+        // Extract color profile if preservation is enabled
+        let color_profile = if self.config.preserve_color_profiles {
+            crate::services::ImageIOService::extract_color_profile(input_path_ref)?
+        } else {
+            None
+        };
+
+        self.process_image_with_profile(&image, color_profile)
     }
 
     /// Process a `DynamicImage` directly for background removal
@@ -390,6 +399,22 @@ impl BackgroundRemovalProcessor {
     /// - Inference execution errors
     /// - Mask generation and application errors
     pub fn process_image(&mut self, image: &DynamicImage) -> Result<RemovalResult> {
+        self.process_image_with_profile(image, None)
+    }
+
+    /// Process a `DynamicImage` with optional color profile for background removal
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Image preprocessing failures
+    /// - Inference execution errors
+    /// - Mask generation and application errors
+    pub fn process_image_with_profile(
+        &mut self,
+        image: &DynamicImage,
+        color_profile: Option<crate::types::ColorProfile>,
+    ) -> Result<RemovalResult> {
         if !self.initialized {
             self.initialize()?;
         }
@@ -404,8 +429,13 @@ impl BackgroundRemovalProcessor {
             "DynamicImage", self.config.backend_type
         );
 
-        // Extract color profile
-        let color_profile = self.extract_color_profile(&removal_config);
+        if let Some(ref profile) = color_profile {
+            debug!(
+                "Processing with color profile: {} ({} bytes)",
+                profile.color_space,
+                profile.data_size()
+            );
+        }
 
         // Preprocess image for inference
         let input_tensor = self.preprocess_image_for_inference(image, &mut timings)?;
@@ -431,23 +461,6 @@ impl BackgroundRemovalProcessor {
             timings,
             total_start,
         )
-    }
-
-    /// Extract color profile from image if configured
-    fn extract_color_profile(
-        &mut self,
-        removal_config: &RemovalConfig,
-    ) -> Option<crate::types::ColorProfile> {
-        if let Some(ref mut tracker) = self.progress_tracker {
-            tracker.report_stage(ProcessingStage::ColorProfileExtraction);
-        }
-
-        if removal_config.preserve_color_profiles {
-            // TODO: Implement color profile extraction for DynamicImage
-            None
-        } else {
-            None
-        }
     }
 
     /// Preprocess image for inference with timing
@@ -598,7 +611,10 @@ impl BackgroundRemovalProcessor {
     /// Validate tensor shape for mask generation
     fn validate_tensor_shape(tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
-        if shape.len() < 4 || shape.first().copied().unwrap_or(0) != 1 || shape.get(1).copied().unwrap_or(0) != 1 {
+        if shape.len() < 4
+            || shape.first().copied().unwrap_or(0) != 1
+            || shape.get(1).copied().unwrap_or(0) != 1
+        {
             return Err(BgRemovalError::processing("Invalid output tensor shape"));
         }
         Ok(())

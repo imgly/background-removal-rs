@@ -390,18 +390,43 @@ async fn process_stdin(
     let image_data = read_stdin()?;
     let start_time = Instant::now();
 
-    // Save to temporary file for processing
+    // Detect format from binary data and create temp file with proper extension
     let temp_dir = std::env::temp_dir();
-    let temp_file = temp_dir.join("stdin_input.tmp");
-    std::fs::write(&temp_file, &image_data)?;
+    let detected_format = detect_image_format(&image_data);
+
+    let temp_file = match detected_format {
+        Some(ext) => {
+            info!("Detected image format: {}", ext.to_uppercase());
+            temp_dir.join(format!("stdin_input.{}", ext))
+        },
+        None => {
+            warn!("Could not detect image format from stdin data, using generic extension. This may cause format detection issues.");
+            temp_dir.join("stdin_input.tmp")
+        },
+    };
+
+    std::fs::write(&temp_file, &image_data).with_context(|| {
+        format!(
+            "Failed to write stdin data to temporary file: {}",
+            temp_file.display()
+        )
+    })?;
 
     let result = processor
         .process_file(&temp_file)
         .await
-        .context("Failed to remove background")?;
+        .with_context(|| {
+            if detected_format.is_none() {
+                "Failed to remove background. The image format could not be detected from stdin data. Supported formats: PNG, JPEG, WebP, TIFF, BMP, GIF"
+            } else {
+                "Failed to remove background"
+            }
+        })?;
 
     // Clean up temp file
-    let _ = std::fs::remove_file(&temp_file);
+    if let Err(e) = std::fs::remove_file(&temp_file) {
+        warn!("Failed to clean up temporary file: {}", e);
+    }
 
     let processing_time = start_time.elapsed();
     info!(
@@ -584,6 +609,54 @@ fn read_stdin() -> Result<Vec<u8>> {
     Ok(buffer)
 }
 
+/// Detect image format from binary data by examining magic bytes
+fn detect_image_format(data: &[u8]) -> Option<&'static str> {
+    if data.len() < 4 {
+        return None;
+    }
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if data.len() >= 8 && data[0..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
+        return Some("png");
+    }
+
+    // JPEG: FF D8 FF
+    if data.len() >= 3 && data[0..3] == [0xFF, 0xD8, 0xFF] {
+        return Some("jpg");
+    }
+
+    // WebP: RIFF....WEBP
+    if data.len() >= 12
+        && data[0..4] == [0x52, 0x49, 0x46, 0x46] // "RIFF"
+        && data[8..12] == [0x57, 0x45, 0x42, 0x50]
+    // "WEBP"
+    {
+        return Some("webp");
+    }
+
+    // TIFF (Little Endian): 49 49 2A 00
+    if data.len() >= 4 && data[0..4] == [0x49, 0x49, 0x2A, 0x00] {
+        return Some("tiff");
+    }
+
+    // TIFF (Big Endian): 4D 4D 00 2A
+    if data.len() >= 4 && data[0..4] == [0x4D, 0x4D, 0x00, 0x2A] {
+        return Some("tiff");
+    }
+
+    // BMP: 42 4D (check at least 2 bytes but ensure we have 4 bytes for consistent logic)
+    if data.len() >= 2 && data[0..2] == [0x42, 0x4D] {
+        return Some("bmp");
+    }
+
+    // GIF: 47 49 46 38 (GIF8)
+    if data.len() >= 4 && data[0..4] == [0x47, 0x49, 0x46, 0x38] {
+        return Some("gif");
+    }
+
+    None
+}
+
 /// Write image data to stdout
 fn write_stdout(data: &[u8]) -> Result<()> {
     io::stdout()
@@ -664,4 +737,73 @@ fn generate_output_path(input_path: &Path, format: bg_remove_core::OutputFormat)
         stem.to_string_lossy(),
         extension
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_image_format_png() {
+        let png_magic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        assert_eq!(detect_image_format(&png_magic), Some("png"));
+    }
+
+    #[test]
+    fn test_detect_image_format_jpeg() {
+        let jpeg_magic = [0xFF, 0xD8, 0xFF, 0xE0];
+        assert_eq!(detect_image_format(&jpeg_magic), Some("jpg"));
+    }
+
+    #[test]
+    fn test_detect_image_format_webp() {
+        let webp_magic = [
+            0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+        ];
+        assert_eq!(detect_image_format(&webp_magic), Some("webp"));
+    }
+
+    #[test]
+    fn test_detect_image_format_tiff_le() {
+        let tiff_le_magic = [0x49, 0x49, 0x2A, 0x00];
+        assert_eq!(detect_image_format(&tiff_le_magic), Some("tiff"));
+    }
+
+    #[test]
+    fn test_detect_image_format_tiff_be() {
+        let tiff_be_magic = [0x4D, 0x4D, 0x00, 0x2A];
+        assert_eq!(detect_image_format(&tiff_be_magic), Some("tiff"));
+    }
+
+    #[test]
+    fn test_detect_image_format_bmp() {
+        let bmp_magic = [0x42, 0x4D, 0x00, 0x00];
+        assert_eq!(detect_image_format(&bmp_magic), Some("bmp"));
+    }
+
+    #[test]
+    fn test_detect_image_format_gif() {
+        let gif_magic = [0x47, 0x49, 0x46, 0x38];
+        assert_eq!(detect_image_format(&gif_magic), Some("gif"));
+    }
+
+    #[test]
+    fn test_detect_image_format_unknown() {
+        let unknown_magic = [0x00, 0x00, 0x00, 0x00];
+        assert_eq!(detect_image_format(&unknown_magic), None);
+    }
+
+    #[test]
+    fn test_detect_image_format_too_short() {
+        let short_data = [0x89, 0x50];
+        assert_eq!(detect_image_format(&short_data), None);
+    }
+
+    #[test]
+    fn test_is_image_file() {
+        assert!(is_image_file(Path::new("test.jpg"), &["jpg", "png"]));
+        assert!(is_image_file(Path::new("test.PNG"), &["jpg", "png"]));
+        assert!(!is_image_file(Path::new("test.txt"), &["jpg", "png"]));
+        assert!(!is_image_file(Path::new("test"), &["jpg", "png"]));
+    }
 }

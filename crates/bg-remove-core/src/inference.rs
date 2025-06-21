@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_backend_registry() {
         let registry = BackendRegistry::new();
-        
+
         // Registry should be empty by default - backends injected via factory pattern
         // This test validates the registry can be created without mock backends
         assert_eq!(registry.backends.len(), 0);

@@ -151,7 +151,7 @@ impl ProfileEmbedder {
     /// Uses the standardized `ImageEncoder::set_icc_profile()` method for reliable ICC embedding
     ///
     /// # Errors
-    /// 
+    ///
     /// Returns `BgRemovalError` for:
     /// - File I/O errors when writing output
     /// - Unsupported image formats for ICC embedding

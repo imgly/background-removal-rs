@@ -1,5 +1,8 @@
 use bg_remove_core::config::ExecutionProvider;
-use bg_remove_core::{BackgroundRemovalProcessor, ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType, BackendFactory};
+use bg_remove_core::{
+    BackendFactory, BackendType, BackgroundRemovalProcessor, ModelSource, ModelSpec,
+    ProcessorConfigBuilder,
+};
 use bg_remove_onnx::OnnxBackend;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use image::{DynamicImage, RgbImage};
@@ -19,7 +22,7 @@ impl BackendFactory for OnnxBackendFactory {
                 let mut backend = Box::new(OnnxBackend::new());
                 backend.set_model_manager(model_manager);
                 Ok(backend as Box<dyn bg_remove_core::InferenceBackend>)
-            }
+            },
             BackendType::Tract => Err(bg_remove_core::BgRemovalError::invalid_config(
                 "Tract backend not available in benchmarks",
             )),
@@ -33,7 +36,7 @@ impl BackendFactory for OnnxBackendFactory {
 
 fn create_test_image(width: u32, height: u32) -> DynamicImage {
     let mut img = RgbImage::new(width, height);
-    
+
     // Create a simple gradient pattern that resembles a portrait
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         let r = ((x as f32 / width as f32) * 255.0) as u8;
@@ -41,14 +44,14 @@ fn create_test_image(width: u32, height: u32) -> DynamicImage {
         let b = 128; // Constant blue for simplicity
         *pixel = image::Rgb([r, g, b]);
     }
-    
+
     DynamicImage::ImageRgb8(img)
 }
 
 fn benchmark_batch_vs_single(c: &mut Criterion) {
     let mut group = c.benchmark_group("batch_vs_single");
     group.measurement_time(Duration::from_secs(60));
-    
+
     // Create 10 test images
     let test_images: Vec<DynamicImage> = (0..10)
         .map(|i| {
@@ -73,7 +76,7 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                         source: ModelSource::Embedded("isnet-fp32".to_string()),
                         variant: None,
                     };
-                    
+
                     let processor_config = ProcessorConfigBuilder::new()
                         .model_spec(model_spec)
                         .backend_type(BackendType::Onnx)
@@ -82,7 +85,9 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                         .unwrap();
 
                     let backend_factory = Box::new(OnnxBackendFactory);
-                    let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                    let mut processor =
+                        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                            .unwrap();
                     processor.initialize().unwrap(); // Model loading/compilation happens here
                     (processor, test_images.clone())
                 },
@@ -98,7 +103,7 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        
+
         // Benchmark: Create new processor for each image (individual processing)
         group.bench_function(&format!("{}_individual_new_processor", name), |b| {
             b.iter_batched(
@@ -111,7 +116,7 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                             source: ModelSource::Embedded("isnet-fp32".to_string()),
                             variant: None,
                         };
-                        
+
                         let processor_config = ProcessorConfigBuilder::new()
                             .model_spec(model_spec)
                             .backend_type(BackendType::Onnx)
@@ -120,9 +125,13 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                             .unwrap();
 
                         let backend_factory = Box::new(OnnxBackendFactory);
-                        let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                        let mut processor = BackgroundRemovalProcessor::with_factory(
+                            processor_config,
+                            backend_factory,
+                        )
+                        .unwrap();
                         processor.initialize().unwrap(); // Model loading happens for each image
-                        
+
                         let result = processor.process_image(&image).unwrap();
                         results.push(result);
                     }
@@ -131,19 +140,19 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        
+
         // Benchmark: Calculate per-image time in batch processing
         group.bench_function(&format!("{}_per_image_time", name), |b| {
             b.iter_custom(|iters| {
                 let mut total_time = Duration::new(0, 0);
-                
+
                 for _ in 0..iters {
                     // Setup processor once
                     let model_spec = ModelSpec {
                         source: ModelSource::Embedded("isnet-fp32".to_string()),
                         variant: None,
                     };
-                    
+
                     let processor_config = ProcessorConfigBuilder::new()
                         .model_spec(model_spec)
                         .backend_type(BackendType::Onnx)
@@ -152,9 +161,11 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                         .unwrap();
 
                     let backend_factory = Box::new(OnnxBackendFactory);
-                    let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                    let mut processor =
+                        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                            .unwrap();
                     processor.initialize().unwrap();
-                    
+
                     // Time only the inference part (excluding model loading)
                     let start = Instant::now();
                     let mut results = Vec::with_capacity(10);
@@ -163,17 +174,17 @@ fn benchmark_batch_vs_single(c: &mut Criterion) {
                         results.push(result);
                     }
                     let batch_time = start.elapsed();
-                    
+
                     total_time += batch_time;
                     black_box(results);
                 }
-                
+
                 // Return average time per image in the batch
                 Duration::from_nanos(total_time.as_nanos() as u64 / (10 * iters as u64))
             })
         });
     }
-    
+
     group.finish();
 }
 

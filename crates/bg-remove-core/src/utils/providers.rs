@@ -264,6 +264,5 @@ mod tests {
         let names: Vec<&String> = providers.iter().map(|p| &p.name).collect();
         assert!(names.contains(&&"onnx:auto".to_string()));
         assert!(names.contains(&&"tract:cpu".to_string()));
-        assert!(names.contains(&&"mock:cpu".to_string()));
     }
 }

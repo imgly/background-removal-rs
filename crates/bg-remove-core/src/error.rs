@@ -116,7 +116,9 @@ impl BgRemovalError {
             format!(" Suggestions: {}", suggestions.join(", "))
         };
 
-        Self::Model(format!("Failed to {operation} model '{path_display}': {error}.{suggestion_text}"))
+        Self::Model(format!(
+            "Failed to {operation} model '{path_display}': {error}.{suggestion_text}"
+        ))
     }
 
     /// Create configuration error with valid ranges
@@ -131,7 +133,9 @@ impl BgRemovalError {
             None => String::new(),
         };
 
-        Self::InvalidConfig(format!("Invalid {parameter}: {value} (valid range: {valid_range}).{recommendation}"))
+        Self::InvalidConfig(format!(
+            "Invalid {parameter}: {value} (valid range: {valid_range}).{recommendation}"
+        ))
     }
 
     /// Create inference error with provider context
@@ -148,7 +152,9 @@ impl BgRemovalError {
             format!(" Try: {}", fallback_suggestions.join(" or "))
         };
 
-        Self::Inference(format!("{operation} failed using '{provider}' provider: {error}.{suggestions}"))
+        Self::Inference(format!(
+            "{operation} failed using '{provider}' provider: {error}.{suggestions}"
+        ))
     }
 
     /// Create processing error with stage context
@@ -159,7 +165,9 @@ impl BgRemovalError {
             None => String::new(),
         };
 
-        Self::Processing(format!("Processing failed at stage '{stage}'{input_context}: {details}"))
+        Self::Processing(format!(
+            "Processing failed at stage '{stage}'{input_context}: {details}"
+        ))
     }
 }
 
