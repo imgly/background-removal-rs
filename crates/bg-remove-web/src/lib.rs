@@ -338,7 +338,7 @@ impl BackgroundRemover {
         })?;
 
         // Process using the unified processor
-        let result = processor.process_image(dynamic_image)?;
+        let result = processor.process_image(&dynamic_image)?;
 
         // Get result as bytes (PNG format)
         let result_bytes = result.to_bytes(bg_remove_core::config::OutputFormat::Png, 90)?;
