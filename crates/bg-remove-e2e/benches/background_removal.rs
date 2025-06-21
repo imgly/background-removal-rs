@@ -1,5 +1,8 @@
 use bg_remove_core::config::ExecutionProvider;
-use bg_remove_core::{BackgroundRemovalProcessor, ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType, BackendFactory};
+use bg_remove_core::{
+    BackendFactory, BackendType, BackgroundRemovalProcessor, ModelSource, ModelSpec,
+    ProcessorConfigBuilder,
+};
 use bg_remove_onnx::OnnxBackend;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use image::{DynamicImage, RgbImage};
@@ -19,7 +22,7 @@ impl BackendFactory for OnnxBackendFactory {
                 let mut backend = Box::new(OnnxBackend::new());
                 backend.set_model_manager(model_manager);
                 Ok(backend as Box<dyn bg_remove_core::InferenceBackend>)
-            }
+            },
             BackendType::Tract => Err(bg_remove_core::BgRemovalError::invalid_config(
                 "Tract backend not available in benchmarks",
             )),
@@ -60,14 +63,13 @@ fn benchmark_providers(c: &mut Criterion) {
     ];
 
     for (provider, name) in providers {
-
         group.bench_function(name, |b| {
             b.iter(|| {
                 let model_spec = ModelSpec {
                     source: ModelSource::Embedded("isnet-fp32".to_string()),
                     variant: None,
                 };
-                
+
                 let processor_config = ProcessorConfigBuilder::new()
                     .model_spec(model_spec)
                     .backend_type(BackendType::Onnx)
@@ -76,7 +78,9 @@ fn benchmark_providers(c: &mut Criterion) {
                     .unwrap();
 
                 let backend_factory = Box::new(OnnxBackendFactory);
-                let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                let mut processor =
+                    BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                        .unwrap();
                 let result = processor.process_image(&test_image);
                 black_box(result.unwrap())
             });
@@ -94,9 +98,9 @@ fn benchmark_image_sizes(c: &mut Criterion) {
 
     // Test different image size categories
     let sizes = [
-        ("portrait", 512, 768),   // Typical portrait ratio
-        ("product", 1024, 1024),  // Square product image
-        ("complex", 1920, 1080),  // Full HD landscape
+        ("portrait", 512, 768),  // Typical portrait ratio
+        ("product", 1024, 1024), // Square product image
+        ("complex", 1920, 1080), // Full HD landscape
     ];
 
     for (name, width, height) in sizes {
@@ -108,7 +112,7 @@ fn benchmark_image_sizes(c: &mut Criterion) {
                     source: ModelSource::Embedded("isnet-fp32".to_string()),
                     variant: None,
                 };
-                
+
                 let processor_config = ProcessorConfigBuilder::new()
                     .model_spec(model_spec)
                     .backend_type(BackendType::Onnx)
@@ -117,7 +121,9 @@ fn benchmark_image_sizes(c: &mut Criterion) {
                     .unwrap();
 
                 let backend_factory = Box::new(OnnxBackendFactory);
-                let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                let mut processor =
+                    BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                        .unwrap();
                 let result = processor.process_image(&test_image);
                 black_box(result.unwrap())
             });
@@ -147,7 +153,7 @@ fn benchmark_model_variants(c: &mut Criterion) {
                     source: ModelSource::Embedded(model_name.to_string()),
                     variant: None,
                 };
-                
+
                 let processor_config = ProcessorConfigBuilder::new()
                     .model_spec(model_spec)
                     .backend_type(BackendType::Onnx)
@@ -156,7 +162,9 @@ fn benchmark_model_variants(c: &mut Criterion) {
                     .unwrap();
 
                 let backend_factory = Box::new(OnnxBackendFactory);
-                let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                let mut processor =
+                    BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                        .unwrap();
                 let result = processor.process_image(&test_image);
                 black_box(result.unwrap())
             });
@@ -180,7 +188,7 @@ fn benchmark_batch_processing(c: &mut Criterion) {
 
     let providers = [
         (ExecutionProvider::Cpu, "cpu"),
-        (ExecutionProvider::Auto, "auto"), 
+        (ExecutionProvider::Auto, "auto"),
         (ExecutionProvider::CoreMl, "coreml"),
     ];
 
@@ -192,7 +200,7 @@ fn benchmark_batch_processing(c: &mut Criterion) {
                     source: ModelSource::Embedded("isnet-fp32".to_string()),
                     variant: None,
                 };
-                
+
                 let processor_config = ProcessorConfigBuilder::new()
                     .model_spec(model_spec)
                     .backend_type(BackendType::Onnx)
@@ -201,36 +209,38 @@ fn benchmark_batch_processing(c: &mut Criterion) {
                     .unwrap();
 
                 let backend_factory = Box::new(OnnxBackendFactory);
-                let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
-                
+                let mut processor =
+                    BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                        .unwrap();
+
                 // Initialize the processor once (this includes model loading/compilation)
                 processor.initialize().unwrap();
-                
+
                 // Process all 10 images with the same initialized processor
                 let mut results = Vec::with_capacity(10);
                 for image in &test_images {
                     let result = processor.process_image(image).unwrap();
                     results.push(result);
                 }
-                
+
                 black_box(results)
             });
         });
-        
+
         // Also benchmark per-image throughput (total time / 10 images)
         group.bench_function(&format!("{}_per_image_in_batch", name), |b| {
             b.iter_custom(|iters| {
                 let mut total_duration = Duration::new(0, 0);
-                
+
                 for _ in 0..iters {
                     let start = std::time::Instant::now();
-                    
+
                     // Create and initialize processor once
                     let model_spec = ModelSpec {
                         source: ModelSource::Embedded("isnet-fp32".to_string()),
                         variant: None,
                     };
-                    
+
                     let processor_config = ProcessorConfigBuilder::new()
                         .model_spec(model_spec)
                         .backend_type(BackendType::Onnx)
@@ -239,21 +249,23 @@ fn benchmark_batch_processing(c: &mut Criterion) {
                         .unwrap();
 
                     let backend_factory = Box::new(OnnxBackendFactory);
-                    let mut processor = BackgroundRemovalProcessor::with_factory(processor_config, backend_factory).unwrap();
+                    let mut processor =
+                        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+                            .unwrap();
                     processor.initialize().unwrap();
-                    
+
                     // Process all 10 images
                     let mut results = Vec::with_capacity(10);
                     for image in &test_images {
                         let result = processor.process_image(image).unwrap();
                         results.push(result);
                     }
-                    
+
                     let elapsed = start.elapsed();
                     total_duration += elapsed;
                     black_box(results);
                 }
-                
+
                 // Return average time per image (total time / 10 images)
                 Duration::from_nanos(total_duration.as_nanos() as u64 / 10)
             });

@@ -49,11 +49,12 @@ impl ImageIOService {
             Err(e) => {
                 // If extension-based loading fails, try content-based detection
                 log::debug!("Extension-based loading failed for {}: {}. Attempting content-based detection.", path_ref.display(), e);
-                
+
                 // Read the file and try to guess the format from content
-                let data = std::fs::read(path_ref)
-                    .map_err(|io_err| BgRemovalError::file_io_error("read image data", path_ref, &io_err))?;
-                
+                let data = std::fs::read(path_ref).map_err(|io_err| {
+                    BgRemovalError::file_io_error("read image data", path_ref, &io_err)
+                })?;
+
                 // Try to load using image::load_from_memory which attempts format detection
                 image::load_from_memory(&data)
                     .map_err(|content_err| {
@@ -62,7 +63,7 @@ impl ImageIOService {
                             .extension()
                             .and_then(|s| s.to_str())
                             .unwrap_or("unknown");
-                        
+
                         BgRemovalError::processing_stage_error(
                             "image loading",
                             &format!(
@@ -72,7 +73,7 @@ impl ImageIOService {
                             Some(&format!("path: {}, size: {} bytes", path_ref.display(), data.len()))
                         )
                     })
-            }
+            },
         }
     }
 
@@ -112,8 +113,9 @@ impl ImageIOService {
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = path_ref.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| BgRemovalError::file_io_error("create output directory", parent, &e))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                BgRemovalError::file_io_error("create output directory", parent, &e)
+            })?;
         }
 
         // Save based on format
@@ -150,14 +152,14 @@ impl ImageIOService {
             )
         })?;
 
-        // TODO: Implement color profile preservation if requested
+        // Implement color profile preservation if requested
         if preserve_color_profiles {
-            // This would involve extracting and re-embedding color profiles
-            // For now, we'll just log that this feature is requested
             log::debug!(
                 "Color profile preservation requested for {}",
                 path_ref.display()
             );
+            // Note: Actual color profile embedding is handled by RemovalResult.save_with_color_profile()
+            // This method focuses on basic image saving - color profiles are handled at a higher level
         }
 
         Ok(())
@@ -172,12 +174,33 @@ impl ImageIOService {
     /// * `Ok(Option<ColorProfile>)` - Successfully extracted profile (if present)
     /// * `Err(BgRemovalError)` - Failed to read file or extract profile
     pub fn extract_color_profile<P: AsRef<Path>>(path: P) -> Result<Option<ColorProfile>> {
-        let _path_ref = path.as_ref();
+        let path_ref = path.as_ref();
 
-        // TODO: Implement actual color profile extraction
-        // This would involve reading ICC profiles from image metadata
-        log::debug!("Color profile extraction not yet implemented");
-        Ok(None)
+        // Use ProfileExtractor to extract ICC profile from image
+        match crate::color_profile::ProfileExtractor::extract_from_image(path_ref) {
+            Ok(profile) => {
+                if let Some(ref p) = profile {
+                    log::debug!(
+                        "Extracted ICC color profile from {}: {} ({} bytes)",
+                        path_ref.display(),
+                        p.color_space,
+                        p.data_size()
+                    );
+                } else {
+                    log::debug!("No ICC color profile found in {}", path_ref.display());
+                }
+                Ok(profile)
+            },
+            Err(e) => {
+                log::warn!(
+                    "Failed to extract color profile from {}: {}",
+                    path_ref.display(),
+                    e
+                );
+                // Return None instead of error to gracefully handle missing profiles
+                Ok(None)
+            },
+        }
     }
 
     /// Check if a file path has a supported image extension
