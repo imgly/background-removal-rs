@@ -9,24 +9,8 @@ description = "End-to-end testing and benchmarking utilities for the background 
 workspace = true
 
 [[bin]]
-name = "test-suite"
-path = "src/bin/test-suite.rs"
-
-[[bin]]
 name = "generate-report"
 path = "src/bin/generate-report.rs"
-
-[[bin]]
-name = "download-images"
-path = "src/bin/download-images.rs"
-
-[[bin]]
-name = "validate-outputs"
-path = "src/bin/validate-outputs.rs"
-
-[[bin]]
-name = "benchmark-runner"
-path = "src/bin/benchmark-runner.rs"
 
 [dependencies]
 bg-remove-core = { path = "../bg-remove-core", features = ["embed-isnet-fp32"] }

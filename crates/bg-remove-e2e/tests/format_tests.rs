@@ -3,9 +3,18 @@
 //! These tests validate that the background removal works correctly with different
 //! input and output formats (JPEG, PNG, WebP).
 
-use bg_remove_core::{remove_background, RemovalConfig};
+use bg_remove_core::{remove_background_with_backend, RemovalConfig};
+use bg_remove_onnx::OnnxBackend;
+use bg_remove_core::models::ModelManager;
 use image::GenericImageView;
 use std::path::Path;
+
+/// Helper function to create a backend for testing
+async fn create_test_backend(_config: &RemovalConfig) -> Result<Box<dyn bg_remove_core::inference::InferenceBackend>, bg_remove_core::error::BgRemovalError> {
+    let model_manager = ModelManager::with_embedded_model("isnet-fp32".to_string())?;
+    let backend = OnnxBackend::with_model_manager(model_manager);
+    Ok(Box::new(backend))
+}
 
 #[tokio::test]
 async fn test_jpeg_input() {
@@ -25,7 +34,8 @@ async fn test_jpeg_input() {
             continue;
         }
 
-        let result = remove_background(input_path, &config).await;
+        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let result = remove_background_with_backend(input_path, &config, backend).await;
         assert!(result.is_ok(), "Should process JPEG input: {input_path}");
 
         let result = result.unwrap();
@@ -60,7 +70,8 @@ async fn test_png_input() {
             continue;
         }
 
-        let result = remove_background(input_path, &config).await;
+        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let result = remove_background_with_backend(input_path, &config, backend).await;
         assert!(result.is_ok(), "Should process PNG input: {input_path}");
 
         let result = result.unwrap();
@@ -90,7 +101,8 @@ async fn test_output_format_consistency() {
         return;
     }
 
-    let result = remove_background(input_path, &config).await;
+    let backend = create_test_backend(&config).await.expect("Failed to create backend");
+    let result = remove_background_with_backend(input_path, &config, backend).await;
     assert!(result.is_ok(), "Background removal should succeed");
 
     let result = result.unwrap();
@@ -137,7 +149,8 @@ async fn test_image_dimensions_preservation() {
         let original_image = image::open(input_path).expect("Should load original image");
         let (orig_width, orig_height) = original_image.dimensions();
 
-        let result = remove_background(input_path, &config).await;
+        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let result = remove_background_with_backend(input_path, &config, backend).await;
         assert!(
             result.is_ok(),
             "Background removal should succeed for {input_path}"
@@ -195,7 +208,8 @@ async fn test_different_aspect_ratios() {
             continue;
         }
 
-        let result = remove_background(input_path, &config).await;
+        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let result = remove_background_with_backend(input_path, &config, backend).await;
         assert!(
             result.is_ok(),
             "Should handle {aspect_name} aspect ratio: {input_path}"
@@ -232,7 +246,8 @@ async fn test_image_quality_preservation() {
         return;
     }
 
-    let result = remove_background(input_path, &config).await;
+    let backend = create_test_backend(&config).await.expect("Failed to create backend");
+    let result = remove_background_with_backend(input_path, &config, backend).await;
     assert!(result.is_ok(), "Background removal should succeed");
 
     let result = result.unwrap();
