@@ -44,4 +44,3 @@ Whenever an external process is started in the background, remember it's PID and
 
 ### When to use
 @.claude/rules/tool_use_playwright_mcp.md
-@.claude/rules/tool_use_browser_mcp.md
