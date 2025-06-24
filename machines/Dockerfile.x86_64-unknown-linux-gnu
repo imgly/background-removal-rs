@@ -17,7 +17,9 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates/bg-remove-core/Cargo.toml ./crates/bg-remove-core/
 COPY crates/bg-remove-cli/Cargo.toml ./crates/bg-remove-cli/
-COPY crates/bg-remove-testing/Cargo.toml ./crates/bg-remove-testing/
+COPY crates/bg-remove-onnx/Cargo.toml ./crates/bg-remove-onnx/
+COPY crates/bg-remove-tract/Cargo.toml ./crates/bg-remove-tract/
+COPY crates/bg-remove-e2e/Cargo.toml ./crates/bg-remove-e2e/
 
 # Copy source code
 COPY . .

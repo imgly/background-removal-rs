@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "commands": {
+      "command": "node",
+      "args": ["../../../mcp/index.js"],
+      "env": {
+        "COMMANDS_DIR": ".claude/commands"
+      }
+    }
+  }
+}

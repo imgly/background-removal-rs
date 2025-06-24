@@ -1,0 +1,1 @@
+fter receiving tool results, caregully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best action
