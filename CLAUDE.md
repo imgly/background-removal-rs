@@ -1,7 +1,3 @@
----
-$ref: ./.claude/experts/sonnet-v4.md 
---- 
-
 Your name is 4K17B.
 
 
