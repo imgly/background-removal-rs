@@ -4,14 +4,19 @@
 //! execution providers, and edge cases.
 
 use bg_remove_core::config::ExecutionProvider;
+use bg_remove_core::models::ModelManager;
 use bg_remove_core::{remove_background_with_backend, RemovalConfig};
 use bg_remove_onnx::OnnxBackend;
-use bg_remove_core::models::ModelManager;
 use image::GenericImageView;
 use std::path::Path;
 
 /// Helper function to create a backend for testing
-async fn create_test_backend(_config: &RemovalConfig) -> Result<Box<dyn bg_remove_core::inference::InferenceBackend>, bg_remove_core::error::BgRemovalError> {
+async fn create_test_backend(
+    _config: &RemovalConfig,
+) -> Result<
+    Box<dyn bg_remove_core::inference::InferenceBackend>,
+    bg_remove_core::error::BgRemovalError,
+> {
     let model_manager = ModelManager::with_embedded_model("isnet-fp32".to_string())?;
     let backend = OnnxBackend::with_model_manager(model_manager);
     Ok(Box::new(backend))
@@ -41,7 +46,9 @@ async fn test_execution_provider_compatibility() {
             .build()
             .expect("Failed to create config");
 
-        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let backend = create_test_backend(&config)
+            .await
+            .expect("Failed to create backend");
         match remove_background_with_backend(input_path, &config, backend).await {
             Ok(result) => {
                 assert!(
@@ -95,7 +102,9 @@ async fn test_output_format_options() {
             .build()
             .expect("Failed to create config");
 
-        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let backend = create_test_backend(&config)
+            .await
+            .expect("Failed to create backend");
         let result = remove_background_with_backend(input_path, &config, backend).await;
         assert!(result.is_ok(), "Should work with {name} output format");
 
@@ -130,8 +139,11 @@ async fn test_debug_mode_compatibility() {
         .build()
         .expect("Failed to create config");
 
-    let backend_no_debug = create_test_backend(&config_no_debug).await.expect("Failed to create backend");
-    let result_no_debug = remove_background_with_backend(input_path, &config_no_debug, backend_no_debug).await;
+    let backend_no_debug = create_test_backend(&config_no_debug)
+        .await
+        .expect("Failed to create backend");
+    let result_no_debug =
+        remove_background_with_backend(input_path, &config_no_debug, backend_no_debug).await;
     assert!(result_no_debug.is_ok(), "Should work with debug disabled");
 
     // Test with debug enabled
@@ -140,8 +152,11 @@ async fn test_debug_mode_compatibility() {
         .build()
         .expect("Failed to create config");
 
-    let backend_debug = create_test_backend(&config_debug).await.expect("Failed to create backend");
-    let result_debug = remove_background_with_backend(input_path, &config_debug, backend_debug).await;
+    let backend_debug = create_test_backend(&config_debug)
+        .await
+        .expect("Failed to create backend");
+    let result_debug =
+        remove_background_with_backend(input_path, &config_debug, backend_debug).await;
     assert!(result_debug.is_ok(), "Should work with debug enabled");
 
     // Both should produce similar results
@@ -171,7 +186,9 @@ async fn test_configuration_builder_compatibility() {
         .build()
         .expect("Minimal config should build");
 
-    let backend_minimal = create_test_backend(&minimal_config).await.expect("Failed to create backend");
+    let backend_minimal = create_test_backend(&minimal_config)
+        .await
+        .expect("Failed to create backend");
     let result = remove_background_with_backend(input_path, &minimal_config, backend_minimal).await;
     assert!(result.is_ok(), "Minimal configuration should work");
 
@@ -184,7 +201,9 @@ async fn test_configuration_builder_compatibility() {
         .build()
         .expect("Full config should build");
 
-    let backend_full = create_test_backend(&full_config).await.expect("Failed to create backend");
+    let backend_full = create_test_backend(&full_config)
+        .await
+        .expect("Failed to create backend");
     let result = remove_background_with_backend(input_path, &full_config, backend_full).await;
     assert!(result.is_ok(), "Full configuration should work");
 
@@ -222,7 +241,9 @@ async fn test_concurrent_different_configs() {
     let mut results = Vec::new();
 
     for (i, config) in configs.into_iter().enumerate() {
-        let backend = create_test_backend(&config).await.expect("Failed to create backend");
+        let backend = create_test_backend(&config)
+            .await
+            .expect("Failed to create backend");
         let result = remove_background_with_backend(input_path, &config, backend).await;
         results.push((i, result));
     }
@@ -248,7 +269,9 @@ async fn test_error_handling_compatibility() {
         .build()
         .expect("Config should build");
 
-    let backend = create_test_backend(&config).await.expect("Failed to create backend");
+    let backend = create_test_backend(&config)
+        .await
+        .expect("Failed to create backend");
     let result = remove_background_with_backend("non_existent_file.jpg", &config, backend).await;
     assert!(result.is_err(), "Should return error for non-existent file");
 
@@ -260,7 +283,9 @@ async fn test_error_handling_compatibility() {
 
     for invalid_path in invalid_paths {
         if Path::new(invalid_path).exists() {
-            let backend = create_test_backend(&config).await.expect("Failed to create backend");
+            let backend = create_test_backend(&config)
+                .await
+                .expect("Failed to create backend");
             let result = remove_background_with_backend(invalid_path, &config, backend).await;
             assert!(
                 result.is_err(),
@@ -290,7 +315,9 @@ async fn test_cross_platform_paths() {
 
     for path in &path_variants {
         if Path::new(path).exists() {
-            let backend = create_test_backend(&config).await.expect("Failed to create backend");
+            let backend = create_test_backend(&config)
+                .await
+                .expect("Failed to create backend");
             let result = remove_background_with_backend(path, &config, backend).await;
             if result.is_ok() {
                 successful_paths += 1;

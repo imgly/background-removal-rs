@@ -91,46 +91,49 @@ pub struct PreprocessingConfig {
 
     // Generate model loader functions
     for (model_id, model_name, variant) in &embedded_models {
-        let model_config = load_model_config(model_name);
-        let variant_config = model_config["variants"][variant]
-            .as_object()
-            .unwrap_or_else(|| panic!("Variant '{variant}' not found in model '{model_name}'"));
-        let preprocessing = &model_config["preprocessing"];
+        let (config, preprocessor_config) = load_model_config(model_name);
 
-        let input_shape = variant_config["input_shape"].as_array().unwrap_or_else(|| {
-            panic!("input_shape not found or not an array for {model_name}:{variant}")
-        });
-        let output_shape = variant_config["output_shape"]
-            .as_array()
-            .unwrap_or_else(|| {
-                panic!("output_shape not found or not an array for {model_name}:{variant}")
-            });
-        let input_name = variant_config["input_name"].as_str().unwrap_or_else(|| {
-            panic!("input_name not found or not a string for {model_name}:{variant}")
-        });
-        let output_name = variant_config["output_name"].as_str().unwrap_or_else(|| {
-            panic!("output_name not found or not a string for {model_name}:{variant}")
-        });
+        // Extract model type (for validation)
+        let _model_type = config["model_type"]
+            .as_str()
+            .unwrap_or_else(|| panic!("model_type not found in config.json for {model_name}"));
 
-        let target_size = preprocessing["target_size"]
+        // Extract preprocessing info from preprocessor_config
+        let size = &preprocessor_config["size"];
+        let height = size["height"].as_u64().unwrap_or(1024);
+        let width = size["width"].as_u64().unwrap_or(1024);
+
+        let image_mean = preprocessor_config["image_mean"]
             .as_array()
-            .unwrap_or_else(|| panic!("target_size not found or not an array for {model_name}"));
-        let mean = preprocessing["normalization"]["mean"]
+            .unwrap_or_else(|| panic!("image_mean not found or not an array for {model_name}"));
+        let image_std = preprocessor_config["image_std"]
             .as_array()
-            .unwrap_or_else(|| {
-                panic!("normalization mean not found or not an array for {model_name}")
-            });
-        let std = preprocessing["normalization"]["std"]
-            .as_array()
-            .unwrap_or_else(|| {
-                panic!("normalization std not found or not an array for {model_name}")
-            });
+            .unwrap_or_else(|| panic!("image_std not found or not an array for {model_name}"));
+
+        // Convert from 0-255 range to 0-1 range for mean and std
+        let mean_norm = [
+            (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32,
+            (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32,
+            (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32,
+        ];
+        let std_norm = [
+            (image_std[0].as_f64().unwrap_or(255.0) / 255.0) as f32,
+            (image_std[1].as_f64().unwrap_or(255.0) / 255.0) as f32,
+            (image_std[2].as_f64().unwrap_or(255.0) / 255.0) as f32,
+        ];
 
         // Use workspace root to locate models directory
         let workspace_root = env::var("CARGO_MANIFEST_DIR")
             .expect("CARGO_MANIFEST_DIR not set")
             .replace("/crates/bg-remove-core", ""); // Remove the crate subdirectory
-        let model_path = format!("{workspace_root}/models/{model_name}/model_{variant}.onnx");
+
+        // HuggingFace format model path
+        let model_path = if variant == "fp32" {
+            format!("{workspace_root}/models/{model_name}/onnx/model.onnx")
+        } else {
+            format!("{workspace_root}/models/{model_name}/onnx/model_{variant}.onnx")
+        };
+
         let function_name = format!("load_{}", model_id.replace('-', "_"));
 
         generated_code.push_str(&format!(
@@ -139,14 +142,14 @@ pub struct PreprocessingConfig {
     EmbeddedModelData {{
         name: \"{}\".to_string(),
         model_data: include_bytes!(\"{}\").to_vec(),
-        input_name: \"{}\".to_string(),
-        output_name: \"{}\".to_string(),
-        input_shape: [{}, {}, {}, {}],
-        output_shape: [{}, {}, {}, {}],
+        input_name: \"input\".to_string(),
+        output_name: \"output\".to_string(),
+        input_shape: [1, 3, {}, {}],
+        output_shape: [1, 1, {}, {}],
         preprocessing: PreprocessingConfig {{
             target_size: [{}, {}],
-            normalization_mean: [{:.1}, {:.1}, {:.1}],
-            normalization_std: [{:.1}, {:.1}, {:.1}],
+            normalization_mean: [{:.3}, {:.3}, {:.3}],
+            normalization_std: [{:.3}, {:.3}, {:.3}],
         }},
     }}
 }}
@@ -154,24 +157,18 @@ pub struct PreprocessingConfig {
             function_name,
             model_id,
             model_path,
-            input_name,
-            output_name,
-            input_shape[0].as_u64().unwrap_or_default(),
-            input_shape[1].as_u64().unwrap_or_default(),
-            input_shape[2].as_u64().unwrap_or_default(),
-            input_shape[3].as_u64().unwrap_or_default(),
-            output_shape[0].as_u64().unwrap_or_default(),
-            output_shape[1].as_u64().unwrap_or_default(),
-            output_shape[2].as_u64().unwrap_or_default(),
-            output_shape[3].as_u64().unwrap_or_default(),
-            target_size[0].as_u64().unwrap_or_default(),
-            target_size[1].as_u64().unwrap_or_default(),
-            mean[0].as_f64().unwrap_or(0.0),
-            mean[1].as_f64().unwrap_or(0.0),
-            mean[2].as_f64().unwrap_or(0.0),
-            std[0].as_f64().unwrap_or(1.0),
-            std[1].as_f64().unwrap_or(1.0),
-            std[2].as_f64().unwrap_or(1.0)
+            height,
+            width,
+            height,
+            width,
+            height,
+            width,
+            mean_norm[0],
+            mean_norm[1],
+            mean_norm[2],
+            std_norm[0],
+            std_norm[1],
+            std_norm[2]
         ));
     }
 
@@ -251,14 +248,28 @@ fn get_embedded_models() -> Vec<(String, String, String)> {
     models
 }
 
-fn load_model_config(model_name: &str) -> serde_json::Value {
+fn load_model_config(model_name: &str) -> (serde_json::Value, serde_json::Value) {
     // Use CARGO_MANIFEST_DIR to get absolute path to the crate root
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
-    let model_json_path = format!("{manifest_dir}/../../models/{model_name}/model.json");
-    let json_content = fs::read_to_string(&model_json_path).unwrap_or_else(|_| {
-        panic!("Failed to read model.json for model '{model_name}' at path: {model_json_path}")
-    });
+    let model_dir = format!("{manifest_dir}/../../models/{model_name}");
 
-    serde_json::from_str(&json_content)
-        .unwrap_or_else(|_| panic!("Failed to parse model.json for model '{model_name}'"))
+    // Load config.json
+    let config_path = format!("{model_dir}/config.json");
+    let config_content = fs::read_to_string(&config_path).unwrap_or_else(|_| {
+        panic!("Failed to read config.json for model '{model_name}' at path: {config_path}")
+    });
+    let config: serde_json::Value = serde_json::from_str(&config_content)
+        .unwrap_or_else(|_| panic!("Failed to parse config.json for model '{model_name}'"));
+
+    // Load preprocessor_config.json
+    let preprocessor_path = format!("{model_dir}/preprocessor_config.json");
+    let preprocessor_content = fs::read_to_string(&preprocessor_path).unwrap_or_else(|_| {
+        panic!("Failed to read preprocessor_config.json for model '{model_name}' at path: {preprocessor_path}")
+    });
+    let preprocessor_config: serde_json::Value = serde_json::from_str(&preprocessor_content)
+        .unwrap_or_else(|_| {
+            panic!("Failed to parse preprocessor_config.json for model '{model_name}'")
+        });
+
+    (config, preprocessor_config)
 }

@@ -477,24 +477,15 @@ impl InferenceBackend for OnnxBackend {
             tensor_conversion_time.as_secs_f64() * 1000.0
         );
 
-        // Run inference using model-specific input tensor name
-        let model_manager = self.model_manager.as_ref().ok_or_else(|| {
-            bg_remove_core::error::BgRemovalError::internal("Model manager not initialized")
-        })?;
-        let input_name = model_manager.get_input_name()?;
-        let output_name = model_manager.get_output_name()?;
-
-        log::debug!("  📋 Using tensor names: input='{input_name}', output='{output_name}'");
-
-        // Convert to SessionInputs format expected by ORT
-        let inputs = vec![(input_name.as_str(), input_value)];
+        // Use positional inputs instead of named inputs for better compatibility
+        log::debug!("  📋 Using positional inputs (eliminates tensor name dependencies)");
 
         // This is the critical CoreML inference step - measure it precisely
         let core_inference_start = Instant::now();
         log::debug!("  🧠 Starting core ONNX inference...");
 
-        let outputs = session.run(inputs)
-            .map_err(|e| bg_remove_core::error::BgRemovalError::processing(format!("ONNX inference failed. This might be due to incorrect input name '{input_name}'. Original error: {e}")))?;
+        let outputs = session.run(ort::inputs![input_value])
+            .map_err(|e| bg_remove_core::error::BgRemovalError::processing(format!("ONNX inference failed: {e}")))?;
 
         let core_inference_time = core_inference_start.elapsed();
         log::debug!(
@@ -502,46 +493,31 @@ impl InferenceBackend for OnnxBackend {
             core_inference_time.as_secs_f64() * 1000.0
         );
 
-        // Performance analysis
-        if core_inference_time.as_millis() > 1000 {
-            log::warn!(
-                "  ⚠️ Inference took longer than 1 second ({:.2}ms)",
-                core_inference_time.as_secs_f64() * 1000.0
-            );
-            log::warn!("    - This suggests GPU acceleration may not be working");
-            log::warn!("    - Expected CoreML performance: 100-300ms for typical models");
-            log::warn!("    - Current performance suggests CPU execution");
-        } else if core_inference_time.as_millis() < 500 {
+        // Performance logging (debug only)
+        if core_inference_time.as_millis() < 500 {
             log::debug!(
                 "  🎯 Good inference performance ({:.2}ms) - likely using hardware acceleration",
                 core_inference_time.as_secs_f64() * 1000.0
             );
         }
 
-        // Extract output tensor using model-specific output tensor name
+        // Extract output tensor using positional access (first output)
         let output_extraction_start = Instant::now();
-        let output_tensor = if let Some(named_output) = outputs.get(output_name.as_str()) {
-            named_output.try_extract_array::<f32>().map_err(|e| {
-                bg_remove_core::error::BgRemovalError::processing(format!(
-                    "Failed to extract named output tensor '{output_name}': {e}"
-                ))
-            })?
-        } else {
-            // Try first output if named access fails
-            log::debug!("  📋 Used fallback output tensor access (index 0)");
+        let output_tensor = {
             let keys: Vec<_> = outputs.keys().collect();
             if let Some(first_key) = keys.first() {
+                log::debug!("  📋 Using positional output access (first output: {})", first_key);
                 outputs
                     .get(first_key)
                     .ok_or_else(|| {
                         bg_remove_core::error::BgRemovalError::processing(
-                            "First output key not found",
+                            "First output tensor not found",
                         )
                     })?
                     .try_extract_array::<f32>()
                     .map_err(|e| {
                         bg_remove_core::error::BgRemovalError::processing(format!(
-                            "Failed to extract fallback output tensor: {e}"
+                            "Failed to extract output tensor: {e}"
                         ))
                     })?
             } else {

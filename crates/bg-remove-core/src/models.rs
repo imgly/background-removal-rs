@@ -59,14 +59,20 @@ pub trait ModelProvider: std::fmt::Debug {
     /// - JSON parsing errors for external models
     fn get_preprocessing_config(&self) -> Result<PreprocessingConfig>;
 
-    /// Get input tensor name
+    /// Get input tensor name (deprecated - using positional inputs)
+    ///
+    /// # Deprecated
+    /// This method is kept for compatibility only. Inference now uses positional inputs.
     ///
     /// # Errors
     /// - Missing input tensor name in model configuration
     /// - Invalid or empty tensor name
     fn get_input_name(&self) -> Result<String>;
 
-    /// Get output tensor name
+    /// Get output tensor name (deprecated - using positional inputs)
+    ///
+    /// # Deprecated
+    /// This method is kept for compatibility only. Inference now uses positional inputs.
     ///
     /// # Errors
     /// - Missing output tensor name in model configuration
@@ -168,11 +174,22 @@ impl ModelProvider for EmbeddedModelProvider {
     }
 }
 
+/// Model format detection
+#[derive(Debug, Clone, PartialEq)]
+enum ModelFormat {
+    /// Legacy format with model.json
+    Legacy,
+    /// HuggingFace format with `config.json` + `preprocessor_config.json`
+    HuggingFace,
+}
+
 /// External model provider for loading models from filesystem paths
 #[derive(Debug)]
 pub struct ExternalModelProvider {
     model_path: PathBuf,
+    format: ModelFormat,
     model_config: serde_json::Value,
+    preprocessor_config: Option<serde_json::Value>,
     variant: String,
 }
 
@@ -192,7 +209,7 @@ impl ExternalModelProvider {
     ///
     /// # Errors
     /// - Model path does not exist or is not a directory
-    /// - Missing or invalid model.json configuration file
+    /// - Missing or invalid configuration files
     /// - JSON parsing errors in model configuration
     /// - Requested variant not found in model
     /// - Invalid execution provider configuration
@@ -218,15 +235,43 @@ impl ExternalModelProvider {
             )));
         }
 
+        // Detect model format
+        let format = Self::detect_model_format(&model_path)?;
+
+        match format {
+            ModelFormat::Legacy => Self::new_legacy_format(model_path, variant, execution_provider),
+            ModelFormat::HuggingFace => {
+                Self::new_huggingface_format(model_path, variant, execution_provider)
+            },
+        }
+    }
+
+    /// Detect model format based on available configuration files
+    fn detect_model_format(model_path: &Path) -> Result<ModelFormat> {
+        let legacy_config = model_path.join("model.json");
+        let hf_config = model_path.join("config.json");
+        let hf_preprocessor = model_path.join("preprocessor_config.json");
+
+        if hf_config.exists() && hf_preprocessor.exists() {
+            Ok(ModelFormat::HuggingFace)
+        } else if legacy_config.exists() {
+            Ok(ModelFormat::Legacy)
+        } else {
+            Err(crate::error::BgRemovalError::invalid_config(format!(
+                "No valid model configuration found in: {}. Expected either model.json (legacy) or config.json + preprocessor_config.json (HuggingFace)",
+                model_path.display()
+            )))
+        }
+    }
+
+    /// Create provider for legacy format model
+    fn new_legacy_format(
+        model_path: PathBuf,
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<Self> {
         // Load and validate model.json
         let model_json_path = model_path.join("model.json");
-        if !model_json_path.exists() {
-            return Err(crate::error::BgRemovalError::invalid_config(format!(
-                "model.json not found in: {}",
-                model_path.display()
-            )));
-        }
-
         let json_content = fs::read_to_string(&model_json_path).map_err(|e| {
             crate::error::BgRemovalError::invalid_config(format!("Failed to read model.json: {e}"))
         })?;
@@ -271,9 +316,151 @@ impl ExternalModelProvider {
 
         Ok(Self {
             model_path,
+            format: ModelFormat::Legacy,
             model_config,
+            preprocessor_config: None,
             variant: resolved_variant,
         })
+    }
+
+    /// Create provider for `HuggingFace` format model
+    fn new_huggingface_format(
+        model_path: PathBuf,
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<Self> {
+        // Load config.json
+        let config_path = model_path.join("config.json");
+        let config_content = fs::read_to_string(&config_path).map_err(|e| {
+            crate::error::BgRemovalError::invalid_config(format!("Failed to read config.json: {e}"))
+        })?;
+
+        let model_config: serde_json::Value =
+            serde_json::from_str(&config_content).map_err(|e| {
+                crate::error::BgRemovalError::invalid_config(format!(
+                    "Failed to parse config.json: {e}"
+                ))
+            })?;
+
+        // Load preprocessor_config.json
+        let preprocessor_path = model_path.join("preprocessor_config.json");
+        let preprocessor_content = fs::read_to_string(&preprocessor_path).map_err(|e| {
+            crate::error::BgRemovalError::invalid_config(format!(
+                "Failed to read preprocessor_config.json: {e}"
+            ))
+        })?;
+
+        let preprocessor_config: serde_json::Value = serde_json::from_str(&preprocessor_content)
+            .map_err(|e| {
+                crate::error::BgRemovalError::invalid_config(format!(
+                    "Failed to parse preprocessor_config.json: {e}"
+                ))
+            })?;
+
+        // Determine variant from available ONNX files
+        let resolved_variant =
+            Self::resolve_huggingface_variant(&model_path, variant, execution_provider)?;
+
+        Ok(Self {
+            model_path,
+            format: ModelFormat::HuggingFace,
+            model_config,
+            preprocessor_config: Some(preprocessor_config),
+            variant: resolved_variant,
+        })
+    }
+
+    /// Resolve variant for `HuggingFace` format by scanning onnx directory
+    fn resolve_huggingface_variant(
+        model_path: &Path,
+        requested_variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<String> {
+        let onnx_dir = model_path.join("onnx");
+        if !onnx_dir.exists() || !onnx_dir.is_dir() {
+            return Err(crate::error::BgRemovalError::invalid_config(format!(
+                "onnx directory not found in HuggingFace model: {}",
+                model_path.display()
+            )));
+        }
+
+        // Scan for available ONNX files
+        let mut available_variants = Vec::new();
+        if let Ok(entries) = fs::read_dir(&onnx_dir) {
+            for entry in entries.flatten() {
+                if let Some(file_name) = entry.file_name().to_str() {
+                    if file_name.ends_with(".onnx") {
+                        if file_name == "model.onnx" {
+                            available_variants.push("fp32".to_string());
+                        } else if file_name == "model_fp16.onnx" {
+                            available_variants.push("fp16".to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        if available_variants.is_empty() {
+            return Err(crate::error::BgRemovalError::invalid_config(format!(
+                "No ONNX model files found in: {}",
+                onnx_dir.display()
+            )));
+        }
+
+        // If variant explicitly requested, use it
+        if let Some(variant) = requested_variant {
+            if available_variants.contains(&variant) {
+                return Ok(variant);
+            }
+            return Err(crate::error::BgRemovalError::invalid_config(
+                format!("Requested variant '{variant}' not available. Available variants: {available_variants:?}")
+            ));
+        }
+
+        // Auto-select based on execution provider
+        if let Some(provider) = execution_provider {
+            match provider {
+                crate::config::ExecutionProvider::Cuda | crate::config::ExecutionProvider::Cpu => {
+                    // Prefer FP16 for CPU/CUDA
+                    if available_variants.contains(&"fp16".to_string()) {
+                        return Ok("fp16".to_string());
+                    }
+                },
+                crate::config::ExecutionProvider::CoreMl => {
+                    // Prefer FP32 for CoreML
+                    if available_variants.contains(&"fp32".to_string()) {
+                        return Ok("fp32".to_string());
+                    }
+                },
+                crate::config::ExecutionProvider::Auto => {
+                    // On macOS, prefer FP32, otherwise FP16
+                    #[cfg(target_os = "macos")]
+                    {
+                        if available_variants.contains(&"fp32".to_string()) {
+                            return Ok("fp32".to_string());
+                        }
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        if available_variants.contains(&"fp16".to_string()) {
+                            return Ok("fp16".to_string());
+                        }
+                    }
+                },
+            }
+        }
+
+        // Fallback: prefer fp16, then fp32
+        if available_variants.contains(&"fp16".to_string()) {
+            return Ok("fp16".to_string());
+        }
+
+        if available_variants.contains(&"fp32".to_string()) {
+            return Ok("fp32".to_string());
+        }
+
+        // Use first available variant
+        Ok(available_variants.into_iter().next().unwrap())
     }
 
     fn validate_model_config(config: &serde_json::Value) -> Result<()> {
@@ -454,8 +641,185 @@ impl ExternalModelProvider {
     }
 
     fn get_model_file_path(&self) -> PathBuf {
-        self.model_path
-            .join(format!("model_{variant}.onnx", variant = self.variant))
+        match self.format {
+            ModelFormat::Legacy => self
+                .model_path
+                .join(format!("model_{variant}.onnx", variant = self.variant)),
+            ModelFormat::HuggingFace => {
+                let onnx_dir = self.model_path.join("onnx");
+                match self.variant.as_str() {
+                    "fp16" => onnx_dir.join("model_fp16.onnx"),
+                    "fp32" => onnx_dir.join("model.onnx"),
+                    _ => onnx_dir.join("model.onnx"), // Fallback to default
+                }
+            },
+        }
+    }
+
+    /// Parse shape from legacy format variant config
+    fn parse_shape_from_legacy(
+        variant_config: &serde_json::Value,
+        shape_key: &str,
+        default: (usize, usize, usize, usize),
+    ) -> Result<(usize, usize, usize, usize)> {
+        let shape_array = variant_config.get(shape_key).and_then(|v| v.as_array());
+
+        if let Some(arr) = shape_array {
+            if arr.len() >= 4 {
+                let dim0 = arr[0].as_u64().unwrap_or(default.0 as u64) as usize;
+                let dim1 = arr[1].as_u64().unwrap_or(default.1 as u64) as usize;
+                let dim2 = arr[2].as_u64().unwrap_or(default.2 as u64) as usize;
+                let dim3 = arr[3].as_u64().unwrap_or(default.3 as u64) as usize;
+                return Ok((dim0, dim1, dim2, dim3));
+            }
+        }
+
+        Ok(default)
+    }
+
+    /// Parse target size from legacy format
+    fn parse_target_size_legacy(preprocessing: &serde_json::Value) -> Result<[u32; 2]> {
+        let size0_u64 = preprocessing
+            .get("target_size")
+            .and_then(|arr| arr.get(0))
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(
+                    "Missing target_size[0] in preprocessing config",
+                )
+            })?;
+        let size1_u64 = preprocessing
+            .get("target_size")
+            .and_then(|arr| arr.get(1))
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(
+                    "Missing target_size[1] in preprocessing config",
+                )
+            })?;
+
+        let size0 = size0_u64.try_into().map_err(|_| {
+            crate::error::BgRemovalError::invalid_config("Target size[0] too large for u32")
+        })?;
+        let size1 = size1_u64.try_into().map_err(|_| {
+            crate::error::BgRemovalError::invalid_config("Target size[1] too large for u32")
+        })?;
+
+        Ok([size0, size1])
+    }
+
+    /// Parse target size from `HuggingFace` format
+    fn parse_target_size_huggingface(preprocessor: &serde_json::Value) -> Result<[u32; 2]> {
+        let size = preprocessor.get("size").ok_or_else(|| {
+            crate::error::BgRemovalError::invalid_config("Missing size in preprocessor config")
+        })?;
+
+        let height = size
+            .get("height")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config("Missing height in size config")
+            })?;
+
+        let width = size
+            .get("width")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config("Missing width in size config")
+            })?;
+
+        let height_u32 = height.try_into().map_err(|_| {
+            crate::error::BgRemovalError::invalid_config("Height too large for u32")
+        })?;
+        let width_u32 = width
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::invalid_config("Width too large for u32"))?;
+
+        Ok([height_u32, width_u32])
+    }
+
+    /// Parse normalization values from legacy format
+    fn parse_normalization_legacy(
+        preprocessing: &serde_json::Value,
+        key: &str,
+    ) -> Result<[f32; 3]> {
+        let values = preprocessing
+            .get("normalization")
+            .and_then(|norm| norm.get(key))
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(format!(
+                    "Missing normalization {key} in preprocessing config"
+                ))
+            })?;
+
+        if values.len() < 3 {
+            return Err(crate::error::BgRemovalError::invalid_config(format!(
+                "Normalization {key} must have at least 3 values"
+            )));
+        }
+
+        let v0 = values[0].as_f64().ok_or_else(|| {
+            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[0] value"))
+        })? as f32;
+        let v1 = values[1].as_f64().ok_or_else(|| {
+            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[1] value"))
+        })? as f32;
+        let v2 = values[2].as_f64().ok_or_else(|| {
+            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[2] value"))
+        })? as f32;
+
+        Ok([v0, v1, v2])
+    }
+
+    /// Parse image_mean from `HuggingFace` format (convert from 0-255 to 0-1 range)
+    fn parse_image_mean_huggingface(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
+        let image_mean = preprocessor
+            .get("image_mean")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(
+                    "Missing image_mean in preprocessor config",
+                )
+            })?;
+
+        if image_mean.len() < 3 {
+            return Err(crate::error::BgRemovalError::invalid_config(
+                "image_mean must have at least 3 values",
+            ));
+        }
+
+        // Convert from 0-255 range to 0-1 range
+        let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+
+        Ok([mean0, mean1, mean2])
+    }
+
+    /// Parse image_std from `HuggingFace` format (convert from 0-255 to 0-1 range)
+    fn parse_image_std_huggingface(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
+        let image_std = preprocessor
+            .get("image_std")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(
+                    "Missing image_std in preprocessor config",
+                )
+            })?;
+
+        if image_std.len() < 3 {
+            return Err(crate::error::BgRemovalError::invalid_config(
+                "image_std must have at least 3 values",
+            ));
+        }
+
+        // Convert from 0-255 range to 0-1 range
+        let std0 = (image_std[0].as_f64().unwrap_or(256.0) / 255.0) as f32;
+        let std1 = (image_std[1].as_f64().unwrap_or(256.0) / 255.0) as f32;
+        let std2 = (image_std[2].as_f64().unwrap_or(256.0) / 255.0) as f32;
+
+        Ok([std0, std1, std2])
     }
 }
 
@@ -477,245 +841,137 @@ impl ModelProvider for ExternalModelProvider {
 
     #[allow(clippy::too_many_lines)] // Complex model configuration parsing with extensive JSON extraction
     fn get_model_info(&self) -> Result<ModelInfo> {
-        let variant_config = self.get_variant_config();
         let model_data = self.load_model_data()?;
 
-        Ok(ModelInfo {
-            name: format!(
-                "{}-{}",
-                self.model_config
-                    .get("name")
+        match self.format {
+            ModelFormat::Legacy => {
+                let variant_config = self.get_variant_config();
+                Ok(ModelInfo {
+                    name: format!(
+                        "{}-{}",
+                        self.model_config
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown"),
+                        self.variant
+                    ),
+                    precision: self.variant.clone(),
+                    size_bytes: model_data.len(),
+                    input_shape: Self::parse_shape_from_legacy(
+                        variant_config,
+                        "input_shape",
+                        (1, 3, 1024, 1024),
+                    )?,
+                    output_shape: Self::parse_shape_from_legacy(
+                        variant_config,
+                        "output_shape",
+                        (1, 1, 1024, 1024),
+                    )?,
+                })
+            },
+            ModelFormat::HuggingFace => {
+                let model_type = self
+                    .model_config
+                    .get("model_type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("unknown"),
-                self.variant
-            ),
-            precision: self.variant.clone(),
-            size_bytes: model_data.len(),
-            input_shape: {
-                let dim0 = variant_config
-                    .get("input_shape")
-                    .and_then(|arr| arr.get(0))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Input shape dimension 0 too large for usize",
-                        )
-                    })?;
-                let dim1 = variant_config
-                    .get("input_shape")
-                    .and_then(|arr| arr.get(1))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(3)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Input shape dimension 1 too large for usize",
-                        )
-                    })?;
-                let dim2 = variant_config
-                    .get("input_shape")
-                    .and_then(|arr| arr.get(2))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1024)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Input shape dimension 2 too large for usize",
-                        )
-                    })?;
-                let dim3 = variant_config
-                    .get("input_shape")
-                    .and_then(|arr| arr.get(3))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1024)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Input shape dimension 3 too large for usize",
-                        )
-                    })?;
-                (dim0, dim1, dim2, dim3)
+                    .unwrap_or("unknown");
+
+                // For HuggingFace models, infer shapes from preprocessor config
+                let preprocessor = self.preprocessor_config.as_ref().ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config(
+                        "Missing preprocessor config for HuggingFace model",
+                    )
+                })?;
+
+                let size = preprocessor.get("size").ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config(
+                        "Missing size in preprocessor config",
+                    )
+                })?;
+
+                let height = size.get("height").and_then(|v| v.as_u64()).unwrap_or(1024) as usize;
+                let width = size.get("width").and_then(|v| v.as_u64()).unwrap_or(1024) as usize;
+
+                Ok(ModelInfo {
+                    name: format!("{}-{}", model_type, self.variant),
+                    precision: self.variant.clone(),
+                    size_bytes: model_data.len(),
+                    input_shape: (1, 3, height, width), // Standard format: NCHW
+                    output_shape: (1, 1, height, width), // Single channel mask output
+                })
             },
-            output_shape: {
-                let dim0 = variant_config
-                    .get("output_shape")
-                    .and_then(|arr| arr.get(0))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Output shape dimension 0 too large for usize",
-                        )
-                    })?;
-                let dim1 = variant_config
-                    .get("output_shape")
-                    .and_then(|arr| arr.get(1))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Output shape dimension 1 too large for usize",
-                        )
-                    })?;
-                let dim2 = variant_config
-                    .get("output_shape")
-                    .and_then(|arr| arr.get(2))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1024)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Output shape dimension 2 too large for usize",
-                        )
-                    })?;
-                let dim3 = variant_config
-                    .get("output_shape")
-                    .and_then(|arr| arr.get(3))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(1024)
-                    .try_into()
-                    .map_err(|_| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Output shape dimension 3 too large for usize",
-                        )
-                    })?;
-                (dim0, dim1, dim2, dim3)
-            },
-        })
+        }
     }
 
     fn get_preprocessing_config(&self) -> Result<PreprocessingConfig> {
-        let preprocessing = self.model_config.get("preprocessing").ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config("Missing preprocessing config")
-        })?;
-
-        Ok(PreprocessingConfig {
-            target_size: {
-                let size0_u64 = preprocessing
-                    .get("target_size")
-                    .and_then(|arr| arr.get(0))
-                    .and_then(serde_json::Value::as_u64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing target_size[0] in preprocessing config",
-                        )
-                    })?;
-                let size1_u64 = preprocessing
-                    .get("target_size")
-                    .and_then(|arr| arr.get(1))
-                    .and_then(serde_json::Value::as_u64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing target_size[1] in preprocessing config",
-                        )
-                    })?;
-
-                let size0 = size0_u64.try_into().map_err(|_| {
-                    crate::error::BgRemovalError::invalid_config("Target size[0] too large for u32")
-                })?;
-                let size1 = size1_u64.try_into().map_err(|_| {
-                    crate::error::BgRemovalError::invalid_config("Target size[1] too large for u32")
+        match self.format {
+            ModelFormat::Legacy => {
+                let preprocessing = self.model_config.get("preprocessing").ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config("Missing preprocessing config")
                 })?;
 
-                [size0, size1]
+                Ok(PreprocessingConfig {
+                    target_size: Self::parse_target_size_legacy(preprocessing)?,
+                    normalization_mean: Self::parse_normalization_legacy(preprocessing, "mean")?,
+                    normalization_std: Self::parse_normalization_legacy(preprocessing, "std")?,
+                })
             },
-            normalization_mean: {
-                let mean0_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("mean"))
-                    .and_then(|arr| arr.get(0))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization mean[0] in preprocessing config",
-                        )
-                    })?;
-                let mean1_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("mean"))
-                    .and_then(|arr| arr.get(1))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization mean[1] in preprocessing config",
-                        )
-                    })?;
-                let mean2_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("mean"))
-                    .and_then(|arr| arr.get(2))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization mean[2] in preprocessing config",
-                        )
-                    })?;
+            ModelFormat::HuggingFace => {
+                let preprocessor = self.preprocessor_config.as_ref().ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config(
+                        "Missing preprocessor config for HuggingFace model",
+                    )
+                })?;
 
-                // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
-                [mean0_f64 as f32, mean1_f64 as f32, mean2_f64 as f32]
+                Ok(PreprocessingConfig {
+                    target_size: Self::parse_target_size_huggingface(preprocessor)?,
+                    normalization_mean: Self::parse_image_mean_huggingface(preprocessor)?,
+                    normalization_std: Self::parse_image_std_huggingface(preprocessor)?,
+                })
             },
-            normalization_std: {
-                let std0_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("std"))
-                    .and_then(|arr| arr.get(0))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization std[0] in preprocessing config",
-                        )
-                    })?;
-                let std1_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("std"))
-                    .and_then(|arr| arr.get(1))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization std[1] in preprocessing config",
-                        )
-                    })?;
-                let std2_f64 = preprocessing
-                    .get("normalization")
-                    .and_then(|norm| norm.get("std"))
-                    .and_then(|arr| arr.get(2))
-                    .and_then(serde_json::Value::as_f64)
-                    .ok_or_else(|| {
-                        crate::error::BgRemovalError::invalid_config(
-                            "Missing normalization std[2] in preprocessing config",
-                        )
-                    })?;
-
-                // Note: f64 to f32 conversion is safe for normalization values (typically small numbers)
-                [std0_f64 as f32, std1_f64 as f32, std2_f64 as f32]
-            },
-        })
+        }
     }
 
     fn get_input_name(&self) -> Result<String> {
-        let variant_config = self.get_variant_config();
-        let input_name = variant_config["input_name"].as_str().ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!(
-                "Missing or invalid input_name in variant '{variant}'",
-                variant = self.variant
-            ))
-        })?;
-        Ok(input_name.to_string())
+        // NOTE: With positional inputs, tensor names are no longer used for inference
+        // This method is kept for compatibility and debugging purposes only
+        match self.format {
+            ModelFormat::Legacy => {
+                let variant_config = self.get_variant_config();
+                let input_name = variant_config["input_name"].as_str().ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config(format!(
+                        "Missing or invalid input_name in variant '{variant}'",
+                        variant = self.variant
+                    ))
+                })?;
+                Ok(input_name.to_string())
+            },
+            ModelFormat::HuggingFace => {
+                // Generic name for HuggingFace models since we use positional inputs
+                Ok("input".to_string())
+            },
+        }
     }
 
     fn get_output_name(&self) -> Result<String> {
-        let variant_config = self.get_variant_config();
-        let output_name = variant_config["output_name"].as_str().ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!(
-                "Missing or invalid output_name in variant '{variant}'",
-                variant = self.variant
-            ))
-        })?;
-        Ok(output_name.to_string())
+        // NOTE: With positional inputs, tensor names are no longer used for inference
+        // This method is kept for compatibility and debugging purposes only
+        match self.format {
+            ModelFormat::Legacy => {
+                let variant_config = self.get_variant_config();
+                let output_name = variant_config["output_name"].as_str().ok_or_else(|| {
+                    crate::error::BgRemovalError::invalid_config(format!(
+                        "Missing or invalid output_name in variant '{variant}'",
+                        variant = self.variant
+                    ))
+                })?;
+                Ok(output_name.to_string())
+            },
+            ModelFormat::HuggingFace => {
+                // Generic name for HuggingFace models since we use positional inputs
+                Ok("output".to_string())
+            },
+        }
     }
 }
 

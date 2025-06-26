@@ -189,6 +189,7 @@ impl TractBackend {
     }
 
     /// Get the input name for the model
+    #[allow(dead_code)]
     fn get_input_name(&self) -> Result<String> {
         if let Some(ref manager) = self.model_manager {
             manager.get_input_name()
@@ -200,6 +201,7 @@ impl TractBackend {
     }
 
     /// Get the output name for the model
+    #[allow(dead_code)]
     fn get_output_name(&self) -> Result<String> {
         if let Some(ref manager) = self.model_manager {
             manager.get_output_name()
@@ -228,9 +230,6 @@ impl InferenceBackend for TractBackend {
     }
 
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
-        let _input_name = self.get_input_name()?;
-        let _output_name = self.get_output_name()?;
-
         let model = self.model.as_ref().ok_or_else(|| {
             bg_remove_core::error::BgRemovalError::inference("Tract model not initialized")
         })?;

@@ -1,14 +1,18 @@
 //! Comprehensive integration tests for the unified BackgroundRemovalProcessor
 
 use bg_remove_core::{
-    error::Result, BackendType, BackgroundRemovalProcessor, ExecutionProvider, OutputFormat,
-    ProcessorConfigBuilder, inference::InferenceBackend, processor::BackendFactory,
-    models::{ModelManager, ModelInfo, PreprocessingConfig}, config::RemovalConfig,
+    config::RemovalConfig,
+    error::Result,
+    inference::InferenceBackend,
+    models::{ModelInfo, ModelManager, PreprocessingConfig},
+    processor::BackendFactory,
+    BackendType, BackgroundRemovalProcessor, ExecutionProvider, OutputFormat,
+    ProcessorConfigBuilder,
 };
 use image::DynamicImage;
-use std::path::PathBuf;
-use ndarray::Array4;
 use instant::Duration;
+use ndarray::Array4;
+use std::path::PathBuf;
 
 /// Create a test image
 fn create_test_image() -> DynamicImage {
@@ -66,10 +70,12 @@ impl InferenceBackend for TestBackend {
         let center_x = width / 2;
         let center_y = height / 2;
         let radius = (width.min(height) / 3) as f32;
-        
+
         for y in 0..height {
             for x in 0..width {
-                let dist = ((x as f32 - center_x as f32).powi(2) + (y as f32 - center_y as f32).powi(2)).sqrt();
+                let dist = ((x as f32 - center_x as f32).powi(2)
+                    + (y as f32 - center_y as f32).powi(2))
+                .sqrt();
                 if dist < radius {
                     output[[0, 0, y, x]] = 1.0;
                 }
@@ -127,7 +133,9 @@ impl BackendFactory for TestBackendFactory {
 }
 
 /// Helper function to create a test processor with mock backend
-fn create_test_processor(config: bg_remove_core::processor::ProcessorConfig) -> Result<BackgroundRemovalProcessor> {
+fn create_test_processor(
+    config: bg_remove_core::processor::ProcessorConfig,
+) -> Result<BackgroundRemovalProcessor> {
     let factory = Box::new(TestBackendFactory);
     BackgroundRemovalProcessor::with_factory(config, factory)
 }
