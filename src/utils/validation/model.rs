@@ -15,11 +15,11 @@ pub struct ModelValidator;
 impl ModelValidator {
     /// Validate a model specification
     ///
-    /// Checks if embedded model name is valid or external path exists
+    /// Checks if downloaded model ID is valid or external path exists
     pub fn validate_model_spec(model_spec: &ModelSpec) -> Result<()> {
         match &model_spec.source {
             ModelSource::External(path) => Self::validate_external_model_path(path),
-            ModelSource::Embedded(name) => Self::validate_embedded_model_name(name),
+            ModelSource::Downloaded(model_id) => Self::validate_downloaded_model_id(model_id),
         }?;
 
         // Validate variant if specified
@@ -47,22 +47,22 @@ impl ModelValidator {
         Ok(())
     }
 
-    /// Validate an embedded model name
-    fn validate_embedded_model_name(name: &str) -> Result<()> {
-        if name.is_empty() {
+    /// Validate a downloaded model ID
+    fn validate_downloaded_model_id(model_id: &str) -> Result<()> {
+        if model_id.is_empty() {
             return Err(BgRemovalError::invalid_config(
-                "Embedded model name cannot be empty",
+                "Downloaded model ID cannot be empty",
             ));
         }
 
-        // Check for reasonable model name format
-        if !name
+        // Check for reasonable model ID format
+        if !model_id
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(BgRemovalError::invalid_config(&format!(
-                "Invalid characters in embedded model name: {}",
-                name
+                "Invalid characters in downloaded model ID: {}",
+                model_id
             )));
         }
 
@@ -191,16 +191,16 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_validate_embedded_model_name() {
-        // Valid names
-        assert!(ModelValidator::validate_embedded_model_name("isnet-fp16").is_ok());
-        assert!(ModelValidator::validate_embedded_model_name("birefnet_portrait").is_ok());
-        assert!(ModelValidator::validate_embedded_model_name("model123").is_ok());
+    fn test_validate_downloaded_model_id() {
+        // Valid IDs
+        assert!(ModelValidator::validate_downloaded_model_id("imgly--isnet-general-onnx").is_ok());
+        assert!(ModelValidator::validate_downloaded_model_id("birefnet_portrait").is_ok());
+        assert!(ModelValidator::validate_downloaded_model_id("model123").is_ok());
 
-        // Invalid names
-        assert!(ModelValidator::validate_embedded_model_name("").is_err());
-        assert!(ModelValidator::validate_embedded_model_name("model with spaces").is_err());
-        assert!(ModelValidator::validate_embedded_model_name("model@special").is_err());
+        // Invalid IDs
+        assert!(ModelValidator::validate_downloaded_model_id("").is_err());
+        assert!(ModelValidator::validate_downloaded_model_id("model with spaces").is_err());
+        assert!(ModelValidator::validate_downloaded_model_id("model@special").is_err());
     }
 
     #[test]
@@ -218,16 +218,16 @@ mod tests {
 
     #[test]
     fn test_validate_model_spec() {
-        // Valid embedded model spec
+        // Valid downloaded model spec
         let spec = ModelSpec {
-            source: ModelSource::Embedded("isnet-fp16".to_string()),
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
             variant: Some("fp32".to_string()),
         };
         assert!(ModelValidator::validate_model_spec(&spec).is_ok());
 
-        // Invalid embedded model spec
+        // Invalid downloaded model spec
         let invalid_spec = ModelSpec {
-            source: ModelSource::Embedded("".to_string()),
+            source: ModelSource::Downloaded("".to_string()),
             variant: None,
         };
         assert!(ModelValidator::validate_model_spec(&invalid_spec).is_err());

@@ -16,44 +16,63 @@ impl ModelSpecParser {
     ///
     /// Supports syntax: "model" or "model:variant"
     /// If path exists on filesystem, treats as external model.
-    /// Otherwise treats as embedded model name.
+    /// If argument is a URL, treats as download target and converts to model ID.
+    /// Otherwise treats as downloaded model ID.
     ///
     /// # Arguments
     /// * `model_arg` - Model argument string
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::utils::ModelSpecParser;
+    /// use imgly_bgremove::utils::ModelSpecParser;
     ///
-    /// // Embedded model without variant
-    /// let spec = ModelSpecParser::parse("isnet-fp16");
+    /// // Downloaded model ID without variant
+    /// let spec = ModelSpecParser::parse("imgly--isnet-general-onnx");
     ///
-    /// // Embedded model with variant
-    /// let spec = ModelSpecParser::parse("birefnet:fp32");
+    /// // Downloaded model ID with variant
+    /// let spec = ModelSpecParser::parse("imgly--birefnet-portrait:fp32");
     ///
     /// // External model path
     /// let spec = ModelSpecParser::parse("/path/to/model");
+    ///
+    /// // URL (converts to model ID)
+    /// let spec = ModelSpecParser::parse("https://huggingface.co/imgly/isnet-general-onnx");
     /// ```
     pub fn parse(model_arg: &str) -> ModelSpec {
-        // Check for suffix syntax: "model:variant"
-        if let Some((path_part, variant_part)) = model_arg.split_once(':') {
-            let source = if Path::new(path_part).exists() {
-                ModelSource::External(PathBuf::from(path_part))
-            } else {
-                ModelSource::Embedded(path_part.to_string())
-            };
+        // Check for suffix syntax: "model:variant", but exclude URLs
+        if !model_arg.starts_with("http") && model_arg.contains(':') {
+            if let Some((path_part, variant_part)) = model_arg.split_once(':') {
+                let source = if Path::new(path_part).exists() {
+                    ModelSource::External(PathBuf::from(path_part))
+                } else {
+                    // Assume it's a downloaded model ID
+                    ModelSource::Downloaded(path_part.to_string())
+                };
 
-            return ModelSpec {
-                source,
-                variant: Some(variant_part.to_string()),
-            };
+                return ModelSpec {
+                    source,
+                    variant: Some(variant_part.to_string()),
+                };
+            }
         }
 
-        // No suffix - determine source type based on path existence
+        // No suffix - determine source type
         let source = if Path::new(model_arg).exists() {
             ModelSource::External(PathBuf::from(model_arg))
+        } else if model_arg.starts_with("http") {
+            // URL - convert to model ID
+            #[cfg(feature = "cli")]
+            {
+                ModelSource::Downloaded(crate::cache::ModelCache::url_to_model_id(model_arg))
+            }
+            #[cfg(not(feature = "cli"))]
+            {
+                // Fallback for non-CLI builds
+                ModelSource::Downloaded(model_arg.to_string())
+            }
         } else {
-            ModelSource::Embedded(model_arg.to_string())
+            // Assume it's a downloaded model ID
+            ModelSource::Downloaded(model_arg.to_string())
         };
 
         ModelSpec {
@@ -122,7 +141,7 @@ impl ModelSpecParser {
 
     /// Validate model specification
     ///
-    /// Checks if embedded model name is valid or external path exists
+    /// Checks if downloaded model ID is valid or external path exists
     pub fn validate(model_spec: &ModelSpec) -> Result<()> {
         match &model_spec.source {
             ModelSource::External(path) => {
@@ -139,22 +158,22 @@ impl ModelSpecParser {
                     )));
                 }
             },
-            ModelSource::Embedded(name) => {
+            ModelSource::Downloaded(model_id) => {
                 // Basic validation - check for valid characters
-                if name.is_empty() {
+                if model_id.is_empty() {
                     return Err(BgRemovalError::invalid_config(
-                        "Embedded model name cannot be empty",
+                        "Downloaded model ID cannot be empty",
                     ));
                 }
 
-                // Check for reasonable model name format
-                if !name
+                // Check for reasonable model ID format
+                if !model_id
                     .chars()
                     .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
                 {
                     return Err(BgRemovalError::invalid_config(&format!(
-                        "Invalid characters in embedded model name: {}",
-                        name
+                        "Invalid characters in downloaded model ID: {}",
+                        model_id
                     )));
                 }
             },
@@ -189,7 +208,7 @@ impl ModelSpecParser {
     pub fn to_string(model_spec: &ModelSpec) -> String {
         let base = match &model_spec.source {
             ModelSource::External(path) => path.to_string_lossy().to_string(),
-            ModelSource::Embedded(name) => name.clone(),
+            ModelSource::Downloaded(model_id) => model_id.clone(),
         };
 
         if let Some(variant) = &model_spec.variant {
@@ -199,17 +218,17 @@ impl ModelSpecParser {
         }
     }
 
-    /// Check if a model specification represents an embedded model
-    pub fn is_embedded(model_spec: &ModelSpec) -> bool {
-        matches!(model_spec.source, ModelSource::Embedded(_))
-    }
-
     /// Check if a model specification represents an external model
     pub fn is_external(model_spec: &ModelSpec) -> bool {
         matches!(model_spec.source, ModelSource::External(_))
     }
 
-    /// Get the model name (for embedded) or directory name (for external)
+    /// Check if a model specification represents a downloaded model
+    pub fn is_downloaded(model_spec: &ModelSpec) -> bool {
+        matches!(model_spec.source, ModelSource::Downloaded(_))
+    }
+
+    /// Get the model name (directory name for external, model ID for downloaded)
     pub fn get_model_name(model_spec: &ModelSpec) -> String {
         match &model_spec.source {
             ModelSource::External(path) => path
@@ -217,7 +236,7 @@ impl ModelSpecParser {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string(),
-            ModelSource::Embedded(name) => name.clone(),
+            ModelSource::Downloaded(model_id) => model_id.clone(),
         }
     }
 }
@@ -227,32 +246,69 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_embedded_without_variant() {
-        let spec = ModelSpecParser::parse("isnet");
+    fn test_parse_downloaded_without_variant() {
+        let spec = ModelSpecParser::parse("imgly--isnet-general-onnx");
         match spec.source {
-            ModelSource::Embedded(name) => assert_eq!(name, "isnet"),
-            _ => panic!("Expected embedded model"),
+            ModelSource::Downloaded(model_id) => assert_eq!(model_id, "imgly--isnet-general-onnx"),
+            _ => panic!("Expected downloaded model"),
         }
         assert_eq!(spec.variant, None);
     }
 
     #[test]
-    fn test_parse_embedded_with_variant() {
-        let spec = ModelSpecParser::parse("birefnet:fp32");
+    fn test_parse_downloaded_with_variant() {
+        let spec = ModelSpecParser::parse("imgly--birefnet-portrait:fp32");
         match spec.source {
-            ModelSource::Embedded(name) => assert_eq!(name, "birefnet"),
-            _ => panic!("Expected embedded model"),
+            ModelSource::Downloaded(model_id) => assert_eq!(model_id, "imgly--birefnet-portrait"),
+            _ => panic!("Expected downloaded model"),
         }
         assert_eq!(spec.variant, Some("fp32".to_string()));
     }
 
     #[test]
+    fn test_parse_url() {
+        let url = "https://huggingface.co/imgly/isnet-general-onnx";
+        let spec = ModelSpecParser::parse(url);
+        match spec.source {
+            ModelSource::Downloaded(model_id) => {
+                #[cfg(feature = "cli")]
+                assert_eq!(model_id, "imgly--isnet-general-onnx");
+                #[cfg(not(feature = "cli"))]
+                assert_eq!(model_id, "https://huggingface.co/imgly/isnet-general-onnx");
+            },
+            _ => panic!("Expected downloaded model for URL"),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_url_conversion_consistency() {
+        let url = "https://huggingface.co/imgly/isnet-general-onnx";
+
+        // Test direct cache function call
+        let cache_result = crate::cache::ModelCache::url_to_model_id(url);
+        assert_eq!(cache_result, "imgly--isnet-general-onnx");
+
+        // Test through ModelSpecParser
+        let spec = ModelSpecParser::parse(url);
+        match spec.source {
+            ModelSource::Downloaded(model_id) => {
+                assert_eq!(
+                    model_id, cache_result,
+                    "ModelSpecParser should produce same result as direct cache call"
+                );
+            },
+            _ => panic!("Expected downloaded model for URL"),
+        }
+    }
+
+    #[test]
     fn test_parse_nonexistent_external() {
-        // Non-existent path should be treated as embedded
+        // Non-existent path should be treated as downloaded model ID
         let spec = ModelSpecParser::parse("/non/existent/path");
         match spec.source {
-            ModelSource::Embedded(name) => assert_eq!(name, "/non/existent/path"),
-            _ => panic!("Expected embedded model for non-existent path"),
+            ModelSource::Downloaded(model_id) => assert_eq!(model_id, "/non/existent/path"),
+            _ => panic!("Expected downloaded model for non-existent path"),
         }
     }
 
@@ -261,7 +317,7 @@ mod tests {
         let available = vec!["fp16".to_string(), "fp32".to_string()];
 
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: Some("fp32".to_string()),
         };
 
@@ -275,7 +331,7 @@ mod tests {
         let available = vec!["fp16".to_string(), "fp32".to_string()];
 
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: Some("fp32".to_string()),
         };
 
@@ -289,7 +345,7 @@ mod tests {
         let available = vec!["fp16".to_string(), "fp32".to_string()];
 
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: None,
         };
 
@@ -303,7 +359,7 @@ mod tests {
         let available = vec!["fp32".to_string()];
 
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: None,
         };
 
@@ -317,7 +373,7 @@ mod tests {
         let available = vec!["fp16".to_string(), "fp32".to_string()];
 
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: None,
         };
 
@@ -327,15 +383,15 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_embedded() {
+    fn test_validate_downloaded() {
         let spec = ModelSpec {
-            source: ModelSource::Embedded("isnet-fp16".to_string()),
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
             variant: None,
         };
         assert!(ModelSpecParser::validate(&spec).is_ok());
 
         let invalid_spec = ModelSpec {
-            source: ModelSource::Embedded("".to_string()),
+            source: ModelSource::Downloaded("".to_string()),
             variant: None,
         };
         assert!(ModelSpecParser::validate(&invalid_spec).is_err());
@@ -344,44 +400,50 @@ mod tests {
     #[test]
     fn test_to_string() {
         let spec1 = ModelSpec {
-            source: ModelSource::Embedded("isnet".to_string()),
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
             variant: None,
         };
-        assert_eq!(ModelSpecParser::to_string(&spec1), "isnet");
+        assert_eq!(
+            ModelSpecParser::to_string(&spec1),
+            "imgly--isnet-general-onnx"
+        );
 
         let spec2 = ModelSpec {
-            source: ModelSource::Embedded("birefnet".to_string()),
+            source: ModelSource::Downloaded("imgly--birefnet-portrait".to_string()),
             variant: Some("fp32".to_string()),
         };
-        assert_eq!(ModelSpecParser::to_string(&spec2), "birefnet:fp32");
+        assert_eq!(
+            ModelSpecParser::to_string(&spec2),
+            "imgly--birefnet-portrait:fp32"
+        );
     }
 
     #[test]
-    fn test_is_embedded_external() {
-        let embedded_spec = ModelSpec {
-            source: ModelSource::Embedded("isnet".to_string()),
+    fn test_is_downloaded_external() {
+        let downloaded_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
             variant: None,
         };
-        assert!(ModelSpecParser::is_embedded(&embedded_spec));
-        assert!(!ModelSpecParser::is_external(&embedded_spec));
+        assert!(ModelSpecParser::is_downloaded(&downloaded_spec));
+        assert!(!ModelSpecParser::is_external(&downloaded_spec));
 
         let external_spec = ModelSpec {
             source: ModelSource::External(PathBuf::from("/path/to/model")),
             variant: None,
         };
-        assert!(!ModelSpecParser::is_embedded(&external_spec));
+        assert!(!ModelSpecParser::is_downloaded(&external_spec));
         assert!(ModelSpecParser::is_external(&external_spec));
     }
 
     #[test]
     fn test_get_model_name() {
-        let embedded_spec = ModelSpec {
-            source: ModelSource::Embedded("isnet-fp16".to_string()),
+        let downloaded_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
             variant: None,
         };
         assert_eq!(
-            ModelSpecParser::get_model_name(&embedded_spec),
-            "isnet-fp16"
+            ModelSpecParser::get_model_name(&downloaded_spec),
+            "imgly--isnet-general-onnx"
         );
 
         let external_spec = ModelSpec {

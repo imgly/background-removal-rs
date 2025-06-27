@@ -5,7 +5,7 @@
 use crate::cli::main_impl::{Cli, CliOutputFormat};
 use crate::{
     config::OutputFormat,
-    models::{get_available_embedded_models, ModelSource, ModelSpec},
+    models::{ModelSource, ModelSpec},
     processor::{ProcessorConfig, ProcessorConfigBuilder},
     utils::{ConfigValidator, ExecutionProviderManager, ModelSpecParser},
 };
@@ -22,19 +22,46 @@ impl CliConfigBuilder {
             let model_spec = ModelSpecParser::parse(model_arg);
             (model_spec, model_arg.clone())
         } else {
-            // Use first available embedded model
-            let available_embedded = get_available_embedded_models();
-            if available_embedded.is_empty() {
-                anyhow::bail!(
-                    "No model specified and no embedded models available. Use --model to specify a model name or path, or build with embed-* features."
-                );
+            // Show available downloaded models when none specified
+            Self::show_available_models_info();
+
+            // Check for downloaded models first
+            #[cfg(feature = "cli")]
+            {
+                use crate::cache::ModelCache;
+                if let Ok(cache) = ModelCache::new() {
+                    if let Ok(downloaded_models) = cache.scan_cached_models() {
+                        if !downloaded_models.is_empty() {
+                            // Use first available downloaded model
+                            let default_model = &downloaded_models[0].model_id;
+                            let model_spec = ModelSpec {
+                                source: ModelSource::Downloaded(default_model.clone()),
+                                variant: None,
+                            };
+                            (model_spec, default_model.clone())
+                        } else {
+                            // No downloaded models available
+                            return Err(anyhow::anyhow!(
+                                "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
+                            ));
+                        }
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
+                        ));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
+                    ));
+                }
             }
-            let default_model = &available_embedded[0];
-            let model_spec = ModelSpec {
-                source: ModelSource::Embedded(default_model.clone()),
-                variant: None,
-            };
-            (model_spec, default_model.clone())
+            #[cfg(not(feature = "cli"))]
+            {
+                return Err(anyhow::anyhow!(
+                    "No model specified. Use --model to specify a model URL or path."
+                ));
+            }
         };
 
         // Parse execution provider and backend type
@@ -75,6 +102,32 @@ impl CliConfigBuilder {
             .context("Invalid configuration")?;
 
         Ok(config)
+    }
+
+    /// Show available downloaded models when no model is specified
+    fn show_available_models_info() {
+        #[cfg(feature = "cli")]
+        {
+            use crate::cache::ModelCache;
+            if let Ok(cache) = ModelCache::new() {
+                if let Ok(downloaded_models) = cache.scan_cached_models() {
+                    if !downloaded_models.is_empty() {
+                        println!("📦 Available downloaded models:");
+                        for model in &downloaded_models {
+                            println!("  • {} ({})", model.model_id, model.variants.join(", "));
+                        }
+                        println!(
+                            "💡 To use a specific model: imgly-bgremove --model MODEL_ID input.jpg"
+                        );
+                        println!(
+                            "Using first available model: {}",
+                            downloaded_models[0].model_id
+                        );
+                        println!();
+                    }
+                }
+            }
+        }
     }
 
     /// Validate CLI arguments for consistency
@@ -120,12 +173,17 @@ mod tests {
             model: None,
             variant: None,
             preserve_color_profiles: true,
+            only_download: false,
+            list_models: false,
         }
     }
 
     #[test]
     fn test_cli_config_conversion() {
-        let cli = create_test_cli();
+        let mut cli = create_test_cli();
+        // Provide a model since there are no embedded models
+        cli.model = Some("test-model".to_string());
+
         let config = CliConfigBuilder::from_cli(&cli).unwrap();
 
         assert_eq!(config.backend_type, BackendType::Onnx);

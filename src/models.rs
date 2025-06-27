@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 /// Model source specification
 #[derive(Debug, Clone)]
 pub enum ModelSource {
-    /// Embedded model by name
-    Embedded(String),
     /// External model from filesystem path
     External(PathBuf),
+    /// Downloaded model from cache by model ID
+    Downloaded(String),
 }
 
 /// Complete model specification including source and optional variant
@@ -78,100 +78,6 @@ pub trait ModelProvider: std::fmt::Debug {
     /// - Missing output tensor name in model configuration
     /// - Invalid or empty tensor name
     fn get_output_name(&self) -> Result<String>;
-}
-
-/// Embedded model provider for specific model by name
-#[derive(Debug)]
-pub struct EmbeddedModelProvider {
-    model_name: String,
-}
-
-impl EmbeddedModelProvider {
-    /// Create provider for specific embedded model
-    ///
-    /// # Errors
-    /// - Requested model not found in embedded registry
-    /// - Model name validation fails
-    pub fn new(model_name: String) -> Result<Self> {
-        // Validate model exists in registry
-        if EmbeddedModelRegistry::get_model(&model_name).is_none() {
-            let available = EmbeddedModelRegistry::list_available();
-            let suggestions: Vec<&str> = if available.is_empty() {
-                vec!["rebuild with --features embed-isnet or embed-birefnet"]
-            } else {
-                vec![
-                    "check available models with --list-models",
-                    "use external model with --model /path/to/model",
-                ]
-            };
-            return Err(crate::error::BgRemovalError::model_error_with_context(
-                "load embedded model",
-                Path::new(&model_name),
-                &format!("model '{model_name}' not found. Available: {available:?}"),
-                &suggestions,
-            ));
-        }
-
-        Ok(Self { model_name })
-    }
-
-    /// List all available embedded models
-    #[must_use]
-    pub fn list_available() -> &'static [&'static str] {
-        EmbeddedModelRegistry::list_available()
-    }
-
-    fn get_model_data(&self) -> Result<EmbeddedModelData> {
-        EmbeddedModelRegistry::get_model(&self.model_name).ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!(
-                "Embedded model '{model_name}' not found",
-                model_name = self.model_name
-            ))
-        })
-    }
-}
-
-impl ModelProvider for EmbeddedModelProvider {
-    fn load_model_data(&self) -> Result<Vec<u8>> {
-        let model_data = self.get_model_data()?;
-        Ok(model_data.model_data)
-    }
-
-    fn get_model_info(&self) -> Result<ModelInfo> {
-        let model_data = self.get_model_data()?;
-        Ok(ModelInfo {
-            name: model_data.name.clone(),
-            precision: extract_precision_from_name(&model_data.name),
-            size_bytes: model_data.model_data.len(),
-            input_shape: (
-                model_data.input_shape[0],
-                model_data.input_shape[1],
-                model_data.input_shape[2],
-                model_data.input_shape[3],
-            ),
-            output_shape: (
-                model_data.output_shape[0],
-                model_data.output_shape[1],
-                model_data.output_shape[2],
-                model_data.output_shape[3],
-            ),
-        })
-    }
-
-    fn get_preprocessing_config(&self) -> Result<PreprocessingConfig> {
-        let model_data = self.get_model_data()?;
-        Ok(model_data.preprocessing)
-    }
-
-    fn get_input_name(&self) -> Result<String> {
-        let model_data = self.get_model_data()?;
-        Ok(model_data.input_name)
-    }
-
-    fn get_output_name(&self) -> Result<String> {
-        let model_data = self.get_model_data()?;
-        Ok(model_data.output_name)
-    }
 }
 
 /// Model format detection
@@ -975,116 +881,6 @@ impl ModelProvider for ExternalModelProvider {
     }
 }
 
-/// Get list of all available embedded models
-///
-/// Returns a list of model names that are embedded in the current binary.
-/// These models can be used without external files and are immediately available.
-///
-/// # Returns
-///
-/// A `Vec<String>` containing embedded model names like:
-/// - `"isnet-fp16"` - Fast general-purpose model (FP16 precision)
-/// - `"isnet-fp32"` - General-purpose model (FP32 precision, better `CoreML` performance)
-/// - `"birefnet-fp16"` - High-quality portrait model (FP16 precision)
-/// - `"birefnet-fp32"` - High-quality portrait model (FP32 precision)
-/// - `"birefnet-lite-fp32"` - Balanced performance model (FP32 precision)
-///
-/// # Build Dependencies
-///
-/// The returned list depends on which embedding features were enabled at build time:
-/// - `embed-isnet-fp16` - Includes `ISNet` FP16 model
-/// - `embed-isnet-fp32` - Includes `ISNet` FP32 model  
-/// - `embed-birefnet-fp16` - Includes `BiRefNet` FP16 model
-/// - `embed-birefnet-fp32` - Includes `BiRefNet` FP32 model
-/// - `embed-birefnet-lite-fp32` - Includes `BiRefNet` Lite FP32 model
-/// - `embed-all` - Includes all available models
-///
-/// # Performance Characteristics
-///
-/// - **`ISNet` models**: Fastest inference, good general-purpose quality
-/// - **`BiRefNet` models**: Highest quality, slower inference, excellent for portraits
-/// - **`BiRefNet` Lite**: Balanced speed/quality, good compromise option
-/// - **FP16 models**: Faster on CPU/CUDA, poor `CoreML` performance
-/// - **FP32 models**: Better `CoreML` performance, slightly larger size
-///
-/// # Examples
-///
-/// ## Check available models
-/// ```rust
-/// use bg_remove_core::get_available_embedded_models;
-///
-/// let models = get_available_embedded_models();
-/// if models.is_empty() {
-///     println!("No embedded models available. Build with --features embed-all");
-/// } else {
-///     println!("Available models: {:?}", models);
-/// }
-/// ```
-///
-/// ## Select best model for execution provider
-/// ```rust
-/// use bg_remove_core::{get_available_embedded_models, ExecutionProvider};
-///
-/// fn select_optimal_model(provider: ExecutionProvider) -> Option<String> {
-///     let models = get_available_embedded_models();
-///     
-///     match provider {
-///         ExecutionProvider::CoreMl => {
-///             // Prefer FP32 models for CoreML
-///             models.iter().find(|m| m.contains("fp32")).cloned()
-///         },
-///         ExecutionProvider::Cuda | ExecutionProvider::Cpu => {
-///             // Prefer FP16 models for CPU/CUDA
-///             models.iter().find(|m| m.contains("fp16")).cloned()
-///         },
-///         ExecutionProvider::Auto => {
-///             // Use first available model
-///             models.first().cloned()
-///         }
-///     }
-/// }
-/// ```
-///
-/// ## Model selection priority
-/// ```rust
-/// use bg_remove_core::get_available_embedded_models;
-///
-/// fn get_recommended_model() -> Option<String> {
-///     let models = get_available_embedded_models();
-///     
-///     // Priority: ISNet (fast) > BiRefNet Lite (balanced) > BiRefNet (quality)
-///     ["isnet-fp16", "isnet-fp32", "birefnet-lite-fp32", "birefnet-fp16", "birefnet-fp32"]
-///         .iter()
-///         .find(|&name| models.contains(&name.to_string()))
-///         .map(|&name| name.to_string())
-/// }
-/// ```
-///
-/// # Note
-///
-/// If no models are embedded (empty list), you must either:
-/// 1. Rebuild with embedding features: `cargo build --features embed-all`
-/// 2. Use external models with `ModelSource::External(path)`
-#[must_use]
-pub fn get_available_embedded_models() -> Vec<String> {
-    EmbeddedModelProvider::list_available()
-        .iter()
-        .map(ToString::to_string)
-        .collect()
-}
-
-/// Extract precision from model name (e.g., "isnet-fp16" -> "fp16")
-#[must_use]
-fn extract_precision_from_name(name: &str) -> String {
-    if name.contains("fp32") {
-        "fp32".to_string()
-    } else if name.contains("fp16") {
-        "fp16".to_string()
-    } else {
-        "unknown".to_string()
-    }
-}
-
 /// Model manager for handling different model sources
 #[derive(Debug)]
 pub struct ModelManager {
@@ -1109,7 +905,6 @@ impl ModelManager {
     /// Create a new model manager from a model specification with execution provider optimization
     ///
     /// # Errors
-    /// - Requested embedded model not found in registry
     /// - Model path does not exist or is not a directory
     /// - Missing or invalid model configuration files
     /// - JSON parsing errors when reading configuration
@@ -1119,26 +914,17 @@ impl ModelManager {
         execution_provider: Option<&crate::config::ExecutionProvider>,
     ) -> Result<Self> {
         match &spec.source {
-            ModelSource::Embedded(model_name) => Self::with_embedded_model(model_name.clone()),
             ModelSource::External(model_path) => Self::with_external_model_and_provider(
                 model_path,
                 spec.variant.clone(),
                 execution_provider,
             ),
+            ModelSource::Downloaded(model_id) => Self::with_downloaded_model(
+                model_id.clone(),
+                spec.variant.clone(),
+                execution_provider,
+            ),
         }
-    }
-
-    /// Create a new model manager with specific embedded model
-    ///
-    /// # Errors
-    /// - Requested embedded model not found in registry
-    /// - Model name validation fails
-    /// - Internal model provider creation errors
-    pub fn with_embedded_model(model_name: String) -> Result<Self> {
-        let provider = EmbeddedModelProvider::new(model_name)?;
-        Ok(Self {
-            provider: Box::new(provider),
-        })
     }
 
     /// Create model manager with external model from folder path
@@ -1184,26 +970,24 @@ impl ModelManager {
         })
     }
 
-    /// Create model manager with first available embedded model (legacy compatibility)
+    /// Create model manager with downloaded model from cache
     ///
     /// # Errors
-    /// - No embedded models available (build without embedding features)
-    /// - Model provider creation fails for the first available model
-    /// - Internal registry access errors
-    pub fn with_embedded() -> Result<Self> {
-        let available = EmbeddedModelProvider::list_available();
-        if available.is_empty() {
-            return Err(crate::error::BgRemovalError::invalid_config(
-                "No embedded models available. Build with embed-* features or use external model.",
-            ));
-        }
-
-        Self::with_embedded_model(
-            (*available.first().ok_or_else(|| {
-                crate::error::BgRemovalError::invalid_config("No embedded models available")
-            })?)
-            .to_string(),
-        )
+    /// - Model not found in cache directory
+    /// - Missing or invalid configuration files in cached model
+    /// - JSON parsing errors when reading cached model configuration
+    /// - Requested variant not available in cached model
+    /// - Cache directory access errors
+    /// - Execution provider configuration errors
+    pub fn with_downloaded_model(
+        model_id: String,
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<Self> {
+        let provider = DownloadedModelProvider::new(model_id, variant, execution_provider)?;
+        Ok(Self {
+            provider: Box::new(provider),
+        })
     }
 
     /// Load model data
@@ -1265,6 +1049,391 @@ impl ModelManager {
     }
 }
 
+/// Downloaded model provider for cached models
+///
+/// This provider loads models from the cache directory that were previously
+/// downloaded from URLs. It supports the HuggingFace model format with
+/// automatic variant detection and preprocessing configuration.
+#[cfg(feature = "cli")]
+#[derive(Debug)]
+pub struct DownloadedModelProvider {
+    /// Model identifier in cache
+    model_id: String,
+    /// Path to cached model directory
+    model_path: PathBuf,
+    /// Parsed model configuration
+    model_config: serde_json::Value,
+    /// Parsed preprocessor configuration
+    preprocessor_config: serde_json::Value,
+    /// Selected model variant (fp16, fp32)
+    variant: String,
+    /// Model cache reference
+    cache: crate::cache::ModelCache,
+}
+
+#[cfg(feature = "cli")]
+impl DownloadedModelProvider {
+    /// Create a new provider for a cached model
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier in cache (e.g., "imgly--isnet-general-onnx")
+    /// * `variant` - Optional variant preference (fp16, fp32)
+    /// * `execution_provider` - Optional execution provider for variant optimization
+    ///
+    /// # Errors
+    /// - Model not found in cache
+    /// - Invalid or missing configuration files
+    /// - JSON parsing errors
+    /// - Requested variant not available
+    pub fn new(
+        model_id: String,
+        variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<Self> {
+        let cache = crate::cache::ModelCache::new()?;
+
+        // Check if model is cached
+        if !cache.is_model_cached(&model_id) {
+            return Err(crate::error::BgRemovalError::model(format!(
+                "Model '{}' not found in cache. Available models: {:?}",
+                model_id,
+                cache
+                    .scan_cached_models()?
+                    .iter()
+                    .map(|m| &m.model_id)
+                    .collect::<Vec<_>>()
+            )));
+        }
+
+        let model_path = cache.get_model_path(&model_id);
+
+        // Load configuration files
+        let (model_config, preprocessor_config) = Self::load_configurations(&model_path)?;
+
+        // Determine the best variant to use
+        let resolved_variant = Self::resolve_variant(&model_path, variant, execution_provider)?;
+
+        Ok(Self {
+            model_id,
+            model_path,
+            model_config,
+            preprocessor_config,
+            variant: resolved_variant,
+            cache,
+        })
+    }
+
+    /// Load model and preprocessor configuration files
+    fn load_configurations(model_path: &Path) -> Result<(serde_json::Value, serde_json::Value)> {
+        // Load config.json
+        let config_path = model_path.join("config.json");
+        let config_content = fs::read_to_string(&config_path).map_err(|e| {
+            crate::error::BgRemovalError::file_io_error("read model config.json", &config_path, &e)
+        })?;
+
+        let model_config: serde_json::Value =
+            serde_json::from_str(&config_content).map_err(|e| {
+                crate::error::BgRemovalError::model(format!("Failed to parse config.json: {}", e))
+            })?;
+
+        // Load preprocessor_config.json
+        let preprocessor_path = model_path.join("preprocessor_config.json");
+        let preprocessor_content = fs::read_to_string(&preprocessor_path).map_err(|e| {
+            crate::error::BgRemovalError::file_io_error(
+                "read preprocessor_config.json",
+                &preprocessor_path,
+                &e,
+            )
+        })?;
+
+        let preprocessor_config: serde_json::Value = serde_json::from_str(&preprocessor_content)
+            .map_err(|e| {
+                crate::error::BgRemovalError::model(format!(
+                    "Failed to parse preprocessor_config.json: {}",
+                    e
+                ))
+            })?;
+
+        Ok((model_config, preprocessor_config))
+    }
+
+    /// Resolve the best variant to use based on availability and execution provider
+    fn resolve_variant(
+        model_path: &Path,
+        requested_variant: Option<String>,
+        execution_provider: Option<&crate::config::ExecutionProvider>,
+    ) -> Result<String> {
+        let onnx_dir = model_path.join("onnx");
+        if !onnx_dir.exists() {
+            return Err(crate::error::BgRemovalError::model(format!(
+                "ONNX directory not found in cached model: {}",
+                model_path.display()
+            )));
+        }
+
+        // Scan for available variants
+        let mut available_variants = Vec::new();
+        if let Ok(entries) = fs::read_dir(&onnx_dir) {
+            for entry in entries.flatten() {
+                if let Some(file_name) = entry.file_name().to_str() {
+                    if file_name.ends_with(".onnx") {
+                        match file_name {
+                            "model.onnx" => available_variants.push("fp32".to_string()),
+                            "model_fp16.onnx" => available_variants.push("fp16".to_string()),
+                            _ => {
+                                // Other ONNX files
+                                if let Some(variant) = file_name
+                                    .strip_prefix("model_")
+                                    .and_then(|s| s.strip_suffix(".onnx"))
+                                {
+                                    available_variants.push(variant.to_string());
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        }
+
+        if available_variants.is_empty() {
+            return Err(crate::error::BgRemovalError::model(format!(
+                "No ONNX model files found in cached model: {}",
+                onnx_dir.display()
+            )));
+        }
+
+        // If variant explicitly requested, use it if available
+        if let Some(variant) = requested_variant {
+            if available_variants.contains(&variant) {
+                return Ok(variant);
+            }
+            return Err(crate::error::BgRemovalError::model(format!(
+                "Requested variant '{}' not available in cached model. Available: {:?}",
+                variant, available_variants
+            )));
+        }
+
+        // Auto-select based on execution provider preferences
+        if let Some(provider) = execution_provider {
+            match provider {
+                crate::config::ExecutionProvider::CoreMl => {
+                    // Prefer FP32 for CoreML
+                    if available_variants.contains(&"fp32".to_string()) {
+                        return Ok("fp32".to_string());
+                    }
+                },
+                crate::config::ExecutionProvider::Cuda | crate::config::ExecutionProvider::Cpu => {
+                    // Prefer FP16 for CPU/CUDA
+                    if available_variants.contains(&"fp16".to_string()) {
+                        return Ok("fp16".to_string());
+                    }
+                },
+                crate::config::ExecutionProvider::Auto => {
+                    // Platform-specific preferences
+                    #[cfg(target_os = "macos")]
+                    {
+                        if available_variants.contains(&"fp32".to_string()) {
+                            return Ok("fp32".to_string());
+                        }
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        if available_variants.contains(&"fp16".to_string()) {
+                            return Ok("fp16".to_string());
+                        }
+                    }
+                },
+            }
+        }
+
+        // Fallback: prefer fp16, then fp32, then first available
+        for preferred in ["fp16", "fp32"] {
+            if available_variants.contains(&preferred.to_string()) {
+                return Ok(preferred.to_string());
+            }
+        }
+
+        Ok(available_variants.into_iter().next().unwrap())
+    }
+
+    /// Get the path to the ONNX model file for the selected variant
+    fn get_model_file_path(&self) -> PathBuf {
+        let onnx_dir = self.model_path.join("onnx");
+        match self.variant.as_str() {
+            "fp16" => onnx_dir.join("model_fp16.onnx"),
+            "fp32" => onnx_dir.join("model.onnx"),
+            variant => onnx_dir.join(format!("model_{}.onnx", variant)),
+        }
+    }
+
+    /// Parse image size from preprocessor config
+    fn parse_image_size(preprocessor: &serde_json::Value) -> Result<[u32; 2]> {
+        let size = preprocessor.get("size").ok_or_else(|| {
+            crate::error::BgRemovalError::model("Missing size in preprocessor config")
+        })?;
+
+        let height = size
+            .get("height")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::model("Missing or invalid height in size config")
+            })?;
+
+        let width = size
+            .get("width")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::model("Missing or invalid width in size config")
+            })?;
+
+        let height_u32 = height
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::model("Height value too large for u32"))?;
+        let width_u32 = width
+            .try_into()
+            .map_err(|_| crate::error::BgRemovalError::model("Width value too large for u32"))?;
+
+        Ok([height_u32, width_u32])
+    }
+
+    /// Parse image mean from preprocessor config (convert from 0-255 to 0-1 range)
+    fn parse_image_mean(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
+        let image_mean = preprocessor
+            .get("image_mean")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::model(
+                    "Missing or invalid image_mean in preprocessor config",
+                )
+            })?;
+
+        if image_mean.len() < 3 {
+            return Err(crate::error::BgRemovalError::model(
+                "image_mean must have at least 3 values",
+            ));
+        }
+
+        // Convert from 0-255 range to 0-1 range
+        let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+
+        Ok([mean0, mean1, mean2])
+    }
+
+    /// Parse image std from preprocessor config (convert from 0-255 to 0-1 range)
+    fn parse_image_std(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
+        let image_std = preprocessor
+            .get("image_std")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::model(
+                    "Missing or invalid image_std in preprocessor config",
+                )
+            })?;
+
+        if image_std.len() < 3 {
+            return Err(crate::error::BgRemovalError::model(
+                "image_std must have at least 3 values",
+            ));
+        }
+
+        // Convert from 0-255 range to 0-1 range
+        let std0 = (image_std[0].as_f64().unwrap_or(255.0) / 255.0) as f32;
+        let std1 = (image_std[1].as_f64().unwrap_or(255.0) / 255.0) as f32;
+        let std2 = (image_std[2].as_f64().unwrap_or(255.0) / 255.0) as f32;
+
+        Ok([std0, std1, std2])
+    }
+
+    /// Get the model cache reference
+    #[must_use]
+    pub fn cache(&self) -> &crate::cache::ModelCache {
+        &self.cache
+    }
+
+    /// Get the model ID
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    /// Get the selected variant
+    #[must_use]
+    pub fn variant(&self) -> &str {
+        &self.variant
+    }
+}
+
+#[cfg(feature = "cli")]
+impl ModelProvider for DownloadedModelProvider {
+    fn load_model_data(&self) -> Result<Vec<u8>> {
+        let model_file_path = self.get_model_file_path();
+
+        if !model_file_path.exists() {
+            return Err(crate::error::BgRemovalError::model(format!(
+                "Model file not found: {}. Expected variant: {}",
+                model_file_path.display(),
+                self.variant
+            )));
+        }
+
+        fs::read(&model_file_path).map_err(|e| {
+            crate::error::BgRemovalError::file_io_error(
+                "read cached model file",
+                &model_file_path,
+                &e,
+            )
+        })
+    }
+
+    fn get_model_info(&self) -> Result<ModelInfo> {
+        let model_data = self.load_model_data()?;
+
+        // Extract model type and name from config
+        let model_type = self
+            .model_config
+            .get("model_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        // Get image dimensions from preprocessor config
+        let target_size = Self::parse_image_size(&self.preprocessor_config)?;
+        let height = target_size[0] as usize;
+        let width = target_size[1] as usize;
+
+        Ok(ModelInfo {
+            name: format!("{}-{}", model_type, self.variant),
+            precision: self.variant.clone(),
+            size_bytes: model_data.len(),
+            input_shape: (1, 3, height, width),  // NCHW format
+            output_shape: (1, 1, height, width), // Single channel mask output
+        })
+    }
+
+    fn get_preprocessing_config(&self) -> Result<PreprocessingConfig> {
+        let target_size = Self::parse_image_size(&self.preprocessor_config)?;
+        let normalization_mean = Self::parse_image_mean(&self.preprocessor_config)?;
+        let normalization_std = Self::parse_image_std(&self.preprocessor_config)?;
+
+        Ok(PreprocessingConfig {
+            target_size,
+            normalization_mean,
+            normalization_std,
+        })
+    }
+
+    fn get_input_name(&self) -> Result<String> {
+        // For downloaded models, use generic input name since we use positional inputs
+        Ok("input".to_string())
+    }
+
+    fn get_output_name(&self) -> Result<String> {
+        // For downloaded models, use generic output name since we use positional outputs
+        Ok("output".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1272,32 +1441,15 @@ mod tests {
 
     #[test]
     fn test_embedded_model_registry() {
-        let available = EmbeddedModelProvider::list_available();
+        // Test that empty registry works properly
+        let available = EmbeddedModelRegistry::list_available();
+        assert!(
+            available.is_empty(),
+            "No embedded models should be available"
+        );
 
-        // Registry should work even with no models (empty list)
-        // When models are embedded, they should be accessible
-        for model_name in available {
-            let provider = EmbeddedModelProvider::new((*model_name).to_string()).unwrap();
-            let info = provider.get_model_info().unwrap();
-            assert!(!info.name.is_empty());
-            assert!(!info.precision.is_empty());
-        }
-    }
-
-    #[test]
-    fn test_model_manager_creation() {
-        let available = EmbeddedModelProvider::list_available();
-
-        if available.is_empty() {
-            // No embedded models - should error gracefully
-            let result = ModelManager::with_embedded();
-            assert!(result.is_err());
-        } else {
-            // With embedded models - should work
-            let manager = ModelManager::with_embedded().unwrap();
-            let info = manager.get_info().unwrap();
-            assert!(!info.name.is_empty());
-        }
+        // Test that get_model returns None for any query
+        assert!(EmbeddedModelRegistry::get_model("any-model").is_none());
     }
 
     #[test]
@@ -1317,18 +1469,11 @@ mod tests {
     #[test]
     fn test_model_spec_creation() {
         let spec = ModelSpec {
-            source: ModelSource::Embedded("test".to_string()),
+            source: ModelSource::Downloaded("test-model".to_string()),
             variant: Some("fp16".to_string()),
         };
 
-        assert!(matches!(spec.source, ModelSource::Embedded(_)));
+        assert!(matches!(spec.source, ModelSource::Downloaded(_)));
         assert_eq!(spec.variant, Some("fp16".to_string()));
-    }
-
-    #[test]
-    fn test_extract_precision_from_name() {
-        assert_eq!(extract_precision_from_name("isnet-fp16"), "fp16");
-        assert_eq!(extract_precision_from_name("birefnet-fp32"), "fp32");
-        assert_eq!(extract_precision_from_name("unknown-model"), "unknown");
     }
 }

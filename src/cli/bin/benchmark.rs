@@ -6,7 +6,7 @@
 //! - Uses the model precision compiled into the binary
 
 use anyhow::{Context, Result};
-use bg_remove_core::{ExecutionProvider, OutputFormat, RemovalConfig};
+use imgly_bgremove::{ExecutionProvider, OutputFormat, RemovalConfig};
 use image::{DynamicImage, ImageBuffer, Rgb};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -205,7 +205,7 @@ async fn benchmark_configuration(
 
         let start = Instant::now();
 
-        match bg_remove_core::process_image(test_image.clone(), &removal_config) {
+        match imgly_bgremove::process_image(test_image.clone(), &removal_config) {
             Ok(_) => {
                 let duration = start.elapsed();
                 times.push(duration.as_millis() as f64);

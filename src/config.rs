@@ -96,7 +96,7 @@ impl RemovalConfig {
     ///
     /// ## Basic configuration
     /// ```rust
-    /// use bg_remove_core::RemovalConfig;
+    /// use imgly_bgremove::RemovalConfig;
     ///
     /// let config = RemovalConfig::builder()
     ///     .build()
@@ -105,7 +105,7 @@ impl RemovalConfig {
     ///
     /// ## Advanced configuration
     /// ```rust
-    /// use bg_remove_core::{RemovalConfig, ExecutionProvider, OutputFormat};
+    /// use imgly_bgremove::{RemovalConfig, ExecutionProvider, OutputFormat};
     ///
     /// let config = RemovalConfig::builder()
     ///     .execution_provider(ExecutionProvider::CoreMl)
@@ -144,7 +144,7 @@ impl RemovalConfig {
     /// # Examples
     ///
     /// ```rust
-    /// use bg_remove_core::RemovalConfig;
+    /// use imgly_bgremove::RemovalConfig;
     ///
     /// let mut config = RemovalConfig::default();
     /// assert!(config.validate().is_ok());
@@ -252,7 +252,7 @@ impl RemovalConfigBuilder {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::RemovalConfig;
+    /// use imgly_bgremove::RemovalConfig;
     ///
     /// // Auto-detect optimal thread count
     /// let config = RemovalConfig::builder()
@@ -300,7 +300,7 @@ impl RemovalConfigBuilder {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::{RemovalConfig, ExecutionProvider};
+    /// use imgly_bgremove::{RemovalConfig, ExecutionProvider};
     ///
     /// // Valid configuration
     /// let config = RemovalConfig::builder()

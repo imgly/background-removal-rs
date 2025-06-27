@@ -1,6 +1,8 @@
 //! Real image fixtures and loading utilities
 
-use crate::{Result, TestCase, TestingError};
+// Import from the common test utilities
+mod common;
+use common::{ComplexityLevel, Result, TestCase, TestingError};
 use image::DynamicImage;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -146,13 +148,13 @@ impl TestFixtures {
     }
 
     /// Infer complexity level from category name
-    fn infer_complexity(category: &str) -> crate::ComplexityLevel {
+    fn infer_complexity(category: &str) -> ComplexityLevel {
         match category {
-            "portraits" => crate::ComplexityLevel::Medium,
-            "products" => crate::ComplexityLevel::Simple,
-            "complex" => crate::ComplexityLevel::Complex,
-            "edge_cases" => crate::ComplexityLevel::Extreme,
-            _ => crate::ComplexityLevel::Medium,
+            "portraits" => ComplexityLevel::Medium,
+            "products" => ComplexityLevel::Simple,
+            "complex" => ComplexityLevel::Complex,
+            "edge_cases" => ComplexityLevel::Extreme,
+            _ => ComplexityLevel::Medium,
         }
     }
 

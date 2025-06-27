@@ -1,6 +1,8 @@
 //! Image comparison and accuracy metrics
 
-use crate::{Result, TestMetrics, TestingError};
+// Import from the common test utilities
+mod common;
+use common::{Result, TestMetrics, TestingError};
 use image::{DynamicImage, GenericImageView, GrayImage, Luma, RgbaImage};
 use std::cmp;
 

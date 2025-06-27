@@ -16,32 +16,20 @@ name = "imgly-bgremove"
 path = "src/bin/imgly-bgremove.rs"
 
 [features]
-# Default: include all backends and CLI functionality
-default = ["onnx", "tract", "cli", "webp-support", "embed-isnet-fp32"]
+# Default: include all backends and CLI functionality (removed embedded models)
+default = ["onnx", "tract", "cli", "webp-support"]
 
 # Backend features
 onnx = ["dep:ort"]
 tract = ["dep:tract-onnx", "dep:tract-core"]
 
-# CLI functionality
-cli = ["dep:clap", "dep:indicatif", "dep:env_logger", "dep:glob", "dep:walkdir"]
+# CLI functionality with download capabilities
+cli = ["dep:clap", "dep:indicatif", "dep:env_logger", "dep:glob", "dep:walkdir", "dep:reqwest", "dep:dirs", "dep:tokio-util", "dep:sha2", "dep:futures-util"]
 
 # WebP support (pure Rust, WASM-compatible via image crate)
 webp-support = ["image/webp"]
 
-# Individual model embedding (additive, not mutually exclusive)
-embed-isnet-fp16 = []
-embed-isnet-fp32 = []
-embed-birefnet-fp16 = []
-embed-birefnet-fp32 = []
-embed-birefnet-lite-fp16 = []
-embed-birefnet-lite-fp32 = []
-
-# Convenience groups
-embed-all-isnet = ["embed-isnet-fp16", "embed-isnet-fp32"]
-embed-all-birefnet = ["embed-birefnet-fp16", "embed-birefnet-fp32"]
-embed-all-birefnet-lite = ["embed-birefnet-lite-fp16", "embed-birefnet-lite-fp32"]
-embed-all = ["embed-all-isnet", "embed-all-birefnet", "embed-all-birefnet-lite"]
+# Model embedding features removed - use download functionality instead
 
 [dependencies]
 # Core dependencies
@@ -77,6 +65,13 @@ indicatif = { version = "0.17", optional = true }
 env_logger = { version = "0.11", optional = true }
 glob = { version = "0.3", optional = true }
 walkdir = { version = "2.0", optional = true }
+
+# Model download dependencies (feature-gated with CLI)
+reqwest = { version = "0.11", features = ["rustls-tls", "stream"], optional = true }
+dirs = { version = "5.0", optional = true }
+tokio-util = { version = "0.7", features = ["io"], optional = true }
+sha2 = { version = "0.10", optional = true }
+futures-util = { version = "0.3", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"

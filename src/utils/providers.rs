@@ -32,7 +32,7 @@ impl ExecutionProviderManager {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::utils::ExecutionProviderManager;
+    /// use imgly_bgremove::utils::ExecutionProviderManager;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let (backend, provider) = ExecutionProviderManager::parse_provider_string("onnx:auto")?;

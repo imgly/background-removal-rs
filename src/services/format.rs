@@ -22,7 +22,7 @@ impl OutputFormatHandler {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{services::OutputFormatHandler, config::OutputFormat};
+    /// use imgly_bgremove::{services::OutputFormatHandler, config::OutputFormat};
     /// use image::RgbaImage;
     ///
     /// let rgba_image = RgbaImage::new(100, 100);
@@ -59,7 +59,7 @@ impl OutputFormatHandler {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::{services::OutputFormatHandler, config::OutputFormat};
+    /// use imgly_bgremove::{services::OutputFormatHandler, config::OutputFormat};
     ///
     /// assert_eq!(OutputFormatHandler::get_extension(OutputFormat::Png), "png");
     /// assert_eq!(OutputFormatHandler::get_extension(OutputFormat::Jpeg), "jpg");
@@ -85,7 +85,7 @@ impl OutputFormatHandler {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::{services::OutputFormatHandler, config::OutputFormat};
+    /// use imgly_bgremove::{services::OutputFormatHandler, config::OutputFormat};
     ///
     /// assert!(OutputFormatHandler::supports_transparency(OutputFormat::Png));
     /// assert!(!OutputFormatHandler::supports_transparency(OutputFormat::Jpeg));
@@ -127,7 +127,7 @@ impl OutputFormatHandler {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::{services::OutputFormatHandler, config::OutputFormat};
+    /// use imgly_bgremove::{services::OutputFormatHandler, config::OutputFormat};
     ///
     /// let (default, min, max) = OutputFormatHandler::get_quality_range(OutputFormat::Jpeg).unwrap();
     /// assert_eq!(default, 90);

@@ -19,7 +19,7 @@ impl ConfigValidator {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::utils::ConfigValidator;
+    /// use imgly_bgremove::utils::ConfigValidator;
     ///
     /// assert!(ConfigValidator::validate_jpeg_quality(90).is_ok());
     /// assert!(ConfigValidator::validate_jpeg_quality(150).is_err());
@@ -43,7 +43,7 @@ impl ConfigValidator {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::utils::ConfigValidator;
+    /// use imgly_bgremove::utils::ConfigValidator;
     ///
     /// assert!(ConfigValidator::validate_webp_quality(85).is_ok());
     /// assert!(ConfigValidator::validate_webp_quality(150).is_err());
@@ -81,7 +81,7 @@ impl ConfigValidator {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::utils::ConfigValidator;
+    /// use imgly_bgremove::utils::ConfigValidator;
     ///
     /// assert!(ConfigValidator::validate_output_format("png").is_ok());
     /// assert!(ConfigValidator::validate_output_format("invalid").is_err());
@@ -108,7 +108,7 @@ impl ConfigValidator {
     ///
     /// # Examples
     /// ```rust
-    /// use bg_remove_core::{utils::ConfigValidator, config::OutputFormat};
+    /// use imgly_bgremove::{utils::ConfigValidator, config::OutputFormat};
     ///
     /// assert_eq!(ConfigValidator::parse_output_format("png").unwrap(), OutputFormat::Png);
     /// assert_eq!(ConfigValidator::parse_output_format("jpeg").unwrap(), OutputFormat::Jpeg);

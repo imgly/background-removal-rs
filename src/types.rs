@@ -218,7 +218,7 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
@@ -369,7 +369,7 @@ impl RemovalResult {
     ///
     /// ## Web API integration
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, process_image};
+    /// use imgly_bgremove::{RemovalConfig, process_image};
     /// use image::DynamicImage;
     ///
     /// # fn example(img: DynamicImage) -> anyhow::Result<()> {
@@ -387,7 +387,7 @@ impl RemovalResult {
     ///
     /// ## Custom pixel processing
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
@@ -757,7 +757,7 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, remove_background, OutputFormat};
+    /// use imgly_bgremove::{RemovalConfig, remove_background, OutputFormat};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
@@ -913,7 +913,7 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
@@ -941,7 +941,7 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
@@ -1104,7 +1104,7 @@ impl SegmentationMask {
     ///
     /// ## Basic statistics analysis
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, segment_foreground};
+    /// use imgly_bgremove::{RemovalConfig, segment_foreground};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
@@ -1123,7 +1123,7 @@ impl SegmentationMask {
     ///
     /// ## Quality control workflow
     /// ```rust,no_run
-    /// use bg_remove_core::{RemovalConfig, segment_foreground};
+    /// use imgly_bgremove::{RemovalConfig, segment_foreground};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();

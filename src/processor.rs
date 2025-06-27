@@ -147,8 +147,8 @@ impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
             model_spec: ModelSpec {
-                source: ModelSource::Embedded("isnet-fp32".to_string()),
-                variant: None,
+                source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+                variant: Some("fp32".to_string()),
             },
             backend_type: BackendType::Onnx,
             execution_provider: ExecutionProvider::Auto,

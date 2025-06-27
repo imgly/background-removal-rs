@@ -72,6 +72,14 @@ impl BgRemovalError {
         Self::Internal(msg.into())
     }
 
+    /// Create a network error for download operations
+    pub fn network_error<S: Into<String>, E: std::fmt::Display>(msg: S, error: E) -> Self {
+        Self::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("{}: {}", msg.into(), error),
+        ))
+    }
+
     // Enhanced contextual error creators
 
     /// Create file I/O error with operation context

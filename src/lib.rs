@@ -54,9 +54,13 @@
 
 pub mod backends;
 #[cfg(feature = "cli")]
+pub mod cache;
+#[cfg(feature = "cli")]
 pub mod cli;
 pub mod color_profile;
 pub mod config;
+#[cfg(feature = "cli")]
+pub mod download;
 pub mod error;
 pub mod inference;
 pub mod models;
@@ -71,11 +75,15 @@ use image::GenericImageView;
 
 // Public API exports
 pub use backends::*;
+#[cfg(feature = "cli")]
+pub use cache::{format_size, CachedModelInfo, ModelCache};
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
+#[cfg(feature = "cli")]
+pub use download::{parse_huggingface_url, validate_model_url, DownloadProgress, ModelDownloader};
 pub use error::{BgRemovalError, Result};
 pub use inference::InferenceBackend;
-pub use models::{get_available_embedded_models, ModelManager, ModelSource, ModelSpec};
+pub use models::{ModelManager, ModelSource, ModelSpec};
 pub use processor::{
     BackendFactory, BackendType, BackgroundRemovalProcessor, DefaultBackendFactory,
     ProcessorConfig, ProcessorConfigBuilder,
@@ -124,14 +132,14 @@ pub use utils::{
 ///
 /// # Examples
 ///
-/// ## Basic usage with embedded model
+/// ## Basic usage with downloaded model
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
 /// let model_spec = ModelSpec {
-///     source: ModelSource::Embedded("isnet-fp32".to_string()),
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
 /// };
 /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
@@ -142,14 +150,14 @@ pub use utils::{
 ///
 /// ## High-performance with `CoreML`
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, ExecutionProvider};
+/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, ExecutionProvider};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::builder()
 ///     .execution_provider(ExecutionProvider::CoreMl)
 ///     .build()?;
 /// let model_spec = ModelSpec {
-///     source: ModelSource::Embedded("isnet-fp32".to_string()),
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: Some("fp32".to_string()),
 /// };
 /// let result = remove_background_with_model("portrait.jpg", &config, &model_spec).await?;
@@ -160,7 +168,7 @@ pub use utils::{
 ///
 /// ## External model with custom configuration
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, OutputFormat};
+/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, OutputFormat};
 /// use std::path::PathBuf;
 ///
 /// # async fn example() -> anyhow::Result<()> {
@@ -285,102 +293,85 @@ pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
     ))
 }
 
-/// Remove background from an image file using first available embedded model
+/// Remove background from an image file (deprecated - use remove_background_with_model)
 ///
-/// This is a convenience function that automatically selects the first available embedded model.
-/// Use `remove_background_with_model()` for explicit model control and better performance.
+/// This function has been deprecated as embedded models are no longer supported.
+/// Use `remove_background_with_model()` with downloaded or external models instead.
 ///
-/// # Automatic Model Selection
+/// # Migration Guide
 ///
-/// Selects the first available embedded model in this priority order:
-/// 1. `isnet-fp32` - Fast general-purpose model (default)
-/// 2. `isnet-fp16` - Fast general-purpose model (FP16 variant)
-/// 3. `birefnet-fp16` - High-quality portrait model  
-/// 4. `birefnet-lite-fp32` - Balanced performance model
-/// 5. Any other available embedded models
+/// Instead of using this function, use one of these approaches:
 ///
-/// # Arguments
+/// ## Option 1: Download and use models
+/// ```bash
+/// # Download a model using the CLI
+/// imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx
+/// ```
 ///
-/// * `input_path` - Path to the input image file (JPEG, PNG, WebP, BMP, TIFF)
-/// * `config` - Configuration for execution provider, output format, and quality settings
-///
-/// # Returns
-///
-/// A `RemovalResult` containing the processed image, segmentation mask, and timing metadata
-///
-/// # Performance
-///
-/// Performance depends on the automatically selected model and execution provider:
-/// - **CPU**: 2-5 seconds typical
-/// - **GPU accelerated**: 100-500ms (CoreML/CUDA)
-///
-/// # Examples
-///
-/// ## Basic usage with default settings
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, remove_background};
+/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
-/// let result = remove_background("photo.jpg", &config).await?;
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
 /// result.save_png("result.png")?;
 /// # Ok(())
 /// # }
 /// ```
 ///
-/// ## Custom execution provider and output format
+/// ## Option 2: Use external model directory
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, remove_background, ExecutionProvider, OutputFormat};
+/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+/// use std::path::PathBuf;
 ///
 /// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::builder()
-///     .execution_provider(ExecutionProvider::CoreMl)
-///     .output_format(OutputFormat::Jpeg)
-///     .jpeg_quality(95)
-///     .build()?;
-/// let result = remove_background("portrait.jpg", &config).await?;
-/// result.save_jpeg("portrait_no_bg.jpg", config.jpeg_quality)?;
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::External(PathBuf::from("/path/to/model")),
+///     variant: Some("fp16".to_string()),
+/// };
+/// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
+/// result.save_png("result.png")?;
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Errors
 ///
-/// Returns `BgRemovalError` for:
-/// - No embedded models available (requires building with embed-* features)
-/// - Invalid input image format or corrupted files
-/// - Execution provider setup failures
-/// - Memory allocation or processing errors
+/// This function always returns an error directing users to the new download workflow.
 ///
 /// # Note
 ///
-/// For production use, prefer `remove_background_with_model()` with explicit model
-/// selection for predictable performance and behavior.
+/// See the [migration guide](https://docs.rs/imgly-bgremove/latest/imgly_bgremove/index.html)
+/// for detailed instructions on migrating from embedded models to downloaded models.
+#[deprecated(
+    since = "0.3.0",
+    note = "Use remove_background_with_model() with downloaded or external models. See migration guide for details."
+)]
 pub async fn remove_background<P: AsRef<std::path::Path>>(
-    input_path: P,
-    config: &RemovalConfig,
+    _input_path: P,
+    _config: &RemovalConfig,
 ) -> Result<RemovalResult> {
-    // Get first available embedded model
-    let available_models = get_available_embedded_models();
-    if available_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No embedded models available. Build with embed-* features or use remove_background_with_model()."
-        ));
-    }
-    let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
-        variant: None,
-    };
-
-    // Use the unified processor with first available model
-    remove_background_with_model(input_path, config, &model_spec).await
+    Err(BgRemovalError::invalid_config(
+        "Embedded models are no longer supported. Please use remove_background_with_model() with downloaded models.\n\
+         \n\
+         To download models:\n\
+         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
+         2. List downloaded models: imgly-bgremove --list-models\n\
+         3. Use with ModelSource::Downloaded(\"model-id\") in remove_background_with_model()\n\
+         \n\
+         See documentation for migration guide."
+    ))
 }
 
-/// Process a `DynamicImage` directly for background removal
+/// Process a `DynamicImage` directly for background removal (deprecated)
 ///
-/// This allows processing images already loaded into memory without file I/O overhead.
-/// Useful for processing images from web requests, camera feeds, or other in-memory sources.
-/// Uses the first available embedded model.
+/// This function has been deprecated as embedded models are no longer supported.
+/// Use the unified `BackgroundRemovalProcessor` with downloaded or external models instead.
 ///
 /// # Arguments
 ///
@@ -411,7 +402,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 ///
 /// ## Basic in-memory processing
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, process_image};
+/// use imgly_bgremove::{RemovalConfig, process_image};
 /// use image::DynamicImage;
 ///
 /// # fn example(img: DynamicImage) -> anyhow::Result<()> {
@@ -424,7 +415,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 ///
 /// ## Processing image from bytes with custom config
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, process_image, ExecutionProvider};
+/// use imgly_bgremove::{RemovalConfig, process_image, ExecutionProvider};
 /// use image::ImageFormat;
 /// use std::io::Cursor;
 ///
@@ -444,7 +435,7 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 ///
 /// ## Batch processing with timing analysis
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, process_image};
+/// use imgly_bgremove::{RemovalConfig, process_image};
 /// use image::DynamicImage;
 ///
 /// # fn example(images: Vec<DynamicImage>) -> anyhow::Result<()> {
@@ -472,38 +463,24 @@ pub async fn remove_background<P: AsRef<std::path::Path>>(
 /// This function is synchronous and uses the first available embedded model.
 /// For async processing or specific model selection, load the image and use
 /// `remove_background_with_model()` instead.
+#[deprecated(
+    since = "0.3.0",
+    note = "Use remove_background_with_model() with downloaded or external models. See migration guide for details."
+)]
 #[allow(clippy::needless_pass_by_value)]
-pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Result<RemovalResult> {
-    // Get first available embedded model
-    let available_models = get_available_embedded_models();
-    if available_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No embedded models available. Build with embed-* features.",
-        ));
-    }
-    let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
-        variant: None,
-    };
-
-    // Convert RemovalConfig to ProcessorConfig for unified processor
-    let processor_config = ProcessorConfigBuilder::new()
-        .model_spec(model_spec)
-        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
-        .execution_provider(config.execution_provider)
-        .output_format(config.output_format)
-        .jpeg_quality(config.jpeg_quality)
-        .webp_quality(config.webp_quality)
-        .debug(config.debug)
-        .intra_threads(config.intra_threads)
-        .inter_threads(config.inter_threads)
-        .preserve_color_profiles(config.preserve_color_profiles)
-        .build()?;
-
-    let backend_factory = Box::new(DefaultBackendFactory);
-    let mut unified_processor =
-        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.process_image(&image)
+pub fn process_image(
+    _image: image::DynamicImage,
+    _config: &RemovalConfig,
+) -> Result<RemovalResult> {
+    Err(BgRemovalError::invalid_config(
+        "Embedded models are no longer supported. Please use the new download workflow.\n\
+         \n\
+         To download models:\n\
+         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
+         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
+         \n\
+         See documentation for migration guide."
+    ))
 }
 
 /// Extract foreground segmentation mask from an image without background removal
@@ -542,7 +519,7 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
 ///
 /// ## Basic mask extraction
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, segment_foreground};
+/// use imgly_bgremove::{RemovalConfig, segment_foreground};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
@@ -560,7 +537,7 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
 ///
 /// ## High-quality mask with analysis
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, segment_foreground, ExecutionProvider};
+/// use imgly_bgremove::{RemovalConfig, segment_foreground, ExecutionProvider};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::builder()
@@ -586,40 +563,23 @@ pub fn process_image(image: image::DynamicImage, config: &RemovalConfig) -> Resu
 /// - Model loading or execution failures
 /// - Memory allocation errors during inference
 /// - File I/O errors when reading input
+#[deprecated(
+    since = "0.3.0",
+    note = "Use the unified processor with downloaded or external models. See migration guide for details."
+)]
 pub async fn segment_foreground<P: AsRef<std::path::Path>>(
-    input_path: P,
-    config: &RemovalConfig,
+    _input_path: P,
+    _config: &RemovalConfig,
 ) -> Result<SegmentationMask> {
-    // Get first available embedded model
-    let available_models = get_available_embedded_models();
-    if available_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No embedded models available. Build with embed-* features.",
-        ));
-    }
-    let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
-        variant: None,
-    };
-
-    // Convert RemovalConfig to ProcessorConfig
-    let processor_config = ProcessorConfigBuilder::new()
-        .model_spec(model_spec)
-        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
-        .execution_provider(config.execution_provider)
-        .output_format(config.output_format)
-        .jpeg_quality(config.jpeg_quality)
-        .webp_quality(config.webp_quality)
-        .debug(config.debug)
-        .intra_threads(config.intra_threads)
-        .inter_threads(config.inter_threads)
-        .preserve_color_profiles(config.preserve_color_profiles)
-        .build()?;
-
-    let backend_factory = Box::new(DefaultBackendFactory);
-    let mut unified_processor =
-        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.segment_foreground(input_path).await
+    Err(BgRemovalError::invalid_config(
+        "Embedded models are no longer supported. Please use the new download workflow.\n\
+         \n\
+         To download models:\n\
+         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
+         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
+         \n\
+         See documentation for migration guide."
+    ))
 }
 
 /// Apply a pre-computed segmentation mask to an image for background removal
@@ -665,7 +625,7 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// ## Apply existing mask to new image
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, segment_foreground, apply_segmentation_mask};
+/// use imgly_bgremove::{RemovalConfig, segment_foreground, apply_segmentation_mask};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
@@ -682,7 +642,7 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// ## Batch processing with mask reuse
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, segment_foreground, apply_segmentation_mask};
+/// use imgly_bgremove::{RemovalConfig, segment_foreground, apply_segmentation_mask};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
@@ -703,7 +663,7 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 ///
 /// ## Apply resized mask to different image size
 /// ```rust,no_run
-/// use bg_remove_core::{RemovalConfig, apply_segmentation_mask, SegmentationMask};
+/// use imgly_bgremove::{RemovalConfig, apply_segmentation_mask, SegmentationMask};
 ///
 /// # async fn example(mask: SegmentationMask) -> anyhow::Result<()> {
 /// let config = RemovalConfig::default();
@@ -724,41 +684,24 @@ pub async fn segment_foreground<P: AsRef<std::path::Path>>(
 /// - Invalid input image format or corrupted files
 /// - File I/O errors when reading input or writing output
 /// - Memory allocation failures during compositing
+#[deprecated(
+    since = "0.3.0",
+    note = "Use the unified processor with downloaded or external models. See migration guide for details."
+)]
 pub async fn apply_segmentation_mask<P: AsRef<std::path::Path>>(
-    input_path: P,
-    mask: &SegmentationMask,
-    config: &RemovalConfig,
+    _input_path: P,
+    _mask: &SegmentationMask,
+    _config: &RemovalConfig,
 ) -> Result<RemovalResult> {
-    // Get first available embedded model
-    let available_models = get_available_embedded_models();
-    if available_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No embedded models available. Build with embed-* features.",
-        ));
-    }
-    let model_spec = ModelSpec {
-        source: ModelSource::Embedded(available_models.first().unwrap().clone()),
-        variant: None,
-    };
-
-    // Convert RemovalConfig to ProcessorConfig
-    let processor_config = ProcessorConfigBuilder::new()
-        .model_spec(model_spec)
-        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
-        .execution_provider(config.execution_provider)
-        .output_format(config.output_format)
-        .jpeg_quality(config.jpeg_quality)
-        .webp_quality(config.webp_quality)
-        .debug(config.debug)
-        .intra_threads(config.intra_threads)
-        .inter_threads(config.inter_threads)
-        .preserve_color_profiles(config.preserve_color_profiles)
-        .build()?;
-
-    let backend_factory = Box::new(DefaultBackendFactory);
-    let unified_processor =
-        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.apply_mask(input_path, mask).await
+    Err(BgRemovalError::invalid_config(
+        "Embedded models are no longer supported. Please use the new download workflow.\n\
+         \n\
+         To download models:\n\
+         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
+         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
+         \n\
+         See documentation for migration guide."
+    ))
 }
 
 #[cfg(test)]

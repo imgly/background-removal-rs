@@ -167,19 +167,12 @@ impl OnnxBackend {
     #[allow(clippy::too_many_lines)] // Complex provider configuration logic
     fn load_model(&mut self, config: &RemovalConfig) -> Result<std::time::Duration> {
         let model_load_start = std::time::Instant::now();
-        // Get or create model manager
-        let model_manager = if let Some(ref manager) = self.model_manager {
-            manager
-        } else {
-            // Fall back to embedded model if no model manager was set
-            let embedded_manager = ModelManager::with_embedded()?;
-            self.model_manager = Some(embedded_manager);
-            self.model_manager.as_ref().ok_or_else(|| {
-                crate::error::BgRemovalError::internal(
-                    "Model manager unexpectedly missing after insertion",
-                )
-            })?
-        };
+        // Get model manager (must be provided)
+        let model_manager = self.model_manager.as_ref().ok_or_else(|| {
+            crate::error::BgRemovalError::invalid_config(
+                "No model manager provided. Use ModelManager::from_spec() to create one with downloaded or external models."
+            )
+        })?;
 
         // Load the model data
         let model_data = model_manager.load_model()?;

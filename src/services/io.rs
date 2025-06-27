@@ -26,7 +26,7 @@ impl ImageIOService {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::services::ImageIOService;
+    /// use imgly_bgremove::services::ImageIOService;
     ///
     /// let image = ImageIOService::load_image("input.jpg")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -91,7 +91,7 @@ impl ImageIOService {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use bg_remove_core::{services::ImageIOService, config::OutputFormat};
+    /// use imgly_bgremove::{services::ImageIOService, config::OutputFormat};
     /// use image::DynamicImage;
     ///
     /// # let image = DynamicImage::new_rgb8(100, 100);

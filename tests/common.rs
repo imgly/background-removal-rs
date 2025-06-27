@@ -1,13 +1,8 @@
-//! Testing utilities and tools for the background removal library
-//!
-//! This crate provides comprehensive testing infrastructure including:
-//! - Real image fixtures and loading utilities
-//! - Image comparison and accuracy metrics
-//! - HTML report generation with visual comparisons
-//! - Performance benchmarking tools
+//! Common test utilities and types
+//! This module provides shared functionality for integration tests
 
-// This is a shared library for integration tests
-// It provides common types and utilities used across multiple test files
+#![allow(dead_code)]
+#![allow(unreachable_pub)]
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

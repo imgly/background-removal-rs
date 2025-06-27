@@ -22,7 +22,7 @@ use std::time::Instant;
 #[command(name = "imgly-bgremove")]
 pub struct Cli {
     /// Input image files or directories (use "-" for stdin)
-    #[arg(value_name = "INPUT", required_unless_present = "show_providers")]
+    #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models"])]
     pub input: Vec<String>,
 
     /// Output file or directory (use "-" for stdout)
@@ -69,17 +69,25 @@ pub struct Cli {
     #[arg(long)]
     pub show_providers: bool,
 
-    /// Model name or path to model folder (optional if embedded models available)
+    /// Model name, URL, or path to model folder [default: first downloaded model or embedded model]
     #[arg(short, long)]
     pub model: Option<String>,
 
-    /// Model variant (fp16, fp32). Defaults to fp16
+    /// Model variant (fp16, fp32) [default: fp16]
     #[arg(long)]
     pub variant: Option<String>,
 
-    /// Preserve ICC color profiles from input images (default: true)
+    /// Preserve ICC color profiles from input images [default: true]
     #[arg(long, default_value_t = true)]
     pub preserve_color_profiles: bool,
+
+    /// Download model from URL but don't process any images [default: https://huggingface.co/imgly/isnet-general-onnx]
+    #[arg(long)]
+    pub only_download: bool,
+
+    /// List cached models available for processing and exit
+    #[arg(long)]
+    pub list_models: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -97,9 +105,17 @@ pub async fn main() -> Result<()> {
     // Initialize logging
     init_logging(cli.verbose);
 
-    // Handle provider diagnostics flag
+    // Handle special flags that don't require inputs
     if cli.show_providers {
         return show_provider_diagnostics();
+    }
+
+    if cli.list_models {
+        return list_cached_models().await;
+    }
+
+    if cli.only_download {
+        return download_model_only(&cli).await;
     }
 
     if cli.input.is_empty() {
@@ -258,6 +274,103 @@ fn show_provider_diagnostics() -> Result<()> {
     println!("  • Tract backend is pure Rust with no external dependencies");
     println!("  • Mock backend is for testing and debugging purposes");
     println!("  • CPU provider is always available as fallback for all backends");
+
+    Ok(())
+}
+
+/// List cached models available for processing
+async fn list_cached_models() -> Result<()> {
+    use crate::cache::ModelCache;
+
+    let cache = ModelCache::new().context("Failed to initialize model cache")?;
+    let models = cache
+        .scan_cached_models()
+        .context("Failed to list cached models")?;
+
+    println!("📦 Cached Models");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    if models.is_empty() {
+        println!("No cached models found.");
+        println!("\n💡 To download a model, use:");
+        println!("  imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx");
+        return Ok(());
+    }
+
+    for model in models {
+        println!("📁 Model ID: {}", model.model_id);
+        println!("  └─ Cache location: {}", model.path.display());
+
+        // List available variants
+        if !model.variants.is_empty() {
+            println!("  └─ Variants: {}", model.variants.join(", "));
+        }
+
+        // Show model size
+        if model.size_bytes > 0 {
+            let size_mb = model.size_bytes as f64 / 1_048_576.0; // Convert to MB
+            println!("  └─ Size: {:.2} MB", size_mb);
+        }
+
+        // Show configuration status
+        let config_status = match (model.has_config, model.has_preprocessor) {
+            (true, true) => "✅ Complete",
+            (true, false) => "⚠️  Missing preprocessor config",
+            (false, true) => "⚠️  Missing model config",
+            (false, false) => "❌ Missing configs",
+        };
+        println!("  └─ Configuration: {}", config_status);
+
+        println!();
+    }
+
+    println!("💡 To use a cached model:");
+    println!("  imgly-bgremove --model MODEL_ID input.jpg");
+
+    Ok(())
+}
+
+/// Download model only without processing images
+async fn download_model_only(cli: &Cli) -> Result<()> {
+    use crate::download::{validate_model_url, ModelDownloader};
+
+    let model_url = match &cli.model {
+        Some(model) => {
+            // Check if it's a URL
+            if model.starts_with("http") {
+                model.clone()
+            } else {
+                anyhow::bail!("--only-download requires a URL. Use --model with a URL like https://huggingface.co/imgly/isnet-general-onnx");
+            }
+        },
+        None => {
+            // Use default model URL
+            "https://huggingface.co/imgly/isnet-general-onnx".to_string()
+        },
+    };
+
+    // Validate URL format
+    validate_model_url(&model_url).context("Invalid model URL")?;
+
+    println!("📦 Downloading model from: {}", model_url);
+
+    let downloader = ModelDownloader::new().context("Failed to create model downloader")?;
+
+    match downloader.download_model(&model_url, true).await {
+        Ok(model_id) => {
+            println!("✅ Successfully downloaded model!");
+            println!("   Model ID: {}", model_id);
+            println!(
+                "   Cache location: {}",
+                downloader.cache().get_model_path(&model_id).display()
+            );
+            println!("\n💡 To use this model:");
+            println!("   imgly-bgremove --model {} input.jpg", model_id);
+        },
+        Err(e) => {
+            anyhow::bail!("Failed to download model: {}", e);
+        },
+    }
 
     Ok(())
 }
