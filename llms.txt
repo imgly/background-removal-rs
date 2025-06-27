@@ -135,6 +135,7 @@
 /.claude/rules/solid_principles.md : SOLID principles enforcement
 /.claude/rules/commit_guidelines.md : Git commit message conventions
 /.claude/rules/documentation_protocols.md : Documentation standards
+/.claude/rules/changelog_update.md : Rules for maintaining changelog files during development
 /.claude/rules/git_workflow.md : Git workflow and branching strategy
 /.claude/rules/cargo_check_after_changes.md : Cargo check requirement after Rust changes
 /.claude/rules/cargo_fmt_after_changes.md : Cargo format requirement after Rust changes
