@@ -40,20 +40,31 @@ impl CliConfigBuilder {
                             };
                             (model_spec, default_model.clone())
                         } else {
-                            // No downloaded models available
-                            return Err(anyhow::anyhow!(
-                                "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
-                            ));
+                            // No downloaded models available - use default model URL for auto-download
+                            let default_url = ModelCache::get_default_model_url();
+                            let model_spec = ModelSpec {
+                                source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+                                variant: None,
+                            };
+                            (model_spec, ModelCache::url_to_model_id(default_url))
                         }
                     } else {
-                        return Err(anyhow::anyhow!(
-                            "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
-                        ));
+                        // Cache scan failed - use default model URL for auto-download
+                        let default_url = ModelCache::get_default_model_url();
+                        let model_spec = ModelSpec {
+                            source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+                            variant: None,
+                        };
+                        (model_spec, ModelCache::url_to_model_id(default_url))
                     }
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "No model specified and no downloaded models available. Use --only-download to download a model or specify --model with a URL or path."
-                    ));
+                    // Cache creation failed - use default model URL for auto-download
+                    let default_url = ModelCache::get_default_model_url();
+                    let model_spec = ModelSpec {
+                        source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+                        variant: None,
+                    };
+                    (model_spec, ModelCache::url_to_model_id(default_url))
                 }
             }
             #[cfg(not(feature = "cli"))]
@@ -92,7 +103,7 @@ impl CliConfigBuilder {
             .output_format(output_format)
             .jpeg_quality(cli.jpeg_quality)
             .webp_quality(cli.webp_quality)
-            .debug(cli.debug)
+            .debug(cli.verbose >= 2)
             // Use the same thread count for both intra and inter operations
             // This provides optimal performance in most cases
             .intra_threads(cli.threads)
@@ -165,7 +176,6 @@ mod tests {
             jpeg_quality: 90,
             webp_quality: 85,
             threads: 0,
-            debug: false,
             verbose: 0,
             recursive: false,
             pattern: None,
@@ -175,6 +185,9 @@ mod tests {
             preserve_color_profiles: true,
             only_download: false,
             list_models: false,
+            clear_cache: false,
+            show_cache_dir: false,
+            cache_dir: None,
         }
     }
 

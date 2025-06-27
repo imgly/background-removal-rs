@@ -22,7 +22,7 @@ use std::time::Instant;
 #[command(name = "imgly-bgremove")]
 pub struct Cli {
     /// Input image files or directories (use "-" for stdin)
-    #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models"])]
+    #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models", "clear_cache", "show_cache_dir"])]
     pub input: Vec<String>,
 
     /// Output file or directory (use "-" for stdout)
@@ -48,10 +48,6 @@ pub struct Cli {
     /// Number of threads (0 = auto-detect optimal threading)
     #[arg(short, long, default_value_t = 0)]
     pub threads: usize,
-
-    /// Enable debug mode
-    #[arg(short, long)]
-    pub debug: bool,
 
     /// Enable verbose logging (-v: INFO, -vv: DEBUG, -vvv: TRACE)
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -88,6 +84,18 @@ pub struct Cli {
     /// List cached models available for processing and exit
     #[arg(long)]
     pub list_models: bool,
+
+    /// Clear cached models (combine with --model to clear specific model)
+    #[arg(long)]
+    pub clear_cache: bool,
+
+    /// Show current cache directory
+    #[arg(long)]
+    pub show_cache_dir: bool,
+
+    /// Use custom cache directory
+    #[arg(long, value_name = "PATH")]
+    pub cache_dir: Option<String>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -118,6 +126,14 @@ pub async fn main() -> Result<()> {
         return download_model_only(&cli).await;
     }
 
+    if cli.clear_cache {
+        return clear_cache_models(&cli).await;
+    }
+
+    if cli.show_cache_dir {
+        return show_current_cache_dir();
+    }
+
     if cli.input.is_empty() {
         anyhow::bail!("At least one input is required");
     }
@@ -129,7 +145,7 @@ pub async fn main() -> Result<()> {
     let config = CliConfigBuilder::from_cli(&cli).context("Failed to build configuration")?;
 
     info!("Starting background removal CLI");
-    if cli.debug {
+    if cli.verbose >= 2 {
         info!("🐛 DEBUG MODE: Using configured backend for testing");
     }
     info!("Input(s): {}", cli.input.join(", "));
@@ -138,6 +154,10 @@ pub async fn main() -> Result<()> {
         config.backend_type, config.execution_provider
     );
     info!("Model: {:?}", config.model_spec);
+
+    // Ensure model is available (auto-download if needed)
+    ensure_model_available(&config.model_spec).await
+        .context("Failed to ensure model is available")?;
 
     // Create unified processor with CLI backend factory
     let backend_factory = Box::new(CliBackendFactory::new());
@@ -155,6 +175,48 @@ pub async fn main() -> Result<()> {
         total_time.as_secs_f64()
     );
 
+    Ok(())
+}
+
+/// Ensure model is available in cache, auto-download if needed
+async fn ensure_model_available(model_spec: &crate::models::ModelSpec) -> Result<()> {
+    use crate::cache::ModelCache;
+    use crate::download::ModelDownloader;
+    use crate::models::ModelSource;
+
+    if let ModelSource::Downloaded(model_id) = &model_spec.source {
+        let cache = ModelCache::new().context("Failed to create model cache")?;
+        
+        // Check if model is already cached
+        if !cache.is_model_cached(model_id) {
+            // Auto-download for default model only
+            if *model_id == ModelCache::get_default_model_id() {
+                println!("📦 Model not cached. Auto-downloading default model...");
+                
+                let default_url = ModelCache::get_default_model_url();
+                let downloader = ModelDownloader::new()
+                    .context("Failed to create model downloader")?;
+                
+                let downloaded_id = downloader.download_model(default_url, false).await
+                    .context("Failed to download default model")?;
+                
+                if downloaded_id != *model_id {
+                    anyhow::bail!(
+                        "Downloaded model ID '{}' doesn't match expected '{}'",
+                        downloaded_id, model_id
+                    );
+                }
+                
+                println!("✅ Model downloaded successfully!");
+            } else {
+                anyhow::bail!(
+                    "Model '{}' not found in cache. Use --only-download to download it first, or use --list-models to see available models.",
+                    model_id
+                );
+            }
+        }
+    }
+    
     Ok(())
 }
 
@@ -369,6 +431,121 @@ async fn download_model_only(cli: &Cli) -> Result<()> {
         },
         Err(e) => {
             anyhow::bail!("Failed to download model: {}", e);
+        },
+    }
+
+    Ok(())
+}
+
+/// Clear cached models
+async fn clear_cache_models(cli: &Cli) -> Result<()> {
+    use crate::cache::ModelCache;
+
+    // Get cache instance (with custom directory if specified)
+    let cache = if let Some(cache_dir_str) = &cli.cache_dir {
+        let cache_dir_path = PathBuf::from(cache_dir_str);
+        ModelCache::with_custom_cache_dir(cache_dir_path)
+            .context("Failed to create cache with custom directory")?
+    } else {
+        ModelCache::new().context("Failed to create model cache")?
+    };
+
+    if let Some(model_id) = &cli.model {
+        // Clear specific model
+        println!("🗑️  Clearing specific model: {}", model_id);
+
+        match cache.clear_specific_model(model_id) {
+            Ok(true) => {
+                println!("✅ Successfully removed model: {}", model_id);
+                println!(
+                    "   Cache location: {}",
+                    cache.get_current_cache_dir().display()
+                );
+            },
+            Ok(false) => {
+                println!("⚠️  Model '{}' not found in cache", model_id);
+                println!("   Use --list-models to see available models");
+            },
+            Err(e) => {
+                anyhow::bail!("Failed to clear model '{}': {}", model_id, e);
+            },
+        }
+    } else {
+        // Clear entire cache
+        println!("🗑️  Clearing entire model cache...");
+
+        match cache.clear_all_models() {
+            Ok(removed_models) => {
+                if removed_models.is_empty() {
+                    println!("💡 Cache was already empty");
+                } else {
+                    println!("✅ Successfully removed {} model(s):", removed_models.len());
+                    for model_id in &removed_models {
+                        println!("   • {}", model_id);
+                    }
+                }
+                println!(
+                    "   Cache location: {}",
+                    cache.get_current_cache_dir().display()
+                );
+            },
+            Err(e) => {
+                anyhow::bail!("Failed to clear cache: {}", e);
+            },
+        }
+    }
+
+    Ok(())
+}
+
+
+/// Show the current cache directory
+fn show_current_cache_dir() -> Result<()> {
+    use crate::cache::ModelCache;
+
+    match ModelCache::new() {
+        Ok(cache) => {
+            println!("📁 Current cache directory:");
+            println!("   Path: {}", cache.get_current_cache_dir().display());
+
+            // Show platform-specific info with actual base directory
+            let cache_path = cache.get_current_cache_dir();
+            let base_cache_dir = cache_path.parent().and_then(|p| p.parent());
+            
+            if let Some(base_dir) = base_cache_dir {
+                #[cfg(target_os = "macos")]
+                println!("   Platform: macOS (using {}/imgly-bgremove/models/)", base_dir.display());
+
+                #[cfg(target_os = "linux")]
+                println!("   Platform: Linux (using {}/imgly-bgremove/models/)", base_dir.display());
+
+                #[cfg(target_os = "windows")]
+                println!("   Platform: Windows (using {}\\imgly-bgremove\\models\\)", base_dir.display());
+            } else {
+                // Fallback if we can't determine base directory
+                #[cfg(target_os = "macos")]
+                println!("   Platform: macOS");
+
+                #[cfg(target_os = "linux")]
+                println!("   Platform: Linux");
+
+                #[cfg(target_os = "windows")]
+                println!("   Platform: Windows");
+            }
+
+            // Show environment variable info
+            if std::env::var("IMGLY_BGREMOVE_CACHE_DIR").is_ok() {
+                println!("   Source: IMGLY_BGREMOVE_CACHE_DIR environment variable");
+            } else {
+                println!("   Source: XDG cache directory specification");
+            }
+
+            println!("\n💡 To use a custom cache directory:");
+            println!("   imgly-bgremove --cache-dir /path/to/custom/cache");
+            println!("   or set IMGLY_BGREMOVE_CACHE_DIR environment variable");
+        },
+        Err(e) => {
+            anyhow::bail!("Failed to access cache directory: {}", e);
         },
     }
 

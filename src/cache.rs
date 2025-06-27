@@ -323,6 +323,108 @@ impl ModelCache {
 
         Ok(removed_models)
     }
+
+    /// Clear all cached models
+    ///
+    /// Removes all model directories from the cache, effectively clearing the entire cache.
+    ///
+    /// # Returns
+    /// Vector of removed model IDs for user feedback
+    ///
+    /// # Errors
+    /// - Failed to access cache directory
+    /// - Failed to remove model directories
+    /// - I/O errors during removal operations
+    pub fn clear_all_models(&self) -> Result<Vec<String>> {
+        let mut removed_models = Vec::new();
+
+        if !self.cache_dir.exists() {
+            return Ok(removed_models);
+        }
+
+        let entries = fs::read_dir(&self.cache_dir).map_err(|e| {
+            BgRemovalError::file_io_error("read cache directory", &self.cache_dir, &e)
+        })?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                BgRemovalError::network_error("Failed to read cache directory entry", e)
+            })?;
+
+            let path = entry.path();
+            if path.is_dir() {
+                let model_id = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unknown");
+
+                log::info!("Removing cached model: {}", model_id);
+                fs::remove_dir_all(&path).map_err(|e| {
+                    BgRemovalError::file_io_error("remove cached model directory", &path, &e)
+                })?;
+                removed_models.push(model_id.to_string());
+            }
+        }
+
+        Ok(removed_models)
+    }
+
+    /// Clear a specific cached model
+    ///
+    /// Removes the specified model directory from the cache.
+    ///
+    /// # Arguments
+    /// * `model_id` - The model identifier to remove from cache
+    ///
+    /// # Returns
+    /// `true` if the model was found and removed, `false` if the model was not cached
+    ///
+    /// # Errors
+    /// - Failed to remove model directory
+    /// - I/O errors during removal operations
+    pub fn clear_specific_model(&self, model_id: &str) -> Result<bool> {
+        let model_path = self.get_model_path(model_id);
+
+        if !model_path.exists() {
+            return Ok(false);
+        }
+
+        log::info!("Removing cached model: {}", model_id);
+        fs::remove_dir_all(&model_path).map_err(|e| {
+            BgRemovalError::file_io_error("remove specific cached model", &model_path, &e)
+        })?;
+
+        Ok(true)
+    }
+
+    /// Create a new model cache with a custom cache directory
+    ///
+    /// # Arguments
+    /// * `cache_dir` - Custom cache directory path
+    ///
+    /// # Errors
+    /// - Failed to create cache directory
+    /// - Insufficient permissions to access cache directory
+    pub fn with_custom_cache_dir(cache_dir: PathBuf) -> Result<Self> {
+        let models_dir = cache_dir.join("models");
+
+        // Ensure cache directory exists
+        if !models_dir.exists() {
+            fs::create_dir_all(&models_dir).map_err(|e| {
+                BgRemovalError::file_io_error("create custom cache directory", &models_dir, &e)
+            })?;
+        }
+
+        Ok(Self {
+            cache_dir: models_dir,
+        })
+    }
+
+    /// Get the current cache directory path
+    #[must_use]
+    pub fn get_current_cache_dir(&self) -> &PathBuf {
+        &self.cache_dir
+    }
 }
 
 impl Default for ModelCache {
@@ -413,5 +515,69 @@ mod tests {
         assert!(!cache_dir.exists());
         fs::create_dir_all(&cache_dir).unwrap();
         assert!(cache_dir.exists());
+    }
+
+    #[test]
+    fn test_custom_cache_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let custom_cache = temp_dir.path().join("custom_cache");
+
+        // Create cache with custom directory
+        let cache = ModelCache::with_custom_cache_dir(custom_cache.clone()).unwrap();
+
+        // Verify the cache directory was created
+        assert!(custom_cache.join("models").exists());
+        assert_eq!(cache.get_current_cache_dir(), &custom_cache.join("models"));
+    }
+
+    #[test]
+    fn test_clear_specific_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache = ModelCache::with_custom_cache_dir(temp_dir.path().to_path_buf()).unwrap();
+
+        let model_id = "test-model";
+        let model_path = cache.get_model_path(model_id);
+
+        // Create a fake model directory
+        fs::create_dir_all(&model_path).unwrap();
+        assert!(model_path.exists());
+
+        // Clear the specific model
+        let result = cache.clear_specific_model(model_id).unwrap();
+        assert!(result); // Should return true for successful removal
+        assert!(!model_path.exists()); // Directory should be removed
+
+        // Try to clear non-existent model
+        let result = cache.clear_specific_model("non-existent-model").unwrap();
+        assert!(!result); // Should return false for non-existent model
+    }
+
+    #[test]
+    fn test_clear_all_models() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache = ModelCache::with_custom_cache_dir(temp_dir.path().to_path_buf()).unwrap();
+
+        // Create some fake model directories
+        let model_ids = vec!["model1", "model2", "model3"];
+        for model_id in &model_ids {
+            let model_path = cache.get_model_path(model_id);
+            fs::create_dir_all(&model_path).unwrap();
+            assert!(model_path.exists());
+        }
+
+        // Clear all models
+        let removed = cache.clear_all_models().unwrap();
+        assert_eq!(removed.len(), 3);
+        assert!(removed.iter().all(|id| model_ids.contains(&id.as_str())));
+
+        // Verify all model directories are removed
+        for model_id in &model_ids {
+            let model_path = cache.get_model_path(model_id);
+            assert!(!model_path.exists());
+        }
+
+        // Clear empty cache (should succeed with no removed models)
+        let removed = cache.clear_all_models().unwrap();
+        assert!(removed.is_empty());
     }
 }

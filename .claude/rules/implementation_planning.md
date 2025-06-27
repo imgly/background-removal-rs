@@ -12,7 +12,9 @@ cd ../bg_remove-rs-feat-FEATURE_NAME
 
 **NEVER work directly on main branch.** All development must happen in isolated worktrees.
 
-## 2. Create Implementation Plan
+## 2. MANDATORY: Create Implementation Plan IMMEDIATELY After Worktree
+**CRITICAL**: Immediately after creating the worktree, you MUST create the implementation plan before writing any code.
+
 Write a detailed plan in `docs/feat/TIMESTAMP_FEATURE_NAME/implementation_plan.md` (within the feature worktree) that includes:
 - Feature description and goals
 - Step-by-step implementation tasks
@@ -20,6 +22,8 @@ Write a detailed plan in `docs/feat/TIMESTAMP_FEATURE_NAME/implementation_plan.m
 - Questions that need clarification
 - Explicit list of any functionality that will be modified or removed
 - Planned worktree workflow and merge strategy
+
+**ENFORCEMENT**: Creating implementation plan is NOT optional - it must be done immediately after worktree creation and before any code changes.
 
 ## 3. Clarification Requirements
 Ask the user about:
