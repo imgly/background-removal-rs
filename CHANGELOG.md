@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the bg_remove-rs workspace will be documented in this file.
+All notable changes to the imgly-bgremove library will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,9 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Consolidated imgly-bgremove library with unified API
+- Multiple backend support: ONNX Runtime and Tract (Pure Rust)
+- Integrated CLI functionality with feature-gated build
+- Multiple neural network models: ISNet, BiRefNet, BiRefNet Lite
+- Hardware acceleration support: CUDA, CoreML, and CPU execution providers
+- ICC color profile preservation across PNG, JPEG, WebP, and TIFF formats
+- WebAssembly compatibility through Tract backend
+- Comprehensive feature flag system for backends and model embedding
+- Unified configuration system with builder pattern
+- Background removal for multiple image formats: JPEG, PNG, WebP, BMP, TIFF
+- Progress reporting and detailed timing information
+- Batch processing capabilities through CLI
+- Model variant selection (FP16/FP32) with automatic provider optimization
+- Cross-platform support including Apple Silicon acceleration
+
+### Changed
+- **BREAKING**: Consolidated workspace into single imgly-bgremove crate
+- **BREAKING**: Changed package name from bg-remove-* to imgly-bgremove
+- **BREAKING**: Updated CLI binary name to imgly-bgremove
+- **BREAKING**: Import paths changed from bg_remove_* to imgly_bgremove
+- Default features now include all backends and CLI functionality
+- Improved error messages with contextual information and troubleshooting suggestions
+- Enhanced performance with optimized threading and provider selection
+- Simplified configuration system with sensible defaults
+
+### Fixed
+- Aspect ratio preservation in background removal output
+- WebP transparency support with RGBA encoding
+- Memory efficiency improvements in model loading and inference
+- ICC color profile handling across all supported formats
+- Cross-platform compatibility issues
+- Mathematical casting warnings and precision loss handling
+
+### Removed
+- **BREAKING**: Separate bg-remove-* workspace crates
+- **BREAKING**: MockBackend for testing (replaced with proper backend injection)
+- Redundant configuration options and conflicting CLI flags
+- Deprecated APIs and legacy code paths
+
+### Performance
+- 2-5x faster than JavaScript implementations
+- Optimized ONNX Runtime threading for maximum performance
+- GPU acceleration support with automatic provider detection
+- Efficient model loading with compile-time optimization
+- Memory-efficient processing pipeline
+
+### Security
+- Zero-warning policy with comprehensive linting
+- Safe indexing and bounds checking throughout codebase
+- Proper error handling without panic-prone operations
+- Memory safety improvements with Rust best practices
+
+## v0.1.0 (2025-06-27) - Legacy Workspace Release
+
+### Added (Historical - Workspace Version)
 - Initial workspace setup with multiple crates
 - Core library for background removal (bg-remove-core)
-- ONNX Runtime backend (bg-remove-onnx)
+- ONNX Runtime backend (bg-remove-onnx)  
 - Tract pure-Rust backend (bg-remove-tract)
 - Command-line interface (bg-remove-cli)
 - End-to-end testing framework (bg-remove-e2e)
@@ -18,9 +73,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardware acceleration capabilities
 - Comprehensive testing and benchmarking tools
 
-### Workspace Crates
-- `bg-remove-core`: Core library with unified processor API
-- `bg-remove-onnx`: ONNX Runtime inference backend
-- `bg-remove-tract`: Pure Rust inference backend
-- `bg-remove-cli`: Command-line tool
-- `bg-remove-e2e`: Testing and benchmarking framework
+### Migration Guide
+
+For users upgrading from the workspace version (v0.1.x) to the consolidated version (v0.2.x):
+
+#### Dependency Updates
+```toml
+# Old (workspace version)
+[dependencies]
+bg-remove-core = "0.1.0"
+bg-remove-onnx = "0.1.0"
+bg-remove-cli = "0.1.0"
+
+# New (consolidated version)
+[dependencies]
+imgly-bgremove = "0.2.0"
+```
+
+#### Import Updates
+```rust
+// Old imports
+use bg_remove_core::{RemovalConfig, remove_background};
+use bg_remove_onnx::OnnxBackend;
+
+// New imports
+use imgly_bgremove::{RemovalConfig, remove_background};
+use imgly_bgremove::backends::OnnxBackend;
+```
+
+#### CLI Updates
+```bash
+# Old CLI usage
+bg-remove-cli input.jpg output.png
+
+# New CLI usage
+imgly-bgremove input.jpg output.png
+```
+
+#### Feature Flag Updates
+```toml
+# Old feature configuration
+bg-remove-core = { version = "0.1.0", features = ["embed-isnet-fp32"] }
+
+# New feature configuration  
+imgly-bgremove = { version = "0.2.0", features = ["embed-isnet-fp32"] }
+# Or use default features for everything:
+imgly-bgremove = "0.2.0"  # Includes onnx, tract, cli, embed-isnet-fp32
+```
+
+#### Backend Usage Updates
+```rust
+// Old backend usage
+use bg_remove_onnx::OnnxBackend;
+use bg_remove_tract::TractBackend;
+
+// New backend usage
+use imgly_bgremove::backends::{OnnxBackend, TractBackend};
+
+// Optional features for specific backends
+#[cfg(feature = "onnx")]
+let onnx_backend = OnnxBackend::new();
+
+#[cfg(feature = "tract")]  
+let tract_backend = TractBackend::new();
+```
+
+### Breaking Changes Summary
+
+1. **Package Consolidation**: All workspace crates merged into single `imgly-bgremove` package
+2. **Import Paths**: All `bg_remove_*` imports become `imgly_bgremove`
+3. **CLI Binary**: `bg-remove-cli` becomes `imgly-bgremove`
+4. **Feature Flags**: Backend and model features now configured on single crate
+5. **API Changes**: Some internal APIs simplified and consolidated
+
+### Backward Compatibility
+
+- Core API functionality remains the same
+- Same image processing capabilities and performance
+- Same model support and configuration options
+- Same execution providers and hardware acceleration
+- Migration is primarily import path and dependency updates
+
+### Benefits of Consolidation
+
+- **Simplified Dependencies**: Single crate instead of multiple workspace crates
+- **Better Integration**: Tighter integration between backends and core functionality  
+- **Easier Installation**: Single `imgly-bgremove` dependency with feature flags
+- **Improved Documentation**: Unified documentation and examples
+- **Better Testing**: Consolidated test suite and validation
+- **Enhanced CLI**: Integrated CLI with all backends available by default

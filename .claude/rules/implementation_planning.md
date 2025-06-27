@@ -13,7 +13,7 @@ cd ../bg_remove-rs-feat-FEATURE_NAME
 **NEVER work directly on main branch.** All development must happen in isolated worktrees.
 
 ## 2. Create Implementation Plan
-Write a detailed plan in `docs/implementation_plan.md` (within the feature worktree) that includes:
+Write a detailed plan in `docs/feat/TIMESTAMP_FEATURE_NAME/implementation_plan.md` (within the feature worktree) that includes:
 - Feature description and goals
 - Step-by-step implementation tasks
 - Potential risks or impacts on existing functionality
@@ -29,12 +29,22 @@ Ask the user about:
 - API changes or breaking changes
 - Integration points with existing code
 
-## 4. Track Progress
-Maintain the implementation plan throughout development **within the feature worktree**:
-- Mark tasks as ✅ completed, 🔄 in progress, or ❌ blocked
+## 4. Track Progress and Update Implementation Plan
+**MANDATORY**: Always update the implementation plan during development **within the feature worktree**:
+- Mark tasks as ✅ completed, 🔄 in progress, or ❌ blocked as you complete them
 - Update with any discoveries or changes during implementation
 - Document any deviations from the original plan
+- Add new phases or tasks that emerge during development
+- Update success criteria with actual results and validation outcomes
+- Include final results section when project is complete
 - Update changelog files within the feature worktree
+
+**CRITICAL**: The implementation plan must be a living document that accurately reflects:
+- Current progress status
+- Actual implementation approach taken
+- Issues encountered and how they were resolved
+- Final validation results and success metrics
+- Lessons learned and project outcomes
 
 ## 5. Preserve Existing Functionality
 NEVER remove or change existing functionality unless:
