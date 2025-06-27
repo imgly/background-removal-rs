@@ -16,6 +16,7 @@ Whenever an external process is started in the background, remember it's PID and
 
 
 # Rules
+@.claude/rules/mandatory_worktree_usage.md
 @.claude/rules/repository_structure_reference.md
 @.claude/rules/task_management.md
 @.claude/rules/implementation_planning.md

@@ -126,8 +126,9 @@
 /.claude/commands/review_developer_docs.md : Developer documentation review command
 /.claude/commands/review_guides.md : Guide review command template
 /.claude/experts/sonnet-v4.md : Sonnet v4 expert configuration
+/.claude/rules/mandatory_worktree_usage.md : Critical rule enforcing git worktree usage for all development
 /.claude/rules/task_management.md : Task management rules for Claude
-/.claude/rules/implementation_planning.md : Implementation planning and branching rules
+/.claude/rules/implementation_planning.md : Implementation planning and worktree creation rules
 /.claude/rules/process_execution.md : Process execution requirements
 /.claude/rules/kiss_principle.md : Keep It Simple principle enforcement
 /.claude/rules/yagni_principle.md : You Aren't Gonna Need It principle
