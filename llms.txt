@@ -1,0 +1,152 @@
+# LLM Context File for bg_remove-rs
+# Format: filepath : one-line summary
+
+# Core Configuration
+/Cargo.toml : Workspace configuration defining all crates, dependencies, and optimization settings
+/Cargo.lock : Locked dependency versions for reproducible builds
+/rustfmt.toml : Rust code formatting configuration
+/.editorconfig : Editor settings for consistent code style across IDEs
+/.gitignore : Git ignore patterns for build artifacts and temporary files
+/.gitattributes : Git LFS configuration for large binary files
+/.dockerignore : Docker build exclusion patterns
+
+# Documentation
+/README.md : Main project documentation with features, installation, and usage instructions
+/CLAUDE.md : Claude AI assistant configuration and project-specific rules
+/CONTRIBUTING.md : Contributor guidelines for development workflow and standards
+/CHANGELOG.md : Workspace-level changelog for tracking releases and changes
+/bin/README.md : Documentation for build and utility scripts
+/machines/README.md : Cross-compilation and Docker machine configuration documentation
+/crates/bg-remove-e2e/assets/README.md : End-to-end test assets documentation
+/docs/implementation_plan.md : Implementation plan for llms.txt file creation and maintenance
+/docs/RELEASE_WORKFLOW.md : Comprehensive guide for release management using cargo-smart-release
+
+# Core Library (bg-remove-core)
+/crates/bg-remove-core/Cargo.toml : Core library dependencies and feature flags
+/crates/bg-remove-core/CHANGELOG.md : Core library changelog for tracking API changes and releases
+/crates/bg-remove-core/build.rs : Build script for model downloading and preparation
+/crates/bg-remove-core/src/lib.rs : Main library entry point exposing public API for background removal
+/crates/bg-remove-core/src/color_profile.rs : ICC color profile handling for preserving image color accuracy
+/crates/bg-remove-core/src/config.rs : Configuration structs for removal settings and model parameters
+/crates/bg-remove-core/src/error.rs : Error types and error handling infrastructure
+/crates/bg-remove-core/src/inference.rs : Neural network inference backend trait and implementations
+/crates/bg-remove-core/src/models.rs : Model definitions and loading logic for ISNet and BiRefNet
+/crates/bg-remove-core/src/processor.rs : Main background removal processor orchestrating the pipeline
+/crates/bg-remove-core/src/types.rs : Core type definitions and aliases used throughout the library
+/crates/bg-remove-core/src/services/mod.rs : Service module exports for IO, formatting, and progress
+/crates/bg-remove-core/src/services/format.rs : Image format detection and conversion services
+/crates/bg-remove-core/src/services/io.rs : File and stream I/O services for image data
+/crates/bg-remove-core/src/services/progress.rs : Progress reporting interface for long operations
+/crates/bg-remove-core/src/utils/mod.rs : Utility module exports for various helper functions
+/crates/bg-remove-core/src/utils/color.rs : Color conversion utilities for image processing
+/crates/bg-remove-core/src/utils/models.rs : Model file management and caching utilities
+/crates/bg-remove-core/src/utils/preprocessing.rs : Image preprocessing for neural network input
+/crates/bg-remove-core/src/utils/providers.rs : Execution provider detection and selection utilities
+/crates/bg-remove-core/src/utils/validation/mod.rs : Validation module exports
+/crates/bg-remove-core/src/utils/validation/config.rs : Configuration validation logic
+/crates/bg-remove-core/src/utils/validation/model.rs : Model file and structure validation
+/crates/bg-remove-core/src/utils/validation/numeric.rs : Numeric parameter validation
+/crates/bg-remove-core/src/utils/validation/path.rs : File path validation utilities
+/crates/bg-remove-core/src/utils/validation/tensor.rs : Tensor shape and data validation
+
+# CLI Application (bg-remove-cli)
+/crates/bg-remove-cli/Cargo.toml : CLI dependencies including clap for argument parsing
+/crates/bg-remove-cli/CHANGELOG.md : CLI application changelog for tracking interface changes and features
+/crates/bg-remove-cli/src/main.rs : Main CLI entry point with argument parsing and processing logic
+/crates/bg-remove-cli/src/config.rs : CLI configuration builder mapping arguments to core config
+/crates/bg-remove-cli/src/backend_factory.rs : Factory for creating inference backends based on CLI args
+/crates/bg-remove-cli/src/bin/benchmark.rs : Benchmarking tool for performance measurement
+
+# ONNX Backend (bg-remove-onnx)
+/crates/bg-remove-onnx/Cargo.toml : ONNX Runtime backend dependencies and features
+/crates/bg-remove-onnx/CHANGELOG.md : ONNX backend changelog for tracking provider and performance changes
+/crates/bg-remove-onnx/src/lib.rs : ONNX Runtime inference backend implementation with hardware acceleration
+
+# Tract Backend (bg-remove-tract)
+/crates/bg-remove-tract/Cargo.toml : Tract pure-Rust backend dependencies
+/crates/bg-remove-tract/CHANGELOG.md : Tract backend changelog for tracking pure-Rust implementation updates
+/crates/bg-remove-tract/src/lib.rs : Tract inference backend for CPU-only deployment
+
+# End-to-End Testing (bg-remove-e2e)
+/crates/bg-remove-e2e/Cargo.toml : E2E testing framework dependencies
+/crates/bg-remove-e2e/CHANGELOG.md : E2E testing framework changelog for tracking test suite changes
+/crates/bg-remove-e2e/src/lib.rs : E2E testing utilities and common functionality
+/crates/bg-remove-e2e/src/comparison.rs : Image comparison utilities for testing accuracy
+/crates/bg-remove-e2e/src/fixtures.rs : Test fixture management and loading
+/crates/bg-remove-e2e/src/report.rs : Test report generation with visual comparisons
+/crates/bg-remove-e2e/src/bin/generate-report.rs : Report generation binary for test results
+/crates/bg-remove-e2e/src/bin/test-color-profile.rs : Color profile testing utility
+/crates/bg-remove-e2e/assets/test_cases.json : Test case definitions for E2E tests
+
+# Test Files
+/crates/bg-remove-core/tests/unified_processor_tests.rs : Integration tests for the unified processor
+/crates/bg-remove-e2e/tests/accuracy_tests.rs : Accuracy tests comparing model outputs
+/crates/bg-remove-e2e/tests/compatibility_tests.rs : Cross-backend compatibility tests
+/crates/bg-remove-e2e/tests/format_tests.rs : Image format conversion and preservation tests
+
+# Benchmark Files
+/crates/bg-remove-e2e/benches/background_removal.rs : Performance benchmarks for removal operations
+/crates/bg-remove-e2e/benches/batch_comparison.rs : Batch processing performance comparisons
+
+# Example Files
+/crates/bg-remove-core/examples/comprehensive_icc_validation.rs : ICC profile validation example
+/crates/bg-remove-core/examples/execution_provider_choice.rs : Provider selection example
+/crates/bg-remove-core/examples/fp32_vs_fp16_benchmark.rs : Precision comparison benchmark
+/crates/bg-remove-core/examples/performance_benchmark.rs : General performance testing example
+/crates/bg-remove-core/examples/test_webp_icc.rs : WebP ICC profile handling example
+
+# Build Scripts
+/build-cross.sh : Cross-compilation script for multiple target architectures
+/bin/format.sh : Code formatting script using rustfmt
+/bin/lint.sh : Linting script using clippy
+/bin/pre-commit-hook.sh : Git pre-commit hook for code quality checks
+
+# CI/CD Configuration
+/.github/workflows/zero-warnings.yml : GitHub Actions workflow enforcing zero warnings policy
+/.github/workflows/release.yml : GitHub Actions workflow for automated releases using cargo-smart-release
+/.github/workflows/changelog-check.yml : GitHub Actions workflow to enforce changelog updates in PRs
+
+# Docker Configuration
+/machines/Dockerfile.aarch64-unknown-linux-gnu : ARM64 Linux cross-compilation container
+/machines/Dockerfile.x86_64-unknown-linux-gnu : x86-64 Linux cross-compilation container
+
+# Model Configuration
+/models/birefnet_lite/config.json : BiRefNet Lite model configuration
+/models/birefnet_lite/preprocessor_config.json : BiRefNet Lite preprocessing parameters
+/models/birefnet_portrait/config.json : BiRefNet Portrait model configuration
+/models/birefnet_portrait/preprocessor_config.json : BiRefNet Portrait preprocessing parameters
+/models/isnet/config.json : ISNet model configuration
+/models/isnet/preprocessor_config.json : ISNet preprocessing parameters
+
+# Claude AI Configuration
+/.claude/settings.local.json : Local Claude settings overrides
+/.claude/commands/code_review.md : Code review command template
+/.claude/commands/generate_dadjoke.md : Dad joke generation command
+/.claude/commands/implement_plan.md : Implementation planning command
+/.claude/commands/review_developer_docs.md : Developer documentation review command
+/.claude/commands/review_guides.md : Guide review command template
+/.claude/experts/sonnet-v4.md : Sonnet v4 expert configuration
+/.claude/rules/task_management.md : Task management rules for Claude
+/.claude/rules/implementation_planning.md : Implementation planning and branching rules
+/.claude/rules/process_execution.md : Process execution requirements
+/.claude/rules/kiss_principle.md : Keep It Simple principle enforcement
+/.claude/rules/yagni_principle.md : You Aren't Gonna Need It principle
+/.claude/rules/code_quality.md : Code quality standards
+/.claude/rules/solid_principles.md : SOLID principles enforcement
+/.claude/rules/commit_guidelines.md : Git commit message conventions
+/.claude/rules/documentation_protocols.md : Documentation standards
+/.claude/rules/git_workflow.md : Git workflow and branching strategy
+/.claude/rules/cargo_check_after_changes.md : Cargo check requirement after Rust changes
+/.claude/rules/cargo_fmt_after_changes.md : Cargo format requirement after Rust changes
+/.claude/rules/cargo_test_after_completion.md : Cargo test requirement after task completion
+/.claude/rules/conversational_interaction.md : User interaction guidelines
+/.claude/rules/thinking_and_tool_use.md : Tool usage reflection requirements
+/.claude/rules/prompt_for_tool_triggering-websearch.md : Web search tool triggering rules
+/.claude/rules/parallel_tool_calling.md : Parallel tool execution optimization
+/.claude/rules/tool_use_playwright_mcp.md : Playwright MCP tool usage guidelines
+/.claude/rules/maintain_llms_txt.md : Rules for maintaining and updating the llms.txt file
+/.claude/rules/repository_structure_reference.md : Rule explaining llms.txt as the primary repository structure reference
+
+# IDE Configuration
+/.vscode/settings.json : VSCode workspace settings
+/.mcp.json : Model Context Protocol configuration
