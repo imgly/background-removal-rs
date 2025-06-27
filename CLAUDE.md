@@ -17,6 +17,7 @@ Whenever an external process is started in the background, remember it's PID and
 
 # Rules
 @.claude/rules/task_management.md
+@.claude/rules/implementation_planning.md
 @.claude/rules/process_execution.md
 @.claude/rules/kiss_principle.md
 @.claude/rules/yagni_principle.md
