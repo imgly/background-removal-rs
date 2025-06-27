@@ -28,6 +28,7 @@ Whenever an external process is started in the background, remember it's PID and
 @.claude/rules/documentation_protocols.md
 @.claude/rules/git_workflow.md
 @.claude/rules/cargo_check_after_changes.md
+@.claude/rules/cargo_fmt_after_changes.md
 @.claude/rules/cargo_test_after_completion.md
 
 ## User Interaction
