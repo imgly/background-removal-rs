@@ -484,8 +484,9 @@ impl InferenceBackend for OnnxBackend {
         let core_inference_start = Instant::now();
         log::debug!("  🧠 Starting core ONNX inference...");
 
-        let outputs = session.run(ort::inputs![input_value])
-            .map_err(|e| bg_remove_core::error::BgRemovalError::processing(format!("ONNX inference failed: {e}")))?;
+        let outputs = session.run(ort::inputs![input_value]).map_err(|e| {
+            bg_remove_core::error::BgRemovalError::processing(format!("ONNX inference failed: {e}"))
+        })?;
 
         let core_inference_time = core_inference_start.elapsed();
         log::debug!(
@@ -506,7 +507,10 @@ impl InferenceBackend for OnnxBackend {
         let output_tensor = {
             let keys: Vec<_> = outputs.keys().collect();
             if let Some(first_key) = keys.first() {
-                log::debug!("  📋 Using positional output access (first output: {})", first_key);
+                log::debug!(
+                    "  📋 Using positional output access (first output: {})",
+                    first_key
+                );
                 outputs
                     .get(first_key)
                     .ok_or_else(|| {

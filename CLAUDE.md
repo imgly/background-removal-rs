@@ -16,6 +16,7 @@ Whenever an external process is started in the background, remember it's PID and
 
 
 # Rules
+@.claude/rules/repository_structure_reference.md
 @.claude/rules/task_management.md
 @.claude/rules/implementation_planning.md
 @.claude/rules/process_execution.md
@@ -36,6 +37,7 @@ Whenever an external process is started in the background, remember it's PID and
 @.claude/rules/conversational_interaction.md
 
 ## Documentation
+@.claude/rules/maintain_llms_txt.md
 
 ## Tool use
 @.claude/rules/thinking_and_tool_use.md
