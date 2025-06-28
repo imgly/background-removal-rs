@@ -185,18 +185,23 @@ impl OnnxBackend {
         // Load the model data
         let model_data = model_manager.load_model()?;
 
-        // Generate cache key for session caching
+        // Generate cache key for session caching (skip if caching is disabled)
         #[cfg(feature = "cli")]
         let (cache_key, model_hash, provider_config) = if let Some(_) = &self.session_cache {
-            let model_hash = SessionCache::calculate_model_hash(&model_data);
-            let provider_config = self.serialize_provider_config(config);
-            let cache_key = SessionCache::generate_cache_key(
-                &model_hash,
-                config.execution_provider,
-                &GraphOptimizationLevel::Level3,
-                &provider_config,
-            );
-            (Some(cache_key), Some(model_hash), Some(provider_config))
+            if config.disable_cache {
+                log::debug!("Session caching disabled by --no-cache flag");
+                (None, None, None)
+            } else {
+                let model_hash = SessionCache::calculate_model_hash(&model_data);
+                let provider_config = self.serialize_provider_config(config);
+                let cache_key = SessionCache::generate_cache_key(
+                    &model_hash,
+                    config.execution_provider,
+                    &GraphOptimizationLevel::Level3,
+                    &provider_config,
+                );
+                (Some(cache_key), Some(model_hash), Some(provider_config))
+            }
         } else {
             (None, None, None)
         };
@@ -451,7 +456,7 @@ impl OnnxBackend {
             },
         }
 
-        // Cache the session for future use
+        // Cache the session for future use (skip if caching is disabled)
         #[cfg(feature = "cli")]
         if let (Some(cache), Some(key), Some(hash), Some(config_str)) = (
             &mut self.session_cache,
@@ -459,7 +464,9 @@ impl OnnxBackend {
             &model_hash,
             &provider_config,
         ) {
-            if let Err(e) = cache.cache_session(
+            if config.disable_cache {
+                log::debug!("Skipping session cache save due to --no-cache flag");
+            } else if let Err(e) = cache.cache_session(
                 &session,
                 key,
                 hash,

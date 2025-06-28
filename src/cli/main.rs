@@ -96,6 +96,10 @@ pub struct Cli {
     /// Use custom cache directory
     #[arg(long, value_name = "PATH")]
     pub cache_dir: Option<String>,
+
+    /// Disable all caches during processing (forces fresh session loading)
+    #[arg(long)]
+    pub no_cache: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

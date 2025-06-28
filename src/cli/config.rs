@@ -113,6 +113,7 @@ impl CliConfigBuilder {
             .intra_threads(cli.threads)
             .inter_threads(cli.threads)
             .preserve_color_profiles(cli.preserve_color_profiles)
+            .disable_cache(cli.no_cache)
             .build()
             .context("Invalid configuration")?;
 
@@ -192,6 +193,7 @@ mod tests {
             clear_cache: false,
             show_cache_dir: false,
             cache_dir: None,
+            no_cache: false,
         }
     }
 
@@ -224,5 +226,20 @@ mod tests {
         cli.execution_provider = "onnx:auto".to_string();
         cli.jpeg_quality = 150;
         assert!(CliConfigBuilder::validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_no_cache_flag_config() {
+        let mut cli = create_test_cli();
+        cli.model = Some("test-model".to_string());
+        cli.no_cache = true;
+
+        let config = CliConfigBuilder::from_cli(&cli).unwrap();
+        assert!(config.disable_cache);
+
+        // Test default (cache enabled)
+        cli.no_cache = false;
+        let config = CliConfigBuilder::from_cli(&cli).unwrap();
+        assert!(!config.disable_cache);
     }
 }

@@ -69,6 +69,9 @@ pub struct RemovalConfig {
 
     /// Preserve ICC color profiles from input images (default: true)
     pub preserve_color_profiles: bool,
+
+    /// Disable all caches during processing (default: false)
+    pub disable_cache: bool,
 }
 
 impl Default for RemovalConfig {
@@ -82,6 +85,7 @@ impl Default for RemovalConfig {
             intra_threads: 0,              // Auto-detect optimal intra-op threads
             inter_threads: 0,              // Auto-detect optimal inter-op threads
             preserve_color_profiles: true, // Default: preserve color profiles
+            disable_cache: false,          // Default: enable caches
         }
     }
 }
@@ -280,6 +284,13 @@ impl RemovalConfigBuilder {
         self
     }
 
+    /// Enable or disable all caches during processing
+    #[must_use]
+    pub fn disable_cache(mut self, disable: bool) -> Self {
+        self.config.disable_cache = disable;
+        self
+    }
+
     /// Build and validate the configuration
     ///
     /// Constructs the final `RemovalConfig` and runs validation to ensure
@@ -360,5 +371,26 @@ mod tests {
         // Invalid JPEG quality should fail
         config.jpeg_quality = 150;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_disable_cache_config() {
+        // Test default (cache enabled)
+        let config = RemovalConfig::default();
+        assert!(!config.disable_cache);
+
+        // Test disable cache via builder
+        let config = RemovalConfig::builder()
+            .disable_cache(true)
+            .build()
+            .unwrap();
+        assert!(config.disable_cache);
+
+        // Test enable cache explicitly via builder
+        let config = RemovalConfig::builder()
+            .disable_cache(false)
+            .build()
+            .unwrap();
+        assert!(!config.disable_cache);
     }
 }

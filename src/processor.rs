@@ -118,6 +118,8 @@ pub struct ProcessorConfig {
     pub preserve_color_profiles: bool,
     /// Enable verbose progress reporting
     pub verbose_progress: bool,
+    /// Disable all caches during processing
+    pub disable_cache: bool,
 }
 
 impl ProcessorConfig {
@@ -139,6 +141,7 @@ impl ProcessorConfig {
             intra_threads: self.intra_threads,
             inter_threads: self.inter_threads,
             preserve_color_profiles: self.preserve_color_profiles,
+            disable_cache: self.disable_cache,
         }
     }
 }
@@ -160,6 +163,7 @@ impl Default for ProcessorConfig {
             inter_threads: 0,
             preserve_color_profiles: true,
             verbose_progress: false,
+            disable_cache: false,
         }
     }
 }
@@ -240,6 +244,12 @@ impl ProcessorConfigBuilder {
     #[must_use]
     pub fn verbose_progress(mut self, verbose: bool) -> Self {
         self.config.verbose_progress = verbose;
+        self
+    }
+
+    #[must_use]
+    pub fn disable_cache(mut self, disable: bool) -> Self {
+        self.config.disable_cache = disable;
         self
     }
 
@@ -797,5 +807,58 @@ impl BackgroundRemovalProcessor {
             original_dimensions,
             metadata,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{ModelSource, ModelSpec};
+
+    #[test]
+    fn test_processor_config_disable_cache() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: None,
+        };
+
+        // Test default (cache enabled)
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .build()
+            .unwrap();
+        assert!(!config.disable_cache);
+
+        // Test disable cache
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .disable_cache(true)
+            .build()
+            .unwrap();
+        assert!(config.disable_cache);
+
+        // Test to_removal_config conversion
+        let removal_config = config.to_removal_config();
+        assert!(removal_config.disable_cache);
+    }
+
+    #[test]
+    fn test_processor_config_builder_chain() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: None,
+        };
+
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .disable_cache(true)
+            .debug(true)
+            .jpeg_quality(95)
+            .build()
+            .unwrap();
+
+        assert!(config.disable_cache);
+        assert!(config.debug);
+        assert_eq!(config.jpeg_quality, 95);
     }
 }
