@@ -59,6 +59,12 @@ pub trait ModelProvider: std::fmt::Debug {
     /// - JSON parsing errors for external models
     fn get_preprocessing_config(&self) -> Result<PreprocessingConfig>;
 
+    /// Get the model file path
+    ///
+    /// # Errors
+    /// - Model path not available for this provider type
+    fn get_model_path(&self) -> Result<PathBuf>;
+
     /// Get input tensor name (deprecated - using positional inputs)
     ///
     /// # Deprecated
@@ -879,6 +885,10 @@ impl ModelProvider for ExternalModelProvider {
             },
         }
     }
+
+    fn get_model_path(&self) -> Result<PathBuf> {
+        Ok(self.get_model_file_path())
+    }
 }
 
 /// Model manager for handling different model sources
@@ -1046,6 +1056,14 @@ impl ModelManager {
     /// - Registry lookup failures for embedded models
     pub fn get_output_name(&self) -> Result<String> {
         self.provider.get_output_name()
+    }
+
+    /// Get the model file path
+    ///
+    /// # Errors
+    /// - Model path not available for this provider type
+    pub fn get_model_path(&self) -> Result<PathBuf> {
+        self.provider.get_model_path()
     }
 }
 
@@ -1431,6 +1449,10 @@ impl ModelProvider for DownloadedModelProvider {
     fn get_output_name(&self) -> Result<String> {
         // For downloaded models, use generic output name since we use positional outputs
         Ok("output".to_string())
+    }
+
+    fn get_model_path(&self) -> Result<PathBuf> {
+        Ok(self.get_model_file_path())
     }
 }
 

@@ -466,18 +466,32 @@ impl OnnxBackend {
         ) {
             if config.disable_cache {
                 log::debug!("Skipping session cache save due to --no-cache flag");
-            } else if let Err(e) = cache.cache_session(
-                &session,
-                key,
-                hash,
-                config.execution_provider,
-                &GraphOptimizationLevel::Level3,
-                config_str,
-            ) {
-                log::warn!("Failed to cache session: {}", e);
-                // Continue execution - caching failure is not critical
             } else {
-                log::debug!("✅ Cached new ONNX session: {}", key);
+                // Create session configuration for rebuilding
+                let session_config = crate::session_cache::SessionConfig {
+                    model_path: model_manager.get_model_path()?,
+                    execution_provider: config.execution_provider,
+                    optimization_level: "Level3".to_string(),
+                    inter_op_num_threads: Some(inter_threads as i16),
+                    intra_op_num_threads: Some(intra_threads as i16),
+                    parallel_execution: true,
+                    provider_options: config_str.clone(),
+                };
+
+                if let Err(e) = cache.cache_session(
+                    &session,
+                    key,
+                    hash,
+                    config.execution_provider,
+                    &GraphOptimizationLevel::Level3,
+                    config_str,
+                    session_config,
+                ) {
+                    log::warn!("Failed to cache session: {}", e);
+                    // Continue execution - caching failure is not critical
+                } else {
+                    log::debug!("✅ Cached new ONNX session: {}", key);
+                }
             }
         }
 
