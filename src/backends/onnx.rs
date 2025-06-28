@@ -8,6 +8,8 @@ use crate::config::{ExecutionProvider, RemovalConfig};
 use crate::error::Result;
 use crate::inference::InferenceBackend;
 use crate::models::ModelManager;
+#[cfg(feature = "cli")]
+use crate::session_cache::SessionCache;
 use log;
 use ndarray::Array4;
 use ort::execution_providers::{
@@ -22,6 +24,8 @@ pub struct OnnxBackend {
     session: Option<Session>,
     model_manager: Option<ModelManager>,
     initialized: bool,
+    #[cfg(feature = "cli")]
+    session_cache: Option<SessionCache>,
 }
 
 impl OnnxBackend {
@@ -145,6 +149,8 @@ impl OnnxBackend {
             session: None,
             model_manager: Some(model_manager),
             initialized: false,
+            #[cfg(feature = "cli")]
+            session_cache: SessionCache::new().ok(),
         }
     }
 
@@ -155,6 +161,8 @@ impl OnnxBackend {
             session: None,
             model_manager: None,
             initialized: false,
+            #[cfg(feature = "cli")]
+            session_cache: SessionCache::new().ok(),
         }
     }
 
@@ -176,6 +184,41 @@ impl OnnxBackend {
 
         // Load the model data
         let model_data = model_manager.load_model()?;
+
+        // Generate cache key for session caching
+        #[cfg(feature = "cli")]
+        let (cache_key, model_hash, provider_config) = if let Some(_) = &self.session_cache {
+            let model_hash = SessionCache::calculate_model_hash(&model_data);
+            let provider_config = self.serialize_provider_config(config);
+            let cache_key = SessionCache::generate_cache_key(
+                &model_hash,
+                config.execution_provider,
+                &GraphOptimizationLevel::Level3,
+                &provider_config,
+            );
+            (Some(cache_key), Some(model_hash), Some(provider_config))
+        } else {
+            (None, None, None)
+        };
+
+        // Try to load cached session first
+        #[cfg(feature = "cli")]
+        if let (Some(cache), Some(key)) = (&mut self.session_cache, &cache_key) {
+            if let Ok(Some(cached_session)) =
+                cache.load_cached_session(key, config.execution_provider)
+            {
+                log::info!("🎯 Loaded cached ONNX session: {}", key);
+                self.session = Some(cached_session);
+                self.initialized = true;
+
+                let model_load_time = model_load_start.elapsed();
+                log::info!(
+                    "📊 Model loading complete (cached): {:.0}ms",
+                    model_load_time.as_secs_f64() * 1000.0
+                );
+                return Ok(model_load_time);
+            }
+        }
 
         // Create ONNX Runtime session with specified execution provider
         let mut session_builder = Session::builder()
@@ -408,6 +451,29 @@ impl OnnxBackend {
             },
         }
 
+        // Cache the session for future use
+        #[cfg(feature = "cli")]
+        if let (Some(cache), Some(key), Some(hash), Some(config_str)) = (
+            &mut self.session_cache,
+            &cache_key,
+            &model_hash,
+            &provider_config,
+        ) {
+            if let Err(e) = cache.cache_session(
+                &session,
+                key,
+                hash,
+                config.execution_provider,
+                &GraphOptimizationLevel::Level3,
+                config_str,
+            ) {
+                log::warn!("Failed to cache session: {}", e);
+                // Continue execution - caching failure is not critical
+            } else {
+                log::debug!("✅ Cached new ONNX session: {}", key);
+            }
+        }
+
         self.session = Some(session);
         self.initialized = true;
 
@@ -418,6 +484,19 @@ impl OnnxBackend {
         );
 
         Ok(model_load_time)
+    }
+
+    /// Serialize provider configuration for cache key generation
+    #[cfg(feature = "cli")]
+    fn serialize_provider_config(&self, config: &RemovalConfig) -> String {
+        // Include all configuration parameters that affect session compilation
+        // Use a simple format string since serde_json might not be available
+        format!(
+            "{{\"execution_provider\":\"{:?}\",\"intra_threads\":{},\"inter_threads\":{},\"parallel_execution\":true,\"optimization_level\":\"Level3\"}}",
+            config.execution_provider,
+            config.intra_threads,
+            config.inter_threads
+        )
     }
 }
 

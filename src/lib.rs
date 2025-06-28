@@ -66,6 +66,8 @@ pub mod inference;
 pub mod models;
 pub mod processor;
 pub mod services;
+#[cfg(feature = "cli")]
+pub mod session_cache;
 pub mod types;
 pub mod utils;
 
@@ -92,6 +94,8 @@ pub use services::{
     ConsoleProgressReporter, ImageIOService, NoOpProgressReporter, OutputFormatHandler,
     ProcessingStage, ProgressReporter, ProgressTracker, ProgressUpdate,
 };
+#[cfg(feature = "cli")]
+pub use session_cache::{format_cache_size, SessionCache, SessionCacheEntry, SessionCacheStats};
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, ModelValidator,

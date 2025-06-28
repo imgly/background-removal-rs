@@ -43,7 +43,9 @@ impl CliConfigBuilder {
                             // No downloaded models available - use default model URL for auto-download
                             let default_url = ModelCache::get_default_model_url();
                             let model_spec = ModelSpec {
-                                source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+                                source: ModelSource::Downloaded(ModelCache::url_to_model_id(
+                                    default_url,
+                                )),
                                 variant: None,
                             };
                             (model_spec, ModelCache::url_to_model_id(default_url))
@@ -52,7 +54,9 @@ impl CliConfigBuilder {
                         // Cache scan failed - use default model URL for auto-download
                         let default_url = ModelCache::get_default_model_url();
                         let model_spec = ModelSpec {
-                            source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+                            source: ModelSource::Downloaded(ModelCache::url_to_model_id(
+                                default_url,
+                            )),
                             variant: None,
                         };
                         (model_spec, ModelCache::url_to_model_id(default_url))

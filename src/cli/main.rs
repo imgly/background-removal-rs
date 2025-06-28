@@ -156,7 +156,8 @@ pub async fn main() -> Result<()> {
     info!("Model: {:?}", config.model_spec);
 
     // Ensure model is available (auto-download if needed)
-    ensure_model_available(&config.model_spec).await
+    ensure_model_available(&config.model_spec)
+        .await
         .context("Failed to ensure model is available")?;
 
     // Create unified processor with CLI backend factory
@@ -186,27 +187,30 @@ async fn ensure_model_available(model_spec: &crate::models::ModelSpec) -> Result
 
     if let ModelSource::Downloaded(model_id) = &model_spec.source {
         let cache = ModelCache::new().context("Failed to create model cache")?;
-        
+
         // Check if model is already cached
         if !cache.is_model_cached(model_id) {
             // Auto-download for default model only
             if *model_id == ModelCache::get_default_model_id() {
                 println!("📦 Model not cached. Auto-downloading default model...");
-                
+
                 let default_url = ModelCache::get_default_model_url();
-                let downloader = ModelDownloader::new()
-                    .context("Failed to create model downloader")?;
-                
-                let downloaded_id = downloader.download_model(default_url, false).await
+                let downloader =
+                    ModelDownloader::new().context("Failed to create model downloader")?;
+
+                let downloaded_id = downloader
+                    .download_model(default_url, false)
+                    .await
                     .context("Failed to download default model")?;
-                
+
                 if downloaded_id != *model_id {
                     anyhow::bail!(
                         "Downloaded model ID '{}' doesn't match expected '{}'",
-                        downloaded_id, model_id
+                        downloaded_id,
+                        model_id
                     );
                 }
-                
+
                 println!("✅ Model downloaded successfully!");
             } else {
                 anyhow::bail!(
@@ -216,7 +220,7 @@ async fn ensure_model_available(model_spec: &crate::models::ModelSpec) -> Result
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -498,7 +502,6 @@ async fn clear_cache_models(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-
 /// Show the current cache directory
 fn show_current_cache_dir() -> Result<()> {
     use crate::cache::ModelCache;
@@ -511,16 +514,25 @@ fn show_current_cache_dir() -> Result<()> {
             // Show platform-specific info with actual base directory
             let cache_path = cache.get_current_cache_dir();
             let base_cache_dir = cache_path.parent().and_then(|p| p.parent());
-            
+
             if let Some(base_dir) = base_cache_dir {
                 #[cfg(target_os = "macos")]
-                println!("   Platform: macOS (using {}/imgly-bgremove/models/)", base_dir.display());
+                println!(
+                    "   Platform: macOS (using {}/imgly-bgremove/models/)",
+                    base_dir.display()
+                );
 
                 #[cfg(target_os = "linux")]
-                println!("   Platform: Linux (using {}/imgly-bgremove/models/)", base_dir.display());
+                println!(
+                    "   Platform: Linux (using {}/imgly-bgremove/models/)",
+                    base_dir.display()
+                );
 
                 #[cfg(target_os = "windows")]
-                println!("   Platform: Windows (using {}\\imgly-bgremove\\models\\)", base_dir.display());
+                println!(
+                    "   Platform: Windows (using {}\\imgly-bgremove\\models\\)",
+                    base_dir.display()
+                );
             } else {
                 // Fallback if we can't determine base directory
                 #[cfg(target_os = "macos")]
