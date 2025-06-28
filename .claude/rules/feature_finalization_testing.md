@@ -104,8 +104,9 @@ This rule applies to ALL feature development including:
 Before any feature can be considered complete:
 1. ✅ **All tests pass**: `cargo test` succeeds without failures
 2. ✅ **Code quality**: `cargo check` and `cargo fmt` pass
-3. ✅ **Manual validation**: Core workflows tested manually
-4. ✅ **Documentation**: Test coverage documented in implementation plan
+3. ✅ **Benchmarks run**: `cargo bench` validates performance characteristics
+4. ✅ **Manual validation**: Core workflows tested manually
+5. ✅ **Documentation**: Test coverage documented in implementation plan
 
 ### Feature Review Checklist
 ```markdown
@@ -113,10 +114,11 @@ Before any feature can be considered complete:
 - [ ] Integration tests cover user workflows  
 - [ ] Error conditions and edge cases tested
 - [ ] Existing tests still pass (no regressions)
+- [ ] Benchmarks run successfully and document performance characteristics
 - [ ] Manual testing performed and documented
 - [ ] Test coverage documented in implementation plan
 - [ ] Tests are maintainable and well-organized
-- [ ] Performance impact tested if applicable
+- [ ] Performance impact analyzed and documented
 ```
 
 ### Testing Violations

@@ -686,7 +686,17 @@ mod tests {
 
     #[test]
     fn test_cache_statistics() {
-        let cache = SessionCache::default();
+        // Create cache with temporary directory to avoid interference from existing cache
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let cache_dir = temp_dir.path().join("test_cache");
+        fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
+
+        let cache = SessionCache {
+            cache_dir,
+            metadata_cache: HashMap::new(),
+            stats: SessionCacheStats::default(),
+        };
+
         let stats = cache.get_stats();
 
         assert_eq!(stats.total_sessions, 0);

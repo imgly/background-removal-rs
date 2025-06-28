@@ -249,7 +249,40 @@ cargo test --features regression-tests
 
 # Full test coverage
 cargo test --all-features
+
+# Performance benchmarking
+cargo bench
 ```
+
+### Benchmarking
+
+The project includes comprehensive benchmarks for performance validation:
+
+```bash
+# Run all benchmark suites
+cargo bench
+
+# Run specific benchmark groups
+cargo bench provider_benchmarks
+cargo bench cache_benchmarks
+cargo bench cache_verification
+
+# Generate HTML reports (in target/criterion/)
+cargo bench -- --html
+```
+
+**Available Benchmark Suites:**
+
+- **`provider_benchmarks`**: Tests performance across different execution providers (CPU, CoreML, CUDA) and backends (ONNX, Tract)
+- **`cache_benchmarks`**: Compares cached vs uncached session performance for cold starts and repeated inference
+- **`cache_verification`**: Validates that session caching is working correctly and measures its impact
+
+**Benchmark Features:**
+- Pre-downloads required models to exclude download time from measurements
+- Tests various image sizes and batch configurations
+- Validates cache behavior with detailed diagnostics
+- Generates statistical analysis with confidence intervals
+- Produces HTML reports with performance graphs
 
 ### Contributing
 
@@ -376,16 +409,12 @@ services:
 
 ## 📄 License
 
-<<<<<<< HEAD
 This project is licensed under either of
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
-=======
-This project is licensed under the MIT License - see the [LICENSE-MIT](LICENSE-MIT) file for details.
->>>>>>> feat/readme-update
 
 ## 🤝 Contributing
 
