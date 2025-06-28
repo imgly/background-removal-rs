@@ -492,7 +492,7 @@ impl SessionCache {
                 self.stats.cache_hits += 1;
             },
             Err(e) => {
-                log::warn!(
+                log::debug!(
                     "Session serialization not supported for {}: {}",
                     provider_name,
                     e
@@ -593,6 +593,16 @@ impl SessionCache {
         
         let marker_json = serde_json::to_string(&cache_marker)
             .map_err(|e| BgRemovalError::invalid_config(format!("Failed to serialize cache marker: {}", e)))?;
+        
+        // Ensure the parent directory exists before writing
+        if let Some(parent) = session_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent).map_err(|e| {
+                    BgRemovalError::file_io_error("create session cache directory", parent, &e)
+                })?;
+            }
+        }
+        
         fs::write(session_path, marker_json.as_bytes())
             .map_err(|e| BgRemovalError::file_io_error("write session cache marker", session_path, &e))?;
 
