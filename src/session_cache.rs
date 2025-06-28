@@ -519,7 +519,7 @@ impl SessionCache {
                 Ok(Some(session))
             },
             Err(e) => {
-                log::warn!("Failed to load cached session {}: {}", cache_key, e);
+                log::debug!("Failed to load cached session {}: {}", cache_key, e);
                 // Remove invalid cache entry
                 self.remove_invalid_session(cache_key, &provider_name)?;
                 self.stats.cache_misses += 1;
