@@ -10,6 +10,7 @@ use crate::inference::InferenceBackend;
 use crate::models::ModelManager;
 use crate::session_cache::SessionCache;
 use log;
+use tracing::{debug, error, info, instrument, span, Level};
 use ndarray::Array4;
 use ort::execution_providers::{
     CUDAExecutionProvider, CoreMLExecutionProvider, ExecutionProvider as OrtExecutionProvider,
@@ -561,16 +562,21 @@ impl Default for OnnxBackend {
 }
 
 impl InferenceBackend for OnnxBackend {
+    #[instrument(skip(self, config), fields(execution_provider = %config.execution_provider))]
     fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
         if self.initialized {
             return Ok(None); // No model loading time for already initialized backend
         }
 
-        let model_load_time = self.load_model(config)?;
+        let model_load_time = {
+            let _span = span!(Level::INFO, "model_loading", provider = %config.execution_provider).entered();
+            self.load_model(config)?
+        };
         Ok(Some(model_load_time))
     }
 
     #[allow(clippy::too_many_lines)] // Complex inference with detailed diagnostics
+    #[instrument(skip(self, input), fields(input_shape = ?input.dim()))]
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         use std::time::Instant;
 
@@ -586,7 +592,10 @@ impl InferenceBackend for OnnxBackend {
 
         // Start detailed timing for inference diagnostics
         let inference_start = Instant::now();
-        log::debug!("🚀 Starting inference with input shape: {:?}", input.dim());
+        debug!(
+            input_shape = ?input.dim(),
+            "🚀 Starting ONNX inference"
+        );
 
         // Convert ndarray to ort Value
         let tensor_conversion_start = Instant::now();

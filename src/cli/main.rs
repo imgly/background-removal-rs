@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info, warn};
+use tracing::{debug, error as trace_error, info as trace_info, trace, warn as trace_warn};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -112,8 +113,8 @@ pub enum CliOutputFormat {
 pub async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    init_logging(cli.verbose);
+    // Initialize tracing
+    init_tracing(cli.verbose).context("Failed to initialize tracing")?;
 
     // Handle special flags that don't require inputs
     if cli.show_providers {
@@ -227,27 +228,33 @@ async fn ensure_model_available(model_spec: &crate::models::ModelSpec) -> Result
     Ok(())
 }
 
-/// Initialize logging based on verbosity level
-fn init_logging(verbose_count: u8) {
-    let log_level = match verbose_count {
-        0 => "warn",  // Default: only warnings and errors
-        1 => "info",  // -v: user-actionable information
-        2 => "debug", // -vv: internal state and computations
-        _ => "trace", // -vvv+: extremely detailed traces
-    };
-
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level))
-        .format_timestamp_secs()
-        .init();
+/// Initialize tracing based on verbosity level
+fn init_tracing(verbose_count: u8) -> Result<()> {
+    use crate::tracing_config::{init_cli_tracing, TracingConfig, TracingFormat};
+    
+    // Initialize tracing with CLI-friendly configuration
+    TracingConfig::new()
+        .with_verbosity(verbose_count)
+        .with_format(TracingFormat::Console)
+        .init()
+        .context("Failed to initialize tracing subscriber")?;
 
     if verbose_count > 0 {
         match verbose_count {
-            1 => log::info!("📋 Verbose mode: Showing user-actionable information"),
-            2 => log::debug!("🔧 Debug mode: Showing internal state and computations"),
-            _ => log::trace!("🔍 Trace mode: Showing extremely detailed traces"),
+            1 => trace_info!("📋 Verbose mode: Showing user-actionable information"),
+            2 => debug!("🔧 Debug mode: Showing internal state and computations"),
+            _ => trace!("🔍 Trace mode: Showing extremely detailed traces"),
         }
-        log::debug!("Log level: {log_level}");
+        let log_level = match verbose_count {
+            0 => "warn",
+            1 => "info",
+            2 => "debug",
+            _ => "trace",
+        };
+        debug!(log_level = %log_level, "Tracing initialized");
     }
+    
+    Ok(())
 }
 
 /// Display execution provider diagnostics using core utilities

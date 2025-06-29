@@ -16,6 +16,7 @@ use crate::{
 use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
 use instant::Instant;
 use log::{debug, info};
+use tracing::{debug as trace_debug, info as trace_info, instrument, span, Span, Level};
 use ndarray::Array4;
 use std::path::Path;
 
@@ -425,6 +426,14 @@ impl BackgroundRemovalProcessor {
     /// - Image preprocessing failures
     /// - Inference execution errors
     /// - Mask generation and application errors
+    #[instrument(
+        skip(self, image, color_profile),
+        fields(
+            backend = ?self.config.backend_type,
+            model = %self.config.model_spec.source.display_name(),
+            dimensions = %format!("{}x{}", image.width(), image.height())
+        )
+    )]
     pub fn process_image_with_profile(
         &mut self,
         image: &DynamicImage,
@@ -439,33 +448,58 @@ impl BackgroundRemovalProcessor {
         let original_dimensions = (image.width(), image.height());
         let removal_config = self.config.to_removal_config();
 
-        info!(
-            "Starting processing: {} - Backend: {:?}",
-            "DynamicImage", self.config.backend_type
+        trace_info!(
+            backend = ?self.config.backend_type,
+            model = %self.config.model_spec.source.display_name(),
+            "🎯 Starting image processing"
         );
 
         if let Some(ref profile) = color_profile {
-            debug!(
-                "Processing with color profile: {} ({} bytes)",
-                profile.color_space,
-                profile.data_size()
+            trace_debug!(
+                color_space = %profile.color_space,
+                profile_size_bytes = %profile.data_size(),
+                "🎨 Processing with ICC color profile"
             );
         }
 
         // Preprocess image for inference
-        let input_tensor = self.preprocess_image_for_inference(image, &mut timings)?;
+        let input_tensor = {
+            let _span = span!(
+                Level::DEBUG,
+                "preprocessing",
+                original_width = %original_dimensions.0,
+                original_height = %original_dimensions.1
+            ).entered();
+            self.preprocess_image_for_inference(image, &mut timings)?
+        };
 
         // Perform inference
-        let output_tensor = self.perform_inference(&input_tensor, &mut timings)?;
+        let output_tensor = {
+            let _span = span!(
+                Level::INFO,
+                "inference",
+                backend = ?self.config.backend_type,
+                model = %self.config.model_spec.source.display_name()
+            ).entered();
+            self.perform_inference(&input_tensor, &mut timings)?
+        };
 
         // Generate mask and apply background removal
-        let (mask, result_image) = self.generate_mask_and_remove_background(
-            &output_tensor,
-            image,
-            original_dimensions,
-            &removal_config,
-            &mut timings,
-        )?;
+        let (mask, result_image) = {
+            let _span = span!(
+                Level::DEBUG,
+                "background_removal",
+                width = %original_dimensions.0,
+                height = %original_dimensions.1
+            ).entered();
+            self.generate_mask_and_remove_background(
+                &output_tensor,
+                image,
+                original_dimensions,
+                &removal_config,
+                &mut timings,
+            )?
+        };
 
         // Finalize result with format conversion and metadata
         self.finalize_processing_result(
