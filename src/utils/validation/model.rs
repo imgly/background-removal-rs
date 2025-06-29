@@ -93,6 +93,9 @@ impl ModelValidator {
 
     /// Validate model configuration JSON structure
     pub fn validate_model_config(config: &serde_json::Value) -> Result<()> {
+        // Required fields
+        const REQUIRED_FIELDS: &[&str] = &["name", "description", "variants", "preprocessing"];
+        
         // Check required top-level fields
         if !config.is_object() {
             return Err(BgRemovalError::invalid_config(
@@ -101,9 +104,6 @@ impl ModelValidator {
         }
 
         let obj = config.as_object().unwrap();
-
-        // Required fields
-        const REQUIRED_FIELDS: &[&str] = &["name", "description", "variants", "preprocessing"];
 
         for field in REQUIRED_FIELDS {
             if !obj.contains_key(*field) {

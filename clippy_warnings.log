@@ -1,0 +1,957 @@
+   Compiling imgly-bgremove v0.2.0 (/Users/danielhauschildt/Developers/Labs/bg_remove-rs)
+error: this `map_or` can be simplified
+   --> src/cache.rs:215:24
+    |
+215 |                       if Path::new(file_name)
+    |  ________________________^
+216 | |                         .extension()
+217 | |                         .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx"))
+    | |______________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_map_or
+    = note: `-D clippy::unnecessary-map-or` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_map_or)]`
+help: use is_some_and instead
+    |
+217 -                         .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx"))
+217 +                         .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+    |
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/cache.rs:254:9
+    |
+254 | /         fn visit_dir(dir: &Path, total: &mut u64) -> std::io::Result<()> {
+255 | |             for entry in fs::read_dir(dir)? {
+256 | |                 let entry = entry?;
+257 | |                 let path = entry.path();
+...   |
+264 | |             Ok(())
+265 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+    = note: `-D clippy::items-after-statements` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::items_after_statements)]`
+
+error: this argument is passed by value, but not consumed in the function body
+   --> src/cache.rs:408:45
+    |
+408 |     pub fn with_custom_cache_dir(cache_dir: PathBuf) -> Result<Self> {
+    |                                             ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#needless_pass_by_value
+    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+408 |     pub fn with_custom_cache_dir(cache_dir: &PathBuf) -> Result<Self> {
+    |                                             +
+
+error: indexing may panic
+   --> src/cache.rs:449:33
+    |
+449 |         format!("{} {}", bytes, UNITS[unit_index])
+    |                                 ^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+    = note: `-D clippy::indexing-slicing` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::indexing_slicing)]`
+
+error: indexing may panic
+   --> src/cache.rs:451:35
+    |
+451 |         format!("{:.1} {}", size, UNITS[unit_index])
+    |                                   ^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: more than 3 bools in a struct
+   --> src/cli/main.rs:20:1
+    |
+20  | / pub struct Cli {
+21  | |     /// Input image files or directories (use "-" for stdin)
+22  | |     #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models", "clear_cache", "show_ca...
+23  | |     pub input: Vec<String>,
+...   |
+99  | |     pub no_cache: bool,
+100 | | }
+    | |_^
+    |
+    = help: consider using a state machine or refactoring bools into two-variant enums
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#struct_excessive_bools
+    = note: `-D clippy::struct-excessive-bools` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::struct_excessive_bools)]`
+
+error: this function's return value is unnecessary
+   --> src/cli/main.rs:252:1
+    |
+252 | / fn show_provider_diagnostics() -> Result<()> {
+253 | |     println!("🔍 Backend and Execution Provider Diagnostics");
+254 | |     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+...   |
+345 | |     Ok(())
+346 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_wraps
+    = note: `-D clippy::unnecessary-wraps` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_wraps)]`
+help: remove the return type...
+    |
+252 - fn show_provider_diagnostics() -> Result<()> {
+252 + fn show_provider_diagnostics() -> () {
+    |
+help: ...and then remove returned values
+    |
+345 -     Ok(())
+    |
+
+error: indexing may panic
+   --> src/cli/main.rs:571:32
+    |
+571 |     if cli.input.len() == 1 && cli.input[0] == "-" {
+    |                                ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: it is more idiomatic to use `Option<&T>` instead of `&Option<T>`
+   --> src/cli/main.rs:691:1
+    |
+691 | / async fn process_stdin(
+692 | |     output_target: &Option<String>,
+    | |                    --------------- help: change this to: `Option<&String>`
+693 | |     processor: &mut BackgroundRemovalProcessor,
+694 | | ) -> Result<usize> {
+...   |
+778 | |     Ok(1)
+779 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ref_option
+    = note: `-D clippy::ref-option` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::ref_option)]`
+
+error: it is more idiomatic to use `Option<&T>` instead of `&Option<T>`
+   --> src/cli/main.rs:782:1
+    |
+782 | / async fn process_single_file(
+783 | |     processor: &mut BackgroundRemovalProcessor,
+784 | |     input_path: &Path,
+785 | |     output_path: &Option<String>,
+    | |                  --------------- help: change this to: `Option<&String>`
+...   |
+899 | |     Ok(1)
+900 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#ref_option
+
+error: slicing may panic
+   --> src/cli/main.rs:923:27
+    |
+923 |     if data.len() >= 8 && data[0..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:928:27
+    |
+928 |     if data.len() >= 3 && data[0..3] == [0xFF, 0xD8, 0xFF] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:934:12
+    |
+934 |         && data[0..4] == [0x52, 0x49, 0x46, 0x46] // "RIFF"
+    |            ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:935:12
+    |
+935 |         && data[8..12] == [0x57, 0x45, 0x42, 0x50]
+    |            ^^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:942:27
+    |
+942 |     if data.len() >= 4 && data[0..4] == [0x49, 0x49, 0x2A, 0x00] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:947:27
+    |
+947 |     if data.len() >= 4 && data[0..4] == [0x4D, 0x4D, 0x00, 0x2A] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:952:27
+    |
+952 |     if data.len() >= 2 && data[0..2] == [0x42, 0x4D] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: slicing may panic
+   --> src/cli/main.rs:957:27
+    |
+957 |     if data.len() >= 4 && data[0..4] == [0x47, 0x49, 0x46, 0x38] {
+    |                           ^^^^^^^^^^
+    |
+    = help: consider using `.get(n..m)` or `.get_mut(n..m)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: used underscore-prefixed binding
+  --> src/download.rs:60:51
+   |
+60 |             Self::Indicatif(pb) => pb.set_message(_msg),
+   |                                                   ^^^^
+   |
+note: binding is defined here
+  --> src/download.rs:57:31
+   |
+57 |     pub fn set_message(&self, _msg: String) {
+   |                               ^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#used_underscore_binding
+   = note: `-D clippy::used-underscore-binding` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::used_underscore_binding)]`
+
+error: used underscore-prefixed binding
+  --> src/download.rs:69:50
+   |
+69 |             Self::Indicatif(pb) => pb.set_length(_len),
+   |                                                  ^^^^
+   |
+note: binding is defined here
+  --> src/download.rs:66:30
+   |
+66 |     pub fn set_length(&self, _len: u64) {
+   |                              ^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#used_underscore_binding
+
+error: used underscore-prefixed binding
+  --> src/download.rs:78:52
+   |
+78 |             Self::Indicatif(pb) => pb.set_position(_pos),
+   |                                                    ^^^^
+   |
+note: binding is defined here
+  --> src/download.rs:75:32
+   |
+75 |     pub fn set_position(&self, _pos: u64) {
+   |                                ^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#used_underscore_binding
+
+error: used underscore-prefixed binding
+  --> src/download.rs:87:59
+   |
+87 |             Self::Indicatif(pb) => pb.finish_with_message(_msg),
+   |                                                           ^^^^
+   |
+note: binding is defined here
+  --> src/download.rs:84:39
+   |
+84 |     pub fn finish_with_message(&self, _msg: String) {
+   |                                       ^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#used_underscore_binding
+
+error: unused `self` argument
+   --> src/download.rs:197:33
+    |
+197 |     fn create_temp_download_dir(&self, model_id: &str) -> Result<PathBuf> {
+    |                                 ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unused_self
+    = note: `-D clippy::unused-self` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unused_self)]`
+
+error: unused `self` argument
+   --> src/download.rs:213:34
+    |
+213 |     fn create_progress_indicator(&self) -> ProgressIndicator {
+    |                                  ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unused_self
+
+error: replacing text with itself
+   --> src/download.rs:247:24
+    |
+247 |           let raw_base = base_url
+    |  ________________________^
+248 | |             .replace("https://huggingface.co/", "https://huggingface.co/")
+    | |__________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#no_effect_replace
+    = note: `-D clippy::no-effect-replace` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::no_effect_replace)]`
+
+error: slicing may panic
+   --> src/download.rs:357:29
+    |
+357 |             file.write_all(&buffer[..bytes_read])
+    |                             ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(..n)`or `.get_mut(..n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/download.rs:490:9
+    |
+490 |     Ok((parts[0].to_string(), parts[1].to_string()))
+    |         ^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/download.rs:490:31
+    |
+490 |     Ok((parts[0].to_string(), parts[1].to_string()))
+    |                               ^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: case-sensitive file extension comparison
+   --> src/models.rs:304:24
+    |
+304 |                     if file_name.ends_with(".onnx") {
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a case-insensitive comparison instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#case_sensitive_file_extension_comparisons
+    = note: `-D clippy::case-sensitive-file-extension-comparisons` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::case_sensitive_file_extension_comparisons)]`
+help: use std::path::Path
+    |
+304 ~                     if std::path::Path::new(file_name)
+305 +                         .extension()
+306 ~                         .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx")) {
+    |
+
+error: this match arm has an identical body to the `_` wildcard arm
+   --> src/models.rs:564:21
+    |
+564 | /                     "fp32" => onnx_dir.join("model.onnx"),
+565 | |                     _ => onnx_dir.join("model.onnx"), // Fallback to default
+    | |____________________^ help: try removing the arm
+    |
+    = help: or try changing either arm body
+note: `_` wildcard arm here
+   --> src/models.rs:565:21
+    |
+565 |                     _ => onnx_dir.join("model.onnx"), // Fallback to default
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_same_arms
+    = note: `-D clippy::match-same-arms` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::match_same_arms)]`
+
+error: this function's return value is unnecessarily wrapped by `Result`
+   --> src/models.rs:572:5
+    |
+572 | /     fn parse_shape_from_legacy(
+573 | |         variant_config: &serde_json::Value,
+574 | |         shape_key: &str,
+575 | |         default: (usize, usize, usize, usize),
+...   |
+589 | |         Ok(default)
+590 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_wraps
+help: remove `Result` from the return type...
+    |
+576 -     ) -> Result<(usize, usize, usize, usize)> {
+576 +     ) -> (usize, usize, usize, usize) {
+    |
+help: ...and then change returning expressions
+    |
+585 ~                 return (dim0, dim1, dim2, dim3);
+586 |             }
+587 |         }
+588 |
+589 ~         default
+    |
+
+error: indexing may panic
+   --> src/models.rs:581:28
+    |
+581 |                 let dim0 = arr[0].as_u64().unwrap_or(default.0 as u64) as usize;
+    |                            ^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:582:28
+    |
+582 |                 let dim1 = arr[1].as_u64().unwrap_or(default.1 as u64) as usize;
+    |                            ^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:583:28
+    |
+583 |                 let dim2 = arr[2].as_u64().unwrap_or(default.2 as u64) as usize;
+    |                            ^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:584:28
+    |
+584 |                 let dim3 = arr[3].as_u64().unwrap_or(default.3 as u64) as usize;
+    |                            ^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:674:18
+    |
+674 |         let v0 = values[0].as_f64().ok_or_else(|| {
+    |                  ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:677:18
+    |
+677 |         let v1 = values[1].as_f64().ok_or_else(|| {
+    |                  ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:680:18
+    |
+680 |         let v2 = values[2].as_f64().ok_or_else(|| {
+    |                  ^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:705:22
+    |
+705 |         let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
+    |                      ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:706:22
+    |
+706 |         let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
+    |                      ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:707:22
+    |
+707 |         let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+    |                      ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:730:21
+    |
+730 |         let std0 = (image_std[0].as_f64().unwrap_or(256.0) / 255.0) as f32;
+    |                     ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:731:21
+    |
+731 |         let std1 = (image_std[1].as_f64().unwrap_or(256.0) / 255.0) as f32;
+    |                     ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/models.rs:732:21
+    |
+732 |         let std2 = (image_std[2].as_f64().unwrap_or(256.0) / 255.0) as f32;
+    |                     ^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: case-sensitive file extension comparison
+    --> src/models.rs:1201:24
+     |
+1201 |                     if file_name.ends_with(".onnx") {
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: consider using a case-insensitive comparison instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#case_sensitive_file_extension_comparisons
+help: use std::path::Path
+     |
+1201 ~                     if std::path::Path::new(file_name)
+1202 +                         .extension()
+1203 ~                         .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx")) {
+     |
+
+error: indexing may panic
+    --> src/models.rs:1339:22
+     |
+1339 |         let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
+     |                      ^^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+    --> src/models.rs:1340:22
+     |
+1340 |         let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
+     |                      ^^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+    --> src/models.rs:1341:22
+     |
+1341 |         let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+     |                      ^^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+    --> src/models.rs:1364:21
+     |
+1364 |         let std0 = (image_std[0].as_f64().unwrap_or(255.0) / 255.0) as f32;
+     |                     ^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+    --> src/models.rs:1365:21
+     |
+1365 |         let std1 = (image_std[1].as_f64().unwrap_or(255.0) / 255.0) as f32;
+     |                     ^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+    --> src/models.rs:1366:21
+     |
+1366 |         let std2 = (image_std[2].as_f64().unwrap_or(255.0) / 255.0) as f32;
+     |                     ^^^^^^^^^^^^
+     |
+     = help: consider using `.get(n)` or `.get_mut(n)` instead
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: more than 3 bools in a struct
+   --> src/processor.rs:98:1
+    |
+98  | / pub struct ProcessorConfig {
+99  | |     /// Model specification (embedded or external)
+100 | |     pub model_spec: ModelSpec,
+101 | |     /// Backend type to use for inference
+...   |
+122 | |     pub disable_cache: bool,
+123 | | }
+    | |_^
+    |
+    = help: consider using a state machine or refactoring bools into two-variant enums
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#struct_excessive_bools
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/processor.rs:575:9
+    |
+575 |         use tokio::io::AsyncReadExt;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+
+error: unused `self` argument
+   --> src/processor.rs:801:9
+    |
+801 |         &self,
+    |         ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unused_self
+
+error: unused `self` argument
+   --> src/processor.rs:828:9
+    |
+828 |         &self,
+    |         ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unused_self
+
+error: this function's return value is unnecessarily wrapped by `Result`
+   --> src/processor.rs:827:5
+    |
+827 | /     fn apply_background_removal(
+828 | |         &self,
+829 | |         image: &DynamicImage,
+830 | |         mask: &SegmentationMask,
+...   |
+855 | |         Ok(result)
+856 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_wraps
+help: remove `Result` from the return type...
+    |
+832 -     ) -> Result<RgbaImage> {
+832 +     ) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
+    |
+help: ...and then change returning expressions
+    |
+855 -         Ok(result)
+855 +         result
+    |
+
+error: indexing may panic
+   --> src/processor.rs:840:17
+    |
+840 |                 mask.data[pixel_index]
+    |                 ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/services/io.rs:291:9
+    |
+291 |         use tokio::io::AsyncReadExt;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/services/io.rs:383:9
+    |
+383 |         use tokio::io::AsyncWriteExt;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+
+error: case-sensitive file extension comparison
+   --> src/session_cache.rs:295:38
+    |
+295 |                     .is_some_and(|s| s.ends_with(".meta"))
+    |                                      ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a case-insensitive comparison instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#case_sensitive_file_extension_comparisons
+help: use std::path::Path
+    |
+295 ~                     .is_some_and(|s| std::path::Path::new(s)
+296 +                         .extension()
+297 ~                         .map_or(false, |ext| ext.eq_ignore_ascii_case("meta")))
+    |
+
+error: this function has too many arguments (8/7)
+   --> src/session_cache.rs:416:5
+    |
+416 | /     pub fn cache_session(
+417 | |         &mut self,
+418 | |         session: &Session,
+419 | |         cache_key: &str,
+...   |
+424 | |         session_config: SessionConfig,
+425 | |     ) -> Result<()> {
+    | |___________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#too_many_arguments
+    = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: parameter is only used in recursion
+   --> src/session_cache.rs:685:28
+    |
+685 |     fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
+    |                            ^^^^
+    |
+note: parameter used here
+   --> src/session_cache.rs:696:17
+    |
+696 |                 self.copy_dir_recursive(&src_path, &dst_path)?;
+    |                 ^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#only_used_in_recursion
+    = note: `-D clippy::only-used-in-recursion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::only_used_in_recursion)]`
+
+error: unused `self` argument
+   --> src/session_cache.rs:731:32
+    |
+731 |     fn try_deserialize_session(&self, session_path: &Path) -> Result<Session> {
+    |                                ^^^^^
+    |
+    = help: consider refactoring to an associated function
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unused_self
+
+error: indexing may panic
+   --> src/session_cache.rs:829:33
+    |
+829 |         format!("{} {}", bytes, UNITS[unit_index])
+    |                                 ^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/session_cache.rs:831:35
+    |
+831 |         format!("{:.1} {}", size, UNITS[unit_index])
+    |                                   ^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/types.rs:525:9
+    |
+525 |         use tokio::io::AsyncWriteExt;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+
+error: this function's return value is unnecessarily wrapped by `Result`
+   --> src/utils/preprocessing.rs:140:5
+    |
+140 | /     fn canvas_to_tensor(
+141 | |         canvas: &RgbImage,
+142 | |         preprocessing_config: &PreprocessingConfig,
+143 | |         target_size: usize,
+...   |
+168 | |         Ok(tensor)
+169 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_wraps
+help: remove `Result` from the return type...
+    |
+144 -     ) -> Result<Array4<f32>> {
+144 +     ) -> ndarray::ArrayBase<ndarray::OwnedRepr<f32>, ndarray::Dim<[usize; 4]>> {
+    |
+help: ...and then change returning expressions
+    |
+168 -         Ok(tensor)
+168 +         tensor
+    |
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> src/utils/validation/model.rs:106:9
+    |
+106 |         const REQUIRED_FIELDS: &[&str] = &["name", "description", "variants", "preprocessing"];
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#items_after_statements
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:29:13
+   |
+29 |             actual_shape[0],
+   |             ^^^^^^^^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:30:13
+   |
+30 |             actual_shape[1],
+   |             ^^^^^^^^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:31:13
+   |
+31 |             actual_shape[2],
+   |             ^^^^^^^^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:32:13
+   |
+32 |             actual_shape[3],
+   |             ^^^^^^^^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:47:12
+   |
+47 |         if shape[0] != 1 || shape[1] != 1 {
+   |            ^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:47:29
+   |
+47 |         if shape[0] != 1 || shape[1] != 1 {
+   |                             ^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:91:22
+   |
+91 |         let height = shape[2];
+   |                      ^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+  --> src/utils/validation/tensor.rs:92:21
+   |
+92 |         let width = shape[3];
+   |                     ^^^^^^^^
+   |
+   = help: consider using `.get(n)` or `.get_mut(n)` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: could not compile `imgly-bgremove` (lib) due to 76 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: indexing may panic
+   --> src/services/progress.rs:421:20
+    |
+421 |         assert_eq!(updates[0].stage, ProcessingStage::Initialization);
+    |                    ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/services/progress.rs:422:20
+    |
+422 |         assert_eq!(updates[1].stage, ProcessingStage::Inference);
+    |                    ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/services/progress.rs:423:20
+    |
+423 |         assert_eq!(updates[2].stage, ProcessingStage::BackgroundRemoval);
+    |                    ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/services/progress.rs:424:20
+    |
+424 |         assert_eq!(updates[2].description, "Custom description");
+    |                    ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/services/progress.rs:431:20
+    |
+431 |         assert_eq!(error_list[0].0, ProcessingStage::BackgroundRemoval);
+    |                    ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/services/progress.rs:432:20
+    |
+432 |         assert_eq!(error_list[0].1, "Test error message");
+    |                    ^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: wildcard matches only a single variant and will also match any future added variants
+   --> src/utils/models.rs:258:13
+    |
+258 |             _ => panic!("Expected downloaded model"),
+    |             ^ help: try: `ModelSource::External(_)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_wildcard_for_single_variants
+    = note: `-D clippy::match-wildcard-for-single-variants` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::match_wildcard_for_single_variants)]`
+
+error: wildcard matches only a single variant and will also match any future added variants
+   --> src/utils/models.rs:268:13
+    |
+268 |             _ => panic!("Expected downloaded model"),
+    |             ^ help: try: `ModelSource::External(_)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_wildcard_for_single_variants
+
+error: wildcard matches only a single variant and will also match any future added variants
+   --> src/utils/models.rs:284:13
+    |
+284 |             _ => panic!("Expected downloaded model for URL"),
+    |             ^ help: try: `ModelSource::External(_)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_wildcard_for_single_variants
+
+error: wildcard matches only a single variant and will also match any future added variants
+   --> src/utils/models.rs:306:13
+    |
+306 |             _ => panic!("Expected downloaded model for URL"),
+    |             ^ help: try: `ModelSource::External(_)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_wildcard_for_single_variants
+
+error: wildcard matches only a single variant and will also match any future added variants
+   --> src/utils/models.rs:316:13
+    |
+316 |             _ => panic!("Expected downloaded model for non-existent path"),
+    |             ^ help: try: `ModelSource::External(_)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#match_wildcard_for_single_variants
+
+error: could not compile `imgly-bgremove` (lib test) due to 87 previous errors

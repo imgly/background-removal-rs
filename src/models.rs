@@ -573,7 +573,7 @@ impl ExternalModelProvider {
         variant_config: &serde_json::Value,
         shape_key: &str,
         default: (usize, usize, usize, usize),
-    ) -> Result<(usize, usize, usize, usize)> {
+    ) -> (usize, usize, usize, usize) {
         let shape_array = variant_config.get(shape_key).and_then(|v| v.as_array());
 
         if let Some(arr) = shape_array {
@@ -582,11 +582,11 @@ impl ExternalModelProvider {
                 let dim1 = arr.get(1).and_then(serde_json::Value::as_u64).unwrap_or(default.1 as u64) as usize;
                 let dim2 = arr.get(2).and_then(serde_json::Value::as_u64).unwrap_or(default.2 as u64) as usize;
                 let dim3 = arr.get(3).and_then(serde_json::Value::as_u64).unwrap_or(default.3 as u64) as usize;
-                return Ok((dim0, dim1, dim2, dim3));
+                return (dim0, dim1, dim2, dim3);
             }
         }
 
-        Ok(default)
+        default
     }
 
     /// Parse target size from legacy format
@@ -773,12 +773,12 @@ impl ModelProvider for ExternalModelProvider {
                         variant_config,
                         "input_shape",
                         (1, 3, 1024, 1024),
-                    )?,
+                    ),
                     output_shape: Self::parse_shape_from_legacy(
                         variant_config,
                         "output_shape",
                         (1, 1, 1024, 1024),
-                    )?,
+                    ),
                 })
             },
             ModelFormat::HuggingFace => {

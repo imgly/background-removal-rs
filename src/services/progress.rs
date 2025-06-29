@@ -418,7 +418,7 @@ mod tests {
         // Verify reports were captured
         let updates = progress_updates.lock().unwrap();
         assert_eq!(updates.len(), 3);
-        assert_eq!(updates.get(0).unwrap().stage, ProcessingStage::Initialization);
+        assert_eq!(updates.first().unwrap().stage, ProcessingStage::Initialization);
         assert_eq!(updates.get(1).unwrap().stage, ProcessingStage::Inference);
         assert_eq!(updates.get(2).unwrap().stage, ProcessingStage::BackgroundRemoval);
         assert_eq!(updates.get(2).unwrap().description, "Custom description");
@@ -428,8 +428,8 @@ mod tests {
 
         let error_list = errors.lock().unwrap();
         assert_eq!(error_list.len(), 1);
-        assert_eq!(error_list.get(0).unwrap().0, ProcessingStage::BackgroundRemoval);
-        assert_eq!(error_list.get(0).unwrap().1, "Test error message");
+        assert_eq!(error_list.first().unwrap().0, ProcessingStage::BackgroundRemoval);
+        assert_eq!(error_list.first().unwrap().1, "Test error message");
     }
 
     #[test]

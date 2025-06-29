@@ -124,7 +124,7 @@ impl ImagePreprocessor {
             )
         })?;
 
-        let tensor = Self::canvas_to_tensor(&canvas, preprocessing_config, target_size_usize)?;
+        let tensor = Self::canvas_to_tensor(&canvas, preprocessing_config, target_size_usize);
 
         // Return preprocessed image if requested
         let preprocessed_image = if options.return_preprocessed_image {
@@ -141,7 +141,7 @@ impl ImagePreprocessor {
         canvas: &RgbImage,
         preprocessing_config: &PreprocessingConfig,
         target_size: usize,
-    ) -> Result<Array4<f32>> {
+    ) -> Array4<f32> {
         let mut tensor = Array4::<f32>::zeros((1, 3, target_size, target_size));
 
         #[allow(clippy::indexing_slicing)]
@@ -165,7 +165,7 @@ impl ImagePreprocessor {
             }
         }
 
-        Ok(tensor)
+        tensor
     }
 
     /// Simple preprocessing for unified processor (tensor only)

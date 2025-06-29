@@ -54,37 +54,37 @@ pub enum ProgressIndicator {
 
 impl ProgressIndicator {
     /// Set message for progress indicator
-    pub fn set_message(&self, _msg: String) {
+    pub fn set_message(&self, msg: String) {
         match self {
             #[cfg(feature = "cli")]
-            Self::Indicatif(pb) => pb.set_message(_msg),
+            Self::Indicatif(pb) => pb.set_message(msg),
             Self::NoOp => {}, // Silent operation
         }
     }
 
     /// Set length for progress indicator
-    pub fn set_length(&self, _len: u64) {
+    pub fn set_length(&self, len: u64) {
         match self {
             #[cfg(feature = "cli")]
-            Self::Indicatif(pb) => pb.set_length(_len),
+            Self::Indicatif(pb) => pb.set_length(len),
             Self::NoOp => {},
         }
     }
 
     /// Set position for progress indicator
-    pub fn set_position(&self, _pos: u64) {
+    pub fn set_position(&self, pos: u64) {
         match self {
             #[cfg(feature = "cli")]
-            Self::Indicatif(pb) => pb.set_position(_pos),
+            Self::Indicatif(pb) => pb.set_position(pos),
             Self::NoOp => {},
         }
     }
 
     /// Finish progress indicator with message
-    pub fn finish_with_message(&self, _msg: String) {
+    pub fn finish_with_message(&self, msg: String) {
         match self {
             #[cfg(feature = "cli")]
-            Self::Indicatif(pb) => pb.finish_with_message(_msg),
+            Self::Indicatif(pb) => pb.finish_with_message(msg),
             Self::NoOp => {},
         }
     }

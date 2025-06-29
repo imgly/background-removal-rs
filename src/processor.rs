@@ -654,7 +654,7 @@ impl BackgroundRemovalProcessor {
             tracker.report_stage(ProcessingStage::BackgroundRemoval);
         }
 
-        let result_image = Self::apply_background_removal(image, &mask, removal_config)?;
+        let result_image = Self::apply_background_removal(image, &mask, removal_config);
         timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
 
         Ok((mask, result_image))
@@ -828,7 +828,7 @@ impl BackgroundRemovalProcessor {
         image: &DynamicImage,
         mask: &SegmentationMask,
         _config: &RemovalConfig,
-    ) -> Result<RgbaImage> {
+    ) -> RgbaImage {
         let rgba_image = image.to_rgba8();
         let (width, height) = rgba_image.dimensions();
         let mut result = ImageBuffer::new(width, height);
@@ -847,7 +847,7 @@ impl BackgroundRemovalProcessor {
             }
         }
 
-        Ok(result)
+        result
     }
 
     /// Extract foreground segmentation mask only without applying background removal
@@ -899,7 +899,7 @@ impl BackgroundRemovalProcessor {
         };
 
         let removal_config = self.config.to_removal_config();
-        let result_image = Self::apply_background_removal(&image, &resized_mask, &removal_config)?;
+        let result_image = Self::apply_background_removal(&image, &resized_mask, &removal_config);
 
         // Handle output format using the service
         let final_image =

@@ -30,3 +30,6 @@ test_*.png
 # OS
 .DS_Store
 Thumbs.db
+
+# Worktrees
+/worktree/

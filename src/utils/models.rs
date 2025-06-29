@@ -313,7 +313,7 @@ mod tests {
         let spec = ModelSpecParser::parse("/non/existent/path");
         match spec.source {
             ModelSource::Downloaded(model_id) => assert_eq!(model_id, "/non/existent/path"),
-            _ => panic!("Expected downloaded model for non-existent path"),
+            ModelSource::External(_) => panic!("Expected downloaded model for non-existent path"),
         }
     }
 
