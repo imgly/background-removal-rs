@@ -6,6 +6,7 @@
 use crate::cache::ModelCache;
 use crate::error::{BgRemovalError, Result};
 use futures_util::stream::TryStreamExt;
+#[cfg(feature = "cli")]
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
@@ -41,6 +42,52 @@ pub struct DownloadProgress {
     pub total: Option<u64>,
     /// Download completed
     pub completed: bool,
+}
+
+/// Progress bar abstraction that works with and without CLI features
+#[derive(Debug)]
+pub enum ProgressIndicator {
+    #[cfg(feature = "cli")]
+    Indicatif(ProgressBar),
+    NoOp,
+}
+
+impl ProgressIndicator {
+    /// Set message for progress indicator
+    pub fn set_message(&self, _msg: String) {
+        match self {
+            #[cfg(feature = "cli")]
+            Self::Indicatif(pb) => pb.set_message(_msg),
+            Self::NoOp => {}, // Silent operation
+        }
+    }
+
+    /// Set length for progress indicator
+    pub fn set_length(&self, _len: u64) {
+        match self {
+            #[cfg(feature = "cli")]
+            Self::Indicatif(pb) => pb.set_length(_len),
+            Self::NoOp => {},
+        }
+    }
+
+    /// Set position for progress indicator
+    pub fn set_position(&self, _pos: u64) {
+        match self {
+            #[cfg(feature = "cli")]
+            Self::Indicatif(pb) => pb.set_position(_pos),
+            Self::NoOp => {},
+        }
+    }
+
+    /// Finish progress indicator with message
+    pub fn finish_with_message(&self, _msg: String) {
+        match self {
+            #[cfg(feature = "cli")]
+            Self::Indicatif(pb) => pb.finish_with_message(_msg),
+            Self::NoOp => {},
+        }
+    }
 }
 
 impl ModelDownloader {
@@ -96,7 +143,7 @@ impl ModelDownloader {
 
         // Setup progress reporting
         let progress = if show_progress {
-            Some(self.create_progress_bar())
+            Some(self.create_progress_indicator())
         } else {
             None
         };
@@ -138,7 +185,7 @@ impl ModelDownloader {
                 }
 
                 if let Some(pb) = progress {
-                    pb.finish_with_message("❌ Download failed");
+                    pb.finish_with_message("❌ Download failed".to_string());
                 }
 
                 Err(e)
@@ -162,16 +209,23 @@ impl ModelDownloader {
         Ok(temp_dir)
     }
 
-    /// Create a progress bar for download reporting
-    fn create_progress_bar(&self) -> ProgressBar {
-        let pb = ProgressBar::new(100);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} {msg}")
-                .unwrap()
-                .progress_chars("#>-"),
-        );
-        pb
+    /// Create a progress indicator for download reporting
+    fn create_progress_indicator(&self) -> ProgressIndicator {
+        #[cfg(feature = "cli")]
+        {
+            let pb = ProgressBar::new(100);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} {msg}")
+                    .unwrap()
+                    .progress_chars("#>-"),
+            );
+            ProgressIndicator::Indicatif(pb)
+        }
+        #[cfg(not(feature = "cli"))]
+        {
+            ProgressIndicator::NoOp
+        }
     }
 
     /// Download all required model files
@@ -179,7 +233,7 @@ impl ModelDownloader {
         &self,
         base_url: &str,
         download_dir: &Path,
-        progress: Option<&ProgressBar>,
+        progress: Option<&ProgressIndicator>,
     ) -> Result<()> {
         // Ensure we have a HuggingFace URL
         if !base_url.starts_with("https://huggingface.co/") {
@@ -250,7 +304,7 @@ impl ModelDownloader {
         &self,
         url: &str,
         local_path: &Path,
-        progress: Option<&ProgressBar>,
+        progress: Option<&ProgressIndicator>,
     ) -> Result<()> {
         log::debug!("Downloading: {} -> {}", url, local_path.display());
 
@@ -469,10 +523,8 @@ mod tests {
         assert!(parse_huggingface_url("https://github.com/user/repo").is_err());
     }
 
-    #[cfg(feature = "cli")]
     #[tokio::test]
     async fn test_downloader_creation() {
-        // This test only runs when CLI features are enabled
         let _downloader = ModelDownloader::new().expect("Should create downloader successfully");
     }
 }

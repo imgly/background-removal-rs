@@ -144,24 +144,14 @@ impl SessionCache {
         }
 
         // Use XDG-compliant cache directory
-        #[cfg(feature = "cli")]
-        {
-            Ok(dirs::cache_dir()
-                .ok_or_else(|| {
-                    BgRemovalError::invalid_config(
-                        "Failed to determine cache directory. Set IMGLY_BGREMOVE_CACHE_DIR environment variable.".to_string()
-                    )
-                })?
-                .join("imgly-bgremove")
-                .join("sessions"))
-        }
-
-        #[cfg(not(feature = "cli"))]
-        {
-            Err(BgRemovalError::invalid_config(
-                "Session cache functionality requires CLI features to be enabled".to_string(),
-            ))
-        }
+        Ok(dirs::cache_dir()
+            .ok_or_else(|| {
+                BgRemovalError::invalid_config(
+                    "Failed to determine cache directory. Set IMGLY_BGREMOVE_CACHE_DIR environment variable.".to_string()
+                )
+            })?
+            .join("imgly-bgremove")
+            .join("sessions"))
     }
 
     /// Generate a cache key for a session based on its configuration
@@ -883,10 +873,8 @@ mod tests {
         assert_eq!(format_cache_size(1024 * 1024 * 1024), "1.0 GB");
     }
 
-    #[cfg(feature = "cli")]
     #[test]
     fn test_session_cache_creation() {
-        // This test only runs when CLI features are enabled
         let _cache = SessionCache::new().expect("Should create session cache successfully");
     }
 

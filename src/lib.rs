@@ -19,23 +19,82 @@
 //! - **Multiple Backends**: ONNX Runtime (GPU acceleration) and Tract (Pure Rust)
 //! - **Format Support**: JPEG, PNG, WebP, BMP, TIFF with ICC color profile preservation
 //! - **Hardware Acceleration**: CUDA, CoreML, and CPU execution providers
-//! - **CLI Integration**: Command-line interface included by default
+//! - **Model Management**: Automatic downloading and caching of models from HuggingFace
+//! - **Session Caching**: Performance optimization through cached ONNX Runtime sessions
+//! - **CLI Integration**: Optional command-line interface (enable with `cli` feature)
 //! - **WebAssembly Compatible**: Pure Rust Tract backend works in WASM
 //! - **Async and Sync APIs**: Flexible processing options
 //!
 //! ## Quick Start
 //!
+//! ### Ultra-Simple Usage (One Function Call)
+//!
+//! If you have a model cached, background removal is just one function call:
+//!
 //! ```rust,no_run
-//! use imgly_bgremove::{RemovalConfig, remove_background, ExecutionProvider};
+//! use imgly_bgremove::remove_background_simple;
 //!
 //! # async fn example() -> anyhow::Result<()> {
+//! // ONE LINE: Remove background with default settings
+//! remove_background_simple("input.jpg", "output.png").await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Full Control Usage
+//!
+//! For custom configuration and model management:
+//!
+//! ```rust,no_run
+//! use imgly_bgremove::{
+//!     ModelDownloader, ModelSpec, ModelSource,
+//!     RemovalConfig, ExecutionProvider, remove_background_with_model
+//! };
+//!
+//! # async fn example() -> anyhow::Result<()> {
+//! // Download and cache a model (one-time setup)
+//! let downloader = ModelDownloader::new()?;
+//! let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
+//! let model_id = downloader.download_model(model_url, true).await?;
+//!
+//! // Configure processing
 //! let config = RemovalConfig::builder()
 //!     .execution_provider(ExecutionProvider::Auto) // Auto-detect best provider
 //!     .build()?;
-//! let result = remove_background("input.jpg", &config).await?;
+//!
+//! let model_spec = ModelSpec {
+//!     source: ModelSource::Downloaded(model_id),
+//!     variant: None, // Auto-select variant
+//! };
+//!
+//! // Process image
+//! let result = remove_background_with_model("input.jpg", &config, &model_spec).await?;
 //! result.save_png("output.png")?;
 //! # Ok(())
 //! # }
+//! ```
+//!
+//! ## Library vs CLI Usage
+//!
+//! This crate is designed to work seamlessly both as a library and as a CLI application:
+//!
+//! - **Library Usage**: All core functionality (downloading, caching, processing) is available by default
+//! - **CLI Usage**: Enable the `cli` feature for command-line interface and progress reporting
+//!
+//! ### Feature Flags
+//!
+//! - `onnx` (default): ONNX Runtime backend with GPU acceleration support
+//! - `tract` (default): Pure Rust backend (WASM compatible)
+//! - `cli` (default): Command-line interface and progress reporting (optional for library usage)
+//! - `webp-support` (default): WebP image format support
+//!
+//! ### Library-Only Usage
+//!
+//! To use only as a library without CLI dependencies:
+//!
+//! ```toml
+//! [dependencies]
+//! imgly-bgremove = { version = "0.2", default-features = false, features = ["onnx", "tract"] }
 //! ```
 //!
 //! ## Backend Selection
@@ -53,20 +112,17 @@
 //! ```
 
 pub mod backends;
-#[cfg(feature = "cli")]
 pub mod cache;
 #[cfg(feature = "cli")]
 pub mod cli;
 pub mod color_profile;
 pub mod config;
-#[cfg(feature = "cli")]
 pub mod download;
 pub mod error;
 pub mod inference;
 pub mod models;
 pub mod processor;
 pub mod services;
-#[cfg(feature = "cli")]
 pub mod session_cache;
 pub mod types;
 pub mod utils;
@@ -77,11 +133,9 @@ use image::GenericImageView;
 
 // Public API exports
 pub use backends::*;
-#[cfg(feature = "cli")]
 pub use cache::{format_size, CachedModelInfo, ModelCache};
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
-#[cfg(feature = "cli")]
 pub use download::{parse_huggingface_url, validate_model_url, DownloadProgress, ModelDownloader};
 pub use error::{BgRemovalError, Result};
 pub use inference::InferenceBackend;
@@ -94,13 +148,61 @@ pub use services::{
     ConsoleProgressReporter, ImageIOService, NoOpProgressReporter, OutputFormatHandler,
     ProcessingStage, ProgressReporter, ProgressTracker, ProgressUpdate,
 };
-#[cfg(feature = "cli")]
 pub use session_cache::{format_cache_size, SessionCache, SessionCacheEntry, SessionCacheStats};
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, ModelValidator,
     NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo, TensorValidator,
 };
+
+/// Remove background with minimal setup (convenience function)
+///
+/// This is the simplest way to remove backgrounds when you have a cached model.
+/// Uses default configuration and the first available cached model.
+///
+/// # Arguments
+/// * `input_path` - Path to input image
+/// * `output_path` - Path for output image (PNG format)
+///
+/// # Returns
+/// `Ok(())` if successful, error if no cached models or processing fails
+///
+/// # Examples
+/// ```rust,no_run
+/// use imgly_bgremove::remove_background_simple;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// // Assumes you have already downloaded a model
+/// remove_background_simple("photo.jpg", "result.png").await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn remove_background_simple<P: AsRef<std::path::Path>>(
+    input_path: P,
+    output_path: P,
+) -> Result<()> {
+    // Find first available cached model
+    let cache = ModelCache::new()?;
+    let cached_models = cache.scan_cached_models()?;
+
+    if cached_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No cached models found. Download a model first using ModelDownloader or the CLI."
+                .to_string(),
+        ));
+    }
+
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded(cached_models[0].model_id.clone()),
+        variant: None,
+    };
+
+    let config = RemovalConfig::default();
+    let result = remove_background_with_model(input_path, &config, &model_spec).await?;
+    result.save_png(output_path)?;
+
+    Ok(())
+}
 
 /// Remove background from an image file with specific model selection
 ///
@@ -294,417 +396,6 @@ pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
         mask,
         original_dimensions,
         metadata,
-    ))
-}
-
-/// Remove background from an image file (deprecated - use remove_background_with_model)
-///
-/// This function has been deprecated as embedded models are no longer supported.
-/// Use `remove_background_with_model()` with downloaded or external models instead.
-///
-/// # Migration Guide
-///
-/// Instead of using this function, use one of these approaches:
-///
-/// ## Option 1: Download and use models
-/// ```bash
-/// # Download a model using the CLI
-/// imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx
-/// ```
-///
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-/// let model_spec = ModelSpec {
-///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-///     variant: None,
-/// };
-/// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
-/// result.save_png("result.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Option 2: Use external model directory
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
-/// use std::path::PathBuf;
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-/// let model_spec = ModelSpec {
-///     source: ModelSource::External(PathBuf::from("/path/to/model")),
-///     variant: Some("fp16".to_string()),
-/// };
-/// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
-/// result.save_png("result.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Errors
-///
-/// This function always returns an error directing users to the new download workflow.
-///
-/// # Note
-///
-/// See the [migration guide](https://docs.rs/imgly-bgremove/latest/imgly_bgremove/index.html)
-/// for detailed instructions on migrating from embedded models to downloaded models.
-#[deprecated(
-    since = "0.3.0",
-    note = "Use remove_background_with_model() with downloaded or external models. See migration guide for details."
-)]
-pub async fn remove_background<P: AsRef<std::path::Path>>(
-    _input_path: P,
-    _config: &RemovalConfig,
-) -> Result<RemovalResult> {
-    Err(BgRemovalError::invalid_config(
-        "Embedded models are no longer supported. Please use remove_background_with_model() with downloaded models.\n\
-         \n\
-         To download models:\n\
-         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
-         2. List downloaded models: imgly-bgremove --list-models\n\
-         3. Use with ModelSource::Downloaded(\"model-id\") in remove_background_with_model()\n\
-         \n\
-         See documentation for migration guide."
-    ))
-}
-
-/// Process a `DynamicImage` directly for background removal (deprecated)
-///
-/// This function has been deprecated as embedded models are no longer supported.
-/// Use the unified `BackgroundRemovalProcessor` with downloaded or external models instead.
-///
-/// # Arguments
-///
-/// * `image` - The input `DynamicImage` to process (from `image` crate)
-/// * `config` - Configuration for execution provider and output settings
-///
-/// # Returns
-///
-/// A `RemovalResult` containing:
-/// - Processed image with background removed as alpha channel
-/// - Binary segmentation mask used for removal
-/// - Processing timing and metadata
-///
-/// # Performance
-///
-/// Since there's no file I/O overhead, this is typically 10-50ms faster than file-based processing:
-/// - **CPU**: 1.8-4.5 seconds typical
-/// - **GPU accelerated**: 80-450ms (CoreML/CUDA)
-///
-/// # Memory Usage
-///
-/// Requires approximately 3x the input image size in memory during processing:
-/// - Input image (original format)
-/// - Preprocessed tensor data (float32)
-/// - Output image with alpha channel
-///
-/// # Examples
-///
-/// ## Basic in-memory processing
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, process_image};
-/// use image::DynamicImage;
-///
-/// # fn example(img: DynamicImage) -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-/// let result = process_image(img, &config)?;
-/// result.save_png("result.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Processing image from bytes with custom config
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, process_image, ExecutionProvider};
-/// use image::ImageFormat;
-/// use std::io::Cursor;
-///
-/// # fn example(image_bytes: Vec<u8>) -> anyhow::Result<()> {
-/// let img = image::load(Cursor::new(image_bytes), ImageFormat::Jpeg)?;
-/// let config = RemovalConfig::builder()
-///     .execution_provider(ExecutionProvider::CoreMl)
-///     .debug(true)
-///     .build()?;
-/// let result = process_image(img, &config)?;
-///
-/// // Get result as bytes for web response
-/// let output_bytes = result.to_bytes(config.output_format, 90)?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Batch processing with timing analysis
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, process_image};
-/// use image::DynamicImage;
-///
-/// # fn example(images: Vec<DynamicImage>) -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-///
-/// for (i, img) in images.into_iter().enumerate() {
-///     let result = process_image(img, &config)?;
-///     println!("Image {}: {}", i, result.timing_summary());
-///     result.save_png(format!("output_{}.png", i))?;
-/// }
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Errors
-///
-/// Returns `BgRemovalError` for:
-/// - No embedded models available
-/// - Image format incompatibilities or corrupted data
-/// - Insufficient memory for processing
-/// - ONNX Runtime execution failures
-///
-/// # Note
-///
-/// This function is synchronous and uses the first available embedded model.
-/// For async processing or specific model selection, load the image and use
-/// `remove_background_with_model()` instead.
-#[deprecated(
-    since = "0.3.0",
-    note = "Use remove_background_with_model() with downloaded or external models. See migration guide for details."
-)]
-#[allow(clippy::needless_pass_by_value)]
-pub fn process_image(
-    _image: image::DynamicImage,
-    _config: &RemovalConfig,
-) -> Result<RemovalResult> {
-    Err(BgRemovalError::invalid_config(
-        "Embedded models are no longer supported. Please use the new download workflow.\n\
-         \n\
-         To download models:\n\
-         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
-         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
-         \n\
-         See documentation for migration guide."
-    ))
-}
-
-/// Extract foreground segmentation mask from an image without background removal
-///
-/// Returns only the binary segmentation mask without applying it to create a transparent image.
-/// Useful for advanced workflows where you need the mask separately or want to apply
-/// custom post-processing before background removal.
-///
-/// # Arguments
-///
-/// * `input_path` - Path to the input image file (JPEG, PNG, WebP, BMP, TIFF)
-/// * `config` - Configuration for execution provider and model selection
-///
-/// # Returns
-///
-/// A `SegmentationMask` containing:
-/// - Binary mask data as grayscale values (0-255)
-/// - Mask dimensions matching the model input size (typically 1024x1024)
-/// - Statistics about foreground/background pixel ratios
-///
-/// # Use Cases
-///
-/// - **Mask analysis**: Examine segmentation quality before applying
-/// - **Custom post-processing**: Apply morphological operations, smoothing, or edge refinement
-/// - **Batch processing**: Generate masks separately from background removal
-/// - **Quality control**: Validate mask quality programmatically
-/// - **Alternative backgrounds**: Apply different backgrounds or effects
-///
-/// # Performance
-///
-/// Slightly faster than full background removal since it skips the final compositing step:
-/// - **CPU**: 1.5-4 seconds typical
-/// - **GPU accelerated**: 80-400ms (CoreML/CUDA)
-///
-/// # Examples
-///
-/// ## Basic mask extraction
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, segment_foreground};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-/// let mask = segment_foreground("photo.jpg", &config).await?;
-///
-/// // Analyze mask quality
-/// let stats = mask.statistics();
-/// println!("Foreground: {:.1}% of image", stats.foreground_ratio * 100.0);
-///
-/// // Save mask for inspection
-/// mask.save_png("mask.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## High-quality mask with analysis
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, segment_foreground, ExecutionProvider};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::builder()
-///     .execution_provider(ExecutionProvider::CoreMl)
-///     .build()?;
-/// let mask = segment_foreground("portrait.jpg", &config).await?;
-///
-/// let stats = mask.statistics();
-/// if stats.foreground_ratio < 0.1 {
-///     println!("Warning: Very small foreground detected ({:.1}%)", stats.foreground_ratio * 100.0);
-/// }
-///
-/// // Resize mask to original image dimensions if needed
-/// let resized_mask = mask.resize(1920, 1080)?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Errors
-///
-/// Returns `BgRemovalError` for:
-/// - Invalid or unsupported image formats
-/// - Model loading or execution failures
-/// - Memory allocation errors during inference
-/// - File I/O errors when reading input
-#[deprecated(
-    since = "0.3.0",
-    note = "Use the unified processor with downloaded or external models. See migration guide for details."
-)]
-pub async fn segment_foreground<P: AsRef<std::path::Path>>(
-    _input_path: P,
-    _config: &RemovalConfig,
-) -> Result<SegmentationMask> {
-    Err(BgRemovalError::invalid_config(
-        "Embedded models are no longer supported. Please use the new download workflow.\n\
-         \n\
-         To download models:\n\
-         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
-         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
-         \n\
-         See documentation for migration guide."
-    ))
-}
-
-/// Apply a pre-computed segmentation mask to an image for background removal
-///
-/// Takes an existing segmentation mask and applies it to an image to create a transparent
-/// background. Useful for applying masks generated separately, reusing masks across
-/// similar images, or applying custom-processed masks.
-///
-/// # Arguments
-///
-/// * `input_path` - Path to the input image file to apply the mask to
-/// * `mask` - Pre-computed segmentation mask (must match image dimensions)
-/// * `config` - Configuration for output format and quality settings
-///
-/// # Returns
-///
-/// A `RemovalResult` containing:
-/// - Image with mask applied as alpha channel (transparent background)
-/// - Copy of the applied segmentation mask
-/// - Processing metadata (timing will show minimal inference time)
-///
-/// # Mask Requirements
-///
-/// - Mask dimensions must match the target image dimensions, or
-/// - Use `mask.resize()` to scale the mask to match the image
-/// - Mask values: 0-255 grayscale (0=background, 255=foreground)
-///
-/// # Performance
-///
-/// Very fast since no AI inference is required - only image compositing:
-/// - **Typical**: 10-50ms regardless of execution provider
-/// - Performance scales with image resolution, not model complexity
-///
-/// # Use Cases
-///
-/// - **Batch processing**: Generate one high-quality mask, apply to multiple similar images
-/// - **Custom workflows**: Post-process masks before applying (smoothing, dilation, etc.)
-/// - **Mask reuse**: Save and reapply masks for consistent results
-/// - **A/B testing**: Compare different mask generation approaches
-/// - **Performance optimization**: Pre-compute masks for real-time applications
-///
-/// # Examples
-///
-/// ## Apply existing mask to new image
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, segment_foreground, apply_segmentation_mask};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-///
-/// // Generate mask from one image
-/// let mask = segment_foreground("reference.jpg", &config).await?;
-///
-/// // Apply to another similar image
-/// let result = apply_segmentation_mask("target.jpg", &mask, &config).await?;
-/// result.save_png("target_no_bg.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Batch processing with mask reuse
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, segment_foreground, apply_segmentation_mask};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-///
-/// // Generate high-quality mask once
-/// let mask = segment_foreground("template.jpg", &config).await?;
-///
-/// // Apply to multiple images quickly
-/// for i in 1..=10 {
-///     let input = format!("photo_{}.jpg", i);
-///     let output = format!("result_{}.png", i);
-///     let result = apply_segmentation_mask(&input, &mask, &config).await?;
-///     result.save_png(output)?;
-/// }
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Apply resized mask to different image size
-/// ```rust,no_run
-/// use imgly_bgremove::{RemovalConfig, apply_segmentation_mask, SegmentationMask};
-///
-/// # async fn example(mask: SegmentationMask) -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
-///
-/// // Resize mask to match target image (e.g., 4K image)
-/// let resized_mask = mask.resize(3840, 2160)?;
-///
-/// let result = apply_segmentation_mask("high_res.jpg", &resized_mask, &config).await?;
-/// result.save_png("high_res_no_bg.png")?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Errors
-///
-/// Returns `BgRemovalError` for:
-/// - Image and mask dimension mismatches
-/// - Invalid input image format or corrupted files
-/// - File I/O errors when reading input or writing output
-/// - Memory allocation failures during compositing
-#[deprecated(
-    since = "0.3.0",
-    note = "Use the unified processor with downloaded or external models. See migration guide for details."
-)]
-pub async fn apply_segmentation_mask<P: AsRef<std::path::Path>>(
-    _input_path: P,
-    _mask: &SegmentationMask,
-    _config: &RemovalConfig,
-) -> Result<RemovalResult> {
-    Err(BgRemovalError::invalid_config(
-        "Embedded models are no longer supported. Please use the new download workflow.\n\
-         \n\
-         To download models:\n\
-         1. CLI: imgly-bgremove --only-download --model https://huggingface.co/imgly/isnet-general-onnx\n\
-         2. Use ModelSource::Downloaded(\"model-id\") with unified processor\n\
-         \n\
-         See documentation for migration guide."
     ))
 }
 

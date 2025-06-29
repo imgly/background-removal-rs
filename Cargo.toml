@@ -16,15 +16,15 @@ name = "imgly-bgremove"
 path = "src/bin/imgly-bgremove.rs"
 
 [features]
-# Default: include all backends and CLI functionality (removed embedded models)
+# Default: include all backends and CLI functionality
 default = ["onnx", "tract", "cli", "webp-support"]
 
 # Backend features
 onnx = ["dep:ort"]
 tract = ["dep:tract-onnx", "dep:tract-core"]
 
-# CLI functionality with download capabilities
-cli = ["dep:clap", "dep:indicatif", "dep:env_logger", "dep:glob", "dep:walkdir", "dep:reqwest", "dep:dirs", "dep:tokio-util", "dep:sha2", "dep:futures-util"]
+# CLI functionality (UI-specific features only)
+cli = ["dep:clap", "dep:indicatif", "dep:env_logger", "dep:glob", "dep:walkdir"]
 
 # WebP support (pure Rust, WASM-compatible via image crate)
 webp-support = ["image/webp"]
@@ -66,12 +66,12 @@ env_logger = { version = "0.11", optional = true }
 glob = { version = "0.3", optional = true }
 walkdir = { version = "2.0", optional = true }
 
-# Model download dependencies (feature-gated with CLI)
-reqwest = { version = "0.11", features = ["rustls-tls", "stream"], optional = true }
-dirs = { version = "5.0", optional = true }
-tokio-util = { version = "0.7", features = ["io"], optional = true }
-sha2 = { version = "0.10", optional = true }
-futures-util = { version = "0.3", optional = true }
+# Model download and caching dependencies (always available)
+reqwest = { version = "0.11", features = ["rustls-tls", "stream"] }
+dirs = { version = "5.0" }
+tokio-util = { version = "0.7", features = ["io"] }
+sha2 = { version = "0.10" }
+futures-util = { version = "0.3" }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

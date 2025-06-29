@@ -1072,7 +1072,6 @@ impl ModelManager {
 /// This provider loads models from the cache directory that were previously
 /// downloaded from URLs. It supports the HuggingFace model format with
 /// automatic variant detection and preprocessing configuration.
-#[cfg(feature = "cli")]
 #[derive(Debug)]
 pub struct DownloadedModelProvider {
     /// Model identifier in cache
@@ -1089,7 +1088,6 @@ pub struct DownloadedModelProvider {
     cache: crate::cache::ModelCache,
 }
 
-#[cfg(feature = "cli")]
 impl DownloadedModelProvider {
     /// Create a new provider for a cached model
     ///
@@ -1383,7 +1381,6 @@ impl DownloadedModelProvider {
     }
 }
 
-#[cfg(feature = "cli")]
 impl ModelProvider for DownloadedModelProvider {
     fn load_model_data(&self) -> Result<Vec<u8>> {
         let model_file_path = self.get_model_file_path();

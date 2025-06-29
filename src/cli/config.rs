@@ -26,7 +26,6 @@ impl CliConfigBuilder {
             Self::show_available_models_info();
 
             // Check for downloaded models first
-            #[cfg(feature = "cli")]
             {
                 use crate::cache::ModelCache;
                 if let Ok(cache) = ModelCache::new() {
@@ -70,12 +69,6 @@ impl CliConfigBuilder {
                     };
                     (model_spec, ModelCache::url_to_model_id(default_url))
                 }
-            }
-            #[cfg(not(feature = "cli"))]
-            {
-                return Err(anyhow::anyhow!(
-                    "No model specified. Use --model to specify a model URL or path."
-                ));
             }
         };
 
@@ -122,7 +115,6 @@ impl CliConfigBuilder {
 
     /// Show available downloaded models when no model is specified
     fn show_available_models_info() {
-        #[cfg(feature = "cli")]
         {
             use crate::cache::ModelCache;
             if let Ok(cache) = ModelCache::new() {

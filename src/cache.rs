@@ -67,24 +67,14 @@ impl ModelCache {
         }
 
         // Use XDG-compliant cache directory
-        #[cfg(feature = "cli")]
-        {
-            Ok(dirs::cache_dir()
-                .ok_or_else(|| {
-                    BgRemovalError::invalid_config(
-                        "Failed to determine cache directory. Set IMGLY_BGREMOVE_CACHE_DIR environment variable.".to_string()
-                    )
-                })?
-                .join("imgly-bgremove")
-                .join("models"))
-        }
-
-        #[cfg(not(feature = "cli"))]
-        {
-            Err(BgRemovalError::invalid_config(
-                "Cache functionality requires CLI features to be enabled".to_string(),
-            ))
-        }
+        Ok(dirs::cache_dir()
+            .ok_or_else(|| {
+                BgRemovalError::invalid_config(
+                    "Failed to determine cache directory. Set IMGLY_BGREMOVE_CACHE_DIR environment variable.".to_string()
+                )
+            })?
+            .join("imgly-bgremove")
+            .join("models"))
     }
 
     /// Generate a model ID from a URL
@@ -499,10 +489,8 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "cli")]
     #[test]
     fn test_cache_creation() {
-        // This test only runs when CLI features are enabled
         let _cache = ModelCache::new().expect("Should create cache successfully");
     }
 

@@ -218,11 +218,15 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
-    /// let result = remove_background("input.jpg", &config).await?;
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let result = remove_background_with_model("input.jpg", &config, &model_spec).await?;
     /// result.save_png("output.png")?;
     /// # Ok(())
     /// # }
@@ -369,12 +373,19 @@ impl RemovalResult {
     ///
     /// ## Web API integration
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, process_image};
+    /// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType};
     /// use image::DynamicImage;
     ///
     /// # fn example(img: DynamicImage) -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
-    /// let result = process_image(img, &config)?;
+    /// let config = ProcessorConfigBuilder::new()
+    ///     .model_spec(ModelSpec {
+    ///         source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///         variant: None,
+    ///     })
+    ///     .backend_type(BackendType::Onnx)
+    ///     .build()?;
+    /// let mut processor = BackgroundRemovalProcessor::new(config)?;
+    /// let result = processor.process_image(&img)?;
     ///
     /// let rgba_bytes = result.to_rgba_bytes();
     /// let (width, height) = result.dimensions();
@@ -387,11 +398,15 @@ impl RemovalResult {
     ///
     /// ## Custom pixel processing
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
-    /// let result = remove_background("input.jpg", &config).await?;
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let result = remove_background_with_model("input.jpg", &config, &model_spec).await?;
     ///
     /// let rgba_bytes = result.to_rgba_bytes();
     /// let (width, height) = result.dimensions();
@@ -757,13 +772,17 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background, OutputFormat};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, OutputFormat};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
     ///     .preserve_color_profiles(true)
     ///     .build()?;
-    /// let result = remove_background("photo.jpg", &config).await?;
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
     ///
     /// // Save with color profile preservation
     /// result.save_with_color_profile("output.png", OutputFormat::Png, 0)?;
@@ -913,13 +932,17 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
     ///     .preserve_color_profiles(true)
     ///     .build()?;
-    /// let result = remove_background("photo.jpg", &config).await?;
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
     ///
     /// if let Some(profile) = result.get_color_profile() {
     ///     println!("Original color space: {}", profile.color_space);
@@ -941,11 +964,15 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::default();
-    /// let result = remove_background("photo.jpg", &config).await?;
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
     ///
     /// if result.has_color_profile() {
     ///     // Use color-profile-aware saving
@@ -987,9 +1014,9 @@ impl RemovalResult {
 
     /// Fallback WebP encoding when webp feature is disabled (returns PNG instead)
     #[cfg(not(feature = "webp-support"))]
-    fn encode_webp(&self, quality: u8) -> Vec<u8> {
+    fn encode_webp(&self, _quality: u8) -> Vec<u8> {
         log::warn!("WebP support disabled - falling back to PNG encoding");
-        self.encode_png()
+        self.to_bytes(OutputFormat::Png, 100).unwrap_or_default()
     }
 }
 
@@ -1104,11 +1131,19 @@ impl SegmentationMask {
     ///
     /// ## Basic statistics analysis
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, segment_foreground};
+    /// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType};
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
-    /// let mask = segment_foreground("photo.jpg", &config).await?;
+    /// let config = ProcessorConfigBuilder::new()
+    ///     .model_spec(ModelSpec {
+    ///         source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///         variant: None,
+    ///     })
+    ///     .backend_type(BackendType::Onnx)
+    ///     .build()?;
+    /// let mut processor = BackgroundRemovalProcessor::new(config)?;
+    /// let result = processor.process_file("photo.jpg").await?;
+    /// let mask = &result.mask;
     ///
     /// let stats = mask.statistics();
     /// println!("Foreground: {:.1}% ({} pixels)",
@@ -1123,11 +1158,19 @@ impl SegmentationMask {
     ///
     /// ## Quality control workflow
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, segment_foreground};
+    /// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType};
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
-    /// let mask = segment_foreground("portrait.jpg", &config).await?;
+    /// let config = ProcessorConfigBuilder::new()
+    ///     .model_spec(ModelSpec {
+    ///         source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///         variant: None,
+    ///     })
+    ///     .backend_type(BackendType::Onnx)
+    ///     .build()?;
+    /// let mut processor = BackgroundRemovalProcessor::new(config)?;
+    /// let result = processor.process_file("portrait.jpg").await?;
+    /// let mask = &result.mask;
     ///
     /// let stats = mask.statistics();
     ///
@@ -1386,22 +1429,6 @@ impl ProcessingMetadata {
 
         // Update detailed timings (move after using fields)
         self.timings = timings;
-    }
-
-    /// Set timing information (legacy version for backward compatibility)
-    #[deprecated(note = "Use set_detailed_timings instead")]
-    pub fn set_timings(&mut self, inference: u64, preprocessing: u64, postprocessing: u64) {
-        let total = inference + preprocessing + postprocessing;
-        let timings = ProcessingTimings {
-            model_load_ms: 0,
-            image_decode_ms: 0,
-            preprocessing_ms: preprocessing,
-            inference_ms: inference,
-            postprocessing_ms: postprocessing,
-            image_encode_ms: None,
-            total_ms: total,
-        };
-        self.set_detailed_timings(timings);
     }
 }
 

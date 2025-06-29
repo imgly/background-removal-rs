@@ -6,7 +6,10 @@
 //! - Uses the model precision compiled into the binary
 
 use anyhow::{Context, Result};
-use imgly_bgremove::{ExecutionProvider, OutputFormat, RemovalConfig};
+use imgly_bgremove::{
+    ExecutionProvider, OutputFormat, RemovalConfig, BackgroundRemovalProcessor,
+    ProcessorConfigBuilder, ModelSpec, ModelSource, BackendType
+};
 use image::{DynamicImage, ImageBuffer, Rgb};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -190,11 +193,20 @@ async fn benchmark_configuration(
         test_image.height()
     );
 
-    let removal_config = RemovalConfig::builder()
+    // Use a cached model for benchmarking - if none available, the benchmark will fail gracefully
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: None,
+        })
+        .backend_type(BackendType::Onnx)
         .execution_provider(config.provider)
         .output_format(OutputFormat::Png)
         .build()
-        .context("Failed to build removal config")?;
+        .context("Failed to build processor config")?;
+
+    let mut processor = BackgroundRemovalProcessor::new(processor_config)
+        .context("Failed to create background removal processor")?;
 
     let mut times = Vec::new();
     let mut successes = 0;
@@ -205,7 +217,7 @@ async fn benchmark_configuration(
 
         let start = Instant::now();
 
-        match imgly_bgremove::process_image(test_image.clone(), &removal_config) {
+        match processor.process_image(test_image) {
             Ok(_) => {
                 let duration = start.elapsed();
                 times.push(duration.as_millis() as f64);

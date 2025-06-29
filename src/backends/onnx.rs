@@ -8,7 +8,6 @@ use crate::config::{ExecutionProvider, RemovalConfig};
 use crate::error::Result;
 use crate::inference::InferenceBackend;
 use crate::models::ModelManager;
-#[cfg(feature = "cli")]
 use crate::session_cache::SessionCache;
 use log;
 use ndarray::Array4;
@@ -24,7 +23,6 @@ pub struct OnnxBackend {
     session: Option<Session>,
     model_manager: Option<ModelManager>,
     initialized: bool,
-    #[cfg(feature = "cli")]
     session_cache: Option<SessionCache>,
     /// Time taken to load and initialize the model
     model_load_time: Option<std::time::Duration>,
@@ -151,7 +149,6 @@ impl OnnxBackend {
             session: None,
             model_manager: Some(model_manager),
             initialized: false,
-            #[cfg(feature = "cli")]
             session_cache: SessionCache::new().ok(),
             model_load_time: None,
         }
@@ -164,7 +161,6 @@ impl OnnxBackend {
             session: None,
             model_manager: None,
             initialized: false,
-            #[cfg(feature = "cli")]
             session_cache: SessionCache::new().ok(),
             model_load_time: None,
         }
@@ -190,7 +186,6 @@ impl OnnxBackend {
         let model_data = model_manager.load_model()?;
 
         // Generate cache key for session caching (skip if caching is disabled)
-        #[cfg(feature = "cli")]
         let (cache_key, model_hash, provider_config) = if let Some(_) = &self.session_cache {
             if config.disable_cache {
                 log::debug!("Session caching disabled by --no-cache flag");
@@ -211,7 +206,6 @@ impl OnnxBackend {
         };
 
         // Try to load cached session first
-        #[cfg(feature = "cli")]
         if let (Some(cache), Some(key)) = (&mut self.session_cache, &cache_key) {
             if let Ok(Some(cached_session)) =
                 cache.load_cached_session(key, config.execution_provider)
@@ -279,7 +273,6 @@ impl OnnxBackend {
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
 
                     // Configure CoreML model cache directory for persistent optimized models
-                    #[cfg(feature = "cli")]
                     if let Some(session_cache) = &self.session_cache {
                         let coreml_cache_dir = session_cache.get_coreml_cache_dir();
                         if let Err(e) = std::fs::create_dir_all(&coreml_cache_dir) {
@@ -363,7 +356,6 @@ impl OnnxBackend {
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
 
                     // Configure CoreML model cache directory for persistent optimized models
-                    #[cfg(feature = "cli")]
                     if let Some(session_cache) = &self.session_cache {
                         let coreml_cache_dir = session_cache.get_coreml_cache_dir();
                         if let Err(e) = std::fs::create_dir_all(&coreml_cache_dir) {
@@ -495,7 +487,6 @@ impl OnnxBackend {
         }
 
         // Cache the session for future use (skip if caching is disabled)
-        #[cfg(feature = "cli")]
         if let (Some(cache), Some(key), Some(hash), Some(config_str)) = (
             &mut self.session_cache,
             &cache_key,
@@ -547,7 +538,6 @@ impl OnnxBackend {
     }
 
     /// Serialize provider configuration for cache key generation
-    #[cfg(feature = "cli")]
     fn serialize_provider_config(&self, config: &RemovalConfig) -> String {
         // Include all configuration parameters that affect session compilation
         // Use a simple format string since serde_json might not be available
