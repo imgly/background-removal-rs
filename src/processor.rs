@@ -18,7 +18,7 @@ use instant::Instant;
 use log::{debug, info};
 use ndarray::Array4;
 use std::path::Path;
-use tracing::{debug as trace_debug, info as trace_info, instrument, span, Level, Span};
+use tracing::{debug as trace_debug, info as trace_info, instrument, span, Level};
 
 /// Coordinate transformation parameters for tensor-to-mask conversion
 #[derive(Debug, Clone)]

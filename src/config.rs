@@ -22,6 +22,17 @@ impl Default for ExecutionProvider {
     }
 }
 
+impl std::fmt::Display for ExecutionProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Auto => write!(f, "auto"),
+            Self::Cpu => write!(f, "cpu"),
+            Self::Cuda => write!(f, "cuda"),
+            Self::CoreMl => write!(f, "coreml"),
+        }
+    }
+}
+
 /// Output image format options
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {

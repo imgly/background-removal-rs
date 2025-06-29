@@ -107,7 +107,7 @@ impl TracingConfig {
 
     /// Initialize tracing subscriber based on configuration
     #[cfg(feature = "cli")]
-    pub fn init(self) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    pub fn init(self) -> anyhow::Result<()> {
         use tracing_subscriber::fmt;
 
         // Determine the filter to use
@@ -258,12 +258,16 @@ pub fn init_cli_tracing(
         .with_format(TracingFormat::Console)
         .with_session_id(session_id)
         .init()
+        .map_err(|e| {
+            let boxed: Box<dyn std::error::Error + Send + Sync + 'static> = e.into();
+            boxed
+        })
 }
 
 /// Initialize tracing for library usage (minimal configuration)
 pub fn init_library_tracing() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     // For library usage, only set up if no global subscriber is already set
-    if tracing::subscriber::try_set_global_default(
+    if tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
             .with_env_filter(EnvFilter::from_default_env())
             .finish(),
@@ -405,7 +409,7 @@ pub mod events {
         duration_ms: u64,
         additional_fields: Option<&[(&str, &dyn std::fmt::Display)]>,
     ) {
-        let mut event = debug!(
+        debug!(
             operation = %operation,
             duration_ms = %duration_ms,
             "⏱️  Performance metric"
@@ -417,7 +421,8 @@ pub mod events {
                 debug!(
                     operation = %operation,
                     duration_ms = %duration_ms,
-                    %key = %value,
+                    key = %key,
+                    value = %value,
                     "⏱️  Performance metric with details"
                 );
                 break; // Only log once with all fields - this is a simplified version
@@ -467,12 +472,11 @@ mod tests {
 
     #[test]
     fn test_verbosity_mapping() {
-        let config = TracingConfig::new();
-        assert_eq!(config.with_verbosity(0).verbosity_to_filter(), "warn");
-        assert_eq!(config.with_verbosity(1).verbosity_to_filter(), "info");
-        assert_eq!(config.with_verbosity(2).verbosity_to_filter(), "debug");
-        assert_eq!(config.with_verbosity(3).verbosity_to_filter(), "trace");
-        assert_eq!(config.with_verbosity(10).verbosity_to_filter(), "trace");
+        assert_eq!(TracingConfig::new().with_verbosity(0).verbosity_to_filter(), "warn");
+        assert_eq!(TracingConfig::new().with_verbosity(1).verbosity_to_filter(), "info");
+        assert_eq!(TracingConfig::new().with_verbosity(2).verbosity_to_filter(), "debug");
+        assert_eq!(TracingConfig::new().with_verbosity(3).verbosity_to_filter(), "trace");
+        assert_eq!(TracingConfig::new().with_verbosity(10).verbosity_to_filter(), "trace");
     }
 
     #[test]

@@ -16,7 +16,7 @@ use ort::execution_providers::{
 };
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{self, value::Value};
-use tracing::{debug, error, info, instrument, span, Level};
+use tracing::{debug, instrument, span, Level};
 
 /// ONNX Runtime backend for running background removal models
 #[derive(Debug)]

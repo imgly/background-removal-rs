@@ -12,7 +12,7 @@ use log::{error, info, warn};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tracing::{debug, error as trace_error, info as trace_info, trace, warn as trace_warn};
+use tracing::{debug, info as trace_info, trace};
 
 /// Background removal CLI tool
 #[derive(Parser)]
@@ -230,7 +230,7 @@ async fn ensure_model_available(model_spec: &crate::models::ModelSpec) -> Result
 
 /// Initialize tracing based on verbosity level
 fn init_tracing(verbose_count: u8) -> Result<()> {
-    use crate::tracing_config::{init_cli_tracing, TracingConfig, TracingFormat};
+    use crate::tracing_config::{TracingConfig, TracingFormat};
 
     // Initialize tracing with CLI-friendly configuration
     TracingConfig::new()
