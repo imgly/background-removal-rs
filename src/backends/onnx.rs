@@ -571,6 +571,7 @@ impl InferenceBackend for OnnxBackend {
     }
 
     #[allow(clippy::too_many_lines)] // Complex inference with detailed diagnostics
+    #[allow(clippy::get_first)]
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         use std::time::Instant;
 
@@ -664,7 +665,7 @@ impl InferenceBackend for OnnxBackend {
         let result = if output_shape.len() == 4 {
             let output_array = Array4::from_shape_vec(
                 (
-                    output_shape.first().copied().unwrap_or(1),
+                    output_shape.get(0).copied().unwrap_or(1),
                     output_shape.get(1).copied().unwrap_or(1),
                     output_shape.get(2).copied().unwrap_or(1),
                     output_shape.get(3).copied().unwrap_or(1),

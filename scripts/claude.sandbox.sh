@@ -92,8 +92,13 @@ build_docker_image() {
     
     # Check if image exists and if rebuild is requested
     if [[ "$rebuild" == true ]] || ! docker image inspect bg-remove-claude &>/dev/null; then
-        echo -e "${BLUE}🔨 Building Docker image...${NC}"
-        docker build -t bg-remove-claude .
+        if [[ "$rebuild" == true ]]; then
+            echo -e "${BLUE}🔨 Force rebuilding Docker image (ignoring cache)...${NC}"
+            docker build --no-cache -t bg-remove-claude .
+        else
+            echo -e "${BLUE}🔨 Building Docker image...${NC}"
+            docker build -t bg-remove-claude .
+        fi
         echo -e "${GREEN}✅ Docker image built successfully${NC}"
     else
         echo -e "${GREEN}✅ Docker image already exists${NC}"

@@ -730,10 +730,11 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Validate tensor shape for mask generation
+    #[allow(clippy::get_first)]
     fn validate_tensor_shape(tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
         if shape.len() < 4
-            || shape.first().copied().unwrap_or(0) != 1
+            || shape.get(0).copied().unwrap_or(0) != 1
             || shape.get(1).copied().unwrap_or(0) != 1
         {
             return Err(BgRemovalError::processing("Invalid output tensor shape"));

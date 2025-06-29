@@ -11,6 +11,7 @@ pub struct TensorValidator;
 
 impl TensorValidator {
     /// Validate tensor shape matches expected dimensions
+    #[allow(clippy::get_first)]
     pub fn validate_tensor_shape(
         tensor: &Array4<f32>,
         expected_shape: (usize, usize, usize, usize),
@@ -26,7 +27,7 @@ impl TensorValidator {
         }
 
         let actual = (
-            actual_shape.first().copied().unwrap_or(0),
+            actual_shape.get(0).copied().unwrap_or(0),
             actual_shape.get(1).copied().unwrap_or(0),
             actual_shape.get(2).copied().unwrap_or(0),
             actual_shape.get(3).copied().unwrap_or(0),
@@ -42,9 +43,10 @@ impl TensorValidator {
     }
 
     /// Validate that tensor has batch size of 1 and single channel
+    #[allow(clippy::get_first)]
     pub fn validate_single_batch_single_channel(tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
-        if shape.first().copied().unwrap_or(0) != 1 || shape.get(1).copied().unwrap_or(0) != 1 {
+        if shape.get(0).copied().unwrap_or(0) != 1 || shape.get(1).copied().unwrap_or(0) != 1 {
             return Err(BgRemovalError::processing(
                 "Tensor must have batch size 1 and single channel for mask generation",
             ));
@@ -139,6 +141,7 @@ impl TensorValidator {
     }
 
     /// Validate preprocessing target size
+    #[allow(clippy::get_first)]
     pub fn validate_target_size(size: &[u64]) -> Result<(u32, u32)> {
         if size.len() != 2 {
             return Err(BgRemovalError::invalid_config(format!(
@@ -147,7 +150,7 @@ impl TensorValidator {
             )));
         }
 
-        let width = size.first().copied().unwrap_or(0) as u32;
+        let width = size.get(0).copied().unwrap_or(0) as u32;
         let height = size.get(1).copied().unwrap_or(0) as u32;
 
         Self::validate_image_dimensions(width, height)?;

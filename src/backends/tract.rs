@@ -226,6 +226,7 @@ impl InferenceBackend for TractBackend {
         Ok(Some(model_load_time))
     }
 
+    #[allow(clippy::get_first)]
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         let model = self.model.as_ref().ok_or_else(|| {
             crate::error::BgRemovalError::inference("Tract model not initialized")
@@ -267,7 +268,7 @@ impl InferenceBackend for TractBackend {
 
         let output_array = Array4::from_shape_vec(
             (
-                output_shape.first().copied().unwrap_or(1),
+                output_shape.get(0).copied().unwrap_or(1),
                 output_shape.get(1).copied().unwrap_or(1),
                 output_shape.get(2).copied().unwrap_or(1024),
                 output_shape.get(3).copied().unwrap_or(1024),
