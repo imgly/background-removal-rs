@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Feature-gated tracing outputs**: Optional JSON logging, file appenders, and OpenTelemetry support
 - **CLI tracing integration**: Maintains emoji-rich output while adding structured debugging capabilities
 
-### Changed
-- **Default log level**: Changed from WARN to INFO for more informative default output
+### Changed  
+- **Verbosity levels**: Improved verbosity progression with ERROR as default (0=error, 1=warn, 2=info, 3=debug, 4+=trace)
 
 ### Fixed
 - Resolved 150+ clippy warnings across the codebase for improved code quality
