@@ -518,11 +518,12 @@ impl RemovalResult {
         format: OutputFormat,
         quality: u8,
     ) -> Result<u64> {
+        use tokio::io::AsyncWriteExt;
+        
         // Encode to bytes first (reuse existing logic)
         let bytes = self.to_bytes(format, quality)?;
 
         // Write to stream
-        use tokio::io::AsyncWriteExt;
         AsyncWriteExt::write_all(&mut writer, &bytes)
             .await
             .map_err(|e| BgRemovalError::processing(format!("Failed to write to stream: {}", e)))?;

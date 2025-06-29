@@ -286,9 +286,10 @@ impl ImageIOService {
         mut reader: R,
         _format_hint: Option<image::ImageFormat>,
     ) -> Result<DynamicImage> {
+        use tokio::io::AsyncReadExt;
+        
         // Read all data from the stream into memory
         let mut buffer = Vec::new();
-        use tokio::io::AsyncReadExt;
         AsyncReadExt::read_to_end(&mut reader, &mut buffer)
             .await
             .map_err(|e| {
@@ -338,6 +339,8 @@ impl ImageIOService {
         format: OutputFormat,
         quality: u8,
     ) -> Result<u64> {
+        use tokio::io::AsyncWriteExt;
+        
         // Encode to bytes using existing format handling logic
         let bytes = match format {
             OutputFormat::Png => {
@@ -380,7 +383,6 @@ impl ImageIOService {
         };
 
         // Write to stream
-        use tokio::io::AsyncWriteExt;
         AsyncWriteExt::write_all(&mut writer, &bytes)
             .await
             .map_err(|e| BgRemovalError::processing(format!("Failed to write to stream: {}", e)))?;

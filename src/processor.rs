@@ -569,10 +569,11 @@ impl BackgroundRemovalProcessor {
         mut reader: R,
         _format_hint: Option<image::ImageFormat>,
     ) -> Result<RemovalResult> {
+        use tokio::io::AsyncReadExt;
+        
         // Read all data from the stream into memory
         // TODO: For very large images, consider streaming decode if image crate supports it
         let mut buffer = Vec::new();
-        use tokio::io::AsyncReadExt;
         AsyncReadExt::read_to_end(&mut reader, &mut buffer)
             .await
             .map_err(|e| {
@@ -653,7 +654,7 @@ impl BackgroundRemovalProcessor {
             tracker.report_stage(ProcessingStage::BackgroundRemoval);
         }
 
-        let result_image = self.apply_background_removal(image, &mask, removal_config)?;
+        let result_image = Self::apply_background_removal(image, &mask, removal_config)?;
         timings.postprocessing_ms = postprocess_start.elapsed().as_millis() as u64;
 
         Ok((mask, result_image))
@@ -788,7 +789,7 @@ impl BackgroundRemovalProcessor {
 
         for y in 0..orig_height {
             for x in 0..orig_width {
-                let mask_value = self.get_tensor_value_at_coordinate(tensor, x, y, transformation);
+                let mask_value = Self::get_tensor_value_at_coordinate(tensor, x, y, transformation);
                 mask_data.push((mask_value.clamp(0.0, 1.0) * 255.0) as u8);
             }
         }
@@ -798,7 +799,6 @@ impl BackgroundRemovalProcessor {
 
     /// Get tensor value at mapped coordinates
     fn get_tensor_value_at_coordinate(
-        &self,
         tensor: &Array4<f32>,
         x: u32,
         y: u32,
@@ -825,7 +825,6 @@ impl BackgroundRemovalProcessor {
 
     /// Apply background removal using the segmentation mask
     fn apply_background_removal(
-        &self,
         image: &DynamicImage,
         mask: &SegmentationMask,
         _config: &RemovalConfig,
@@ -900,7 +899,7 @@ impl BackgroundRemovalProcessor {
         };
 
         let removal_config = self.config.to_removal_config();
-        let result_image = self.apply_background_removal(&image, &resized_mask, &removal_config)?;
+        let result_image = Self::apply_background_removal(&image, &resized_mask, &removal_config)?;
 
         // Handle output format using the service
         let final_image =
