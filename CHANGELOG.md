@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Consolidated imgly-bgremove library with unified API
+
+### Fixed
+- Resolved 150+ clippy warnings across the codebase for improved code quality
+- Fixed potential panic conditions with array indexing using safe .get() methods
+- Corrected unsafe type casting with proper bounds checking using try_from()
+- Replaced strict float equality comparisons with approximate equality checks
+- Fixed documentation markdown formatting issues with missing backticks
+- Improved function design by making unused self methods static where appropriate
 - Multiple backend support: ONNX Runtime and Tract (Pure Rust)
 - Integrated CLI functionality with feature-gated build
 - Multiple neural network models: ISNet, BiRefNet, BiRefNet Lite

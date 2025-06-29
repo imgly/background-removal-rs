@@ -30,17 +30,13 @@ async fn ensure_model_downloaded(model_name: &str) -> Result<PathBuf> {
     let model_dir = cache_dir.join(model_name);
 
     if !model_dir.exists() {
-        println!(
-            "Model {} not found. Please download it first using:",
-            model_name
-        );
+        println!("Model {model_name} not found. Please download it first using:");
         println!(
             "imgly-bgremove --only-download --model https://huggingface.co/imgly/{}",
             model_name.replace("--", "/")
         );
         return Err(imgly_bgremove::BgRemovalError::model(format!(
-            "Model {} not found",
-            model_name
+            "Model {model_name} not found"
         )));
     }
 
@@ -90,7 +86,7 @@ fn create_processor_with_cache_control(
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec)
         .backend_type(BackendType::Onnx)
-        .execution_provider(config.provider.clone())
+        .execution_provider(config.provider)
         .output_format(OutputFormat::Png)
         .disable_cache(!config.use_cache)  // Invert because disable_cache = !use_cache
         .build()?;
@@ -125,11 +121,11 @@ fn benchmark_cache_cold_start(c: &mut Criterion) {
     for provider in providers {
         // Test with cache enabled - cold start
         let config = CacheBenchmarkConfig {
-            provider: provider.clone(),
+            provider,
             use_cache: true,
         };
 
-        let config_name = format!("{}_{}", "cached", format!("{:?}", provider).to_lowercase());
+        let config_name = format!("{}_{}", "cached", format!("{provider:?}").to_lowercase());
 
         let mut processor = match create_processor_with_cache_control(&config, model_path.clone()) {
             Ok(p) => p,
@@ -187,14 +183,14 @@ fn benchmark_cache_comparison(c: &mut Criterion) {
     for provider in providers {
         for use_cache in [true, false] {
             let config = CacheBenchmarkConfig {
-                provider: provider.clone(),
+                provider,
                 use_cache,
             };
 
             let config_name = format!(
                 "{}_{}",
                 if use_cache { "cached" } else { "uncached" },
-                format!("{:?}", provider).to_lowercase()
+                format!("{provider:?}").to_lowercase()
             );
 
             let mut processor =
@@ -238,14 +234,14 @@ fn benchmark_repeated_inference(c: &mut Criterion) {
     for provider in providers {
         for use_cache in [true, false] {
             let config = CacheBenchmarkConfig {
-                provider: provider.clone(),
+                provider,
                 use_cache,
             };
 
             let config_name = format!(
                 "{}_{}_10x",
                 if use_cache { "cached" } else { "uncached" },
-                format!("{:?}", provider).to_lowercase()
+                format!("{provider:?}").to_lowercase()
             );
 
             group.bench_function(&config_name, |b| {
@@ -259,7 +255,7 @@ fn benchmark_repeated_inference(c: &mut Criterion) {
                         // Run 10 inferences to see cache effect
                         for i in 0..10 {
                             let temp_dir = tempfile::tempdir().unwrap();
-                            let input_path = temp_dir.path().join(format!("test_{}.jpg", i));
+                            let input_path = temp_dir.path().join(format!("test_{i}.jpg"));
                             std::fs::write(&input_path, TEST_IMAGE).unwrap();
 
                             processor
@@ -267,7 +263,7 @@ fn benchmark_repeated_inference(c: &mut Criterion) {
                                 .await
                                 .unwrap();
                         }
-                    })
+                    });
                 });
             });
         }

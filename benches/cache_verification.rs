@@ -25,8 +25,7 @@ async fn ensure_model_downloaded(model_name: &str) -> Result<PathBuf> {
 
     if !model_dir.exists() {
         return Err(imgly_bgremove::BgRemovalError::model(format!(
-            "Model {} not found",
-            model_name
+            "Model {model_name} not found"
         )));
     }
 
@@ -92,7 +91,7 @@ fn benchmark_cache_verification(c: &mut Criterion) {
 
     for (provider, provider_name) in providers {
         // Test with cache ENABLED
-        println!("\n🔍 Testing {} with CACHE ENABLED", provider_name);
+        println!("\n🔍 Testing {provider_name} with CACHE ENABLED");
 
         let model_spec = ModelSpec {
             source: ModelSource::External(model_path.clone()),
@@ -102,7 +101,7 @@ fn benchmark_cache_verification(c: &mut Criterion) {
         let processor_config_cached = ProcessorConfigBuilder::new()
             .model_spec(model_spec.clone())
             .backend_type(BackendType::Onnx)
-            .execution_provider(provider.clone())
+            .execution_provider(provider)
             .output_format(OutputFormat::Png)
             .disable_cache(false)  // Cache ENABLED
             .build()
@@ -136,12 +135,12 @@ fn benchmark_cache_verification(c: &mut Criterion) {
         });
 
         // Test with cache DISABLED
-        println!("🔍 Testing {} with CACHE DISABLED", provider_name);
+        println!("🔍 Testing {provider_name} with CACHE DISABLED");
 
         let processor_config_uncached = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
             .backend_type(BackendType::Onnx)
-            .execution_provider(provider.clone())
+            .execution_provider(provider)
             .output_format(OutputFormat::Png)
             .disable_cache(true)   // Cache DISABLED
             .build()
@@ -178,8 +177,7 @@ fn benchmark_cache_verification(c: &mut Criterion) {
         if cache_dir.exists() {
             let entries = std::fs::read_dir(&cache_dir).unwrap().count();
             println!(
-                "✅ Session cache directory contains {} entries after cache_enabled test",
-                entries
+                "✅ Session cache directory contains {entries} entries after cache_enabled test"
             );
         } else {
             println!("❌ Session cache directory not created");

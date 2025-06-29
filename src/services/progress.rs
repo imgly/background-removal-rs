@@ -33,6 +33,7 @@ pub enum ProcessingStage {
 
 impl ProcessingStage {
     /// Get a human-readable description of the processing stage
+    #[must_use]
     pub fn description(&self) -> &'static str {
         match self {
             ProcessingStage::Initialization => "Initializing model and backend",
@@ -49,6 +50,7 @@ impl ProcessingStage {
     }
 
     /// Get the typical progress percentage for this stage
+    #[must_use]
     pub fn progress_percentage(&self) -> u8 {
         match self {
             ProcessingStage::Initialization => 5,
@@ -82,6 +84,7 @@ pub struct ProgressUpdate {
 
 impl ProgressUpdate {
     /// Create a new progress update
+    #[must_use]
     pub fn new(stage: ProcessingStage, start_time: Instant) -> Self {
         Self {
             progress: stage.progress_percentage(),
@@ -93,6 +96,7 @@ impl ProgressUpdate {
     }
 
     /// Create a progress update with custom description
+    #[must_use]
     pub fn with_description(
         stage: ProcessingStage,
         description: String,
@@ -108,6 +112,7 @@ impl ProgressUpdate {
     }
 
     /// Add estimated time remaining
+    #[must_use]
     pub fn with_eta(mut self, eta_ms: u64) -> Self {
         self.eta_ms = Some(eta_ms);
         self
@@ -163,6 +168,7 @@ impl ConsoleProgressReporter {
     ///
     /// # Arguments
     /// * `verbose` - Whether to show detailed progress information
+    #[must_use]
     pub fn new(verbose: bool) -> Self {
         Self { verbose }
     }
@@ -218,6 +224,7 @@ pub struct ProgressTracker {
 
 impl ProgressTracker {
     /// Create a new progress tracker with the specified reporter
+    #[must_use]
     pub fn new(reporter: Box<dyn ProgressReporter>) -> Self {
         Self {
             reporter,
@@ -227,11 +234,13 @@ impl ProgressTracker {
     }
 
     /// Create a progress tracker with no-op reporter (for testing/disabled progress)
+    #[must_use]
     pub fn no_op() -> Self {
         Self::new(Box::new(NoOpProgressReporter))
     }
 
     /// Create a progress tracker with console reporter
+    #[must_use]
     pub fn console(verbose: bool) -> Self {
         Self::new(Box::new(ConsoleProgressReporter::new(verbose)))
     }
@@ -265,11 +274,13 @@ impl ProgressTracker {
     }
 
     /// Get the elapsed time since tracking started
+    #[must_use]
     pub fn elapsed_ms(&self) -> u64 {
         self.start_time.elapsed().as_millis() as u64
     }
 
     /// Get the current processing stage
+    #[must_use]
     pub fn current_stage(&self) -> Option<&ProcessingStage> {
         self.current_stage.as_ref()
     }

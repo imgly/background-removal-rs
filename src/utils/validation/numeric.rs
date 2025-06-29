@@ -12,21 +12,21 @@ impl NumericValidator {
     /// Safely convert f32 to u32 with bounds checking
     pub fn validate_f32_to_u32(value: f32) -> Result<u32> {
         if !value.is_finite() {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Cannot convert non-finite value {} to u32",
                 value
             )));
         }
 
         if value < 0.0 {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Cannot convert negative value {} to u32",
                 value
             )));
         }
 
         if value > u32::MAX as f32 {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Value {} exceeds u32::MAX ({})",
                 value,
                 u32::MAX
@@ -39,7 +39,7 @@ impl NumericValidator {
     /// Safely convert u64 to usize with bounds checking
     pub fn validate_u64_to_usize(value: u64) -> Result<usize> {
         if value > usize::MAX as u64 {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Value {} exceeds usize::MAX on this platform ({})",
                 value,
                 usize::MAX
@@ -51,14 +51,14 @@ impl NumericValidator {
     /// Validate percentage value (0.0 to 1.0)
     pub fn validate_percentage(value: f32) -> Result<f32> {
         if !value.is_finite() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Percentage value must be finite, got {}",
                 value
             )));
         }
 
-        if value < 0.0 || value > 1.0 {
-            return Err(BgRemovalError::invalid_config(&format!(
+        if !(0.0..=1.0).contains(&value) {
+            return Err(BgRemovalError::invalid_config(format!(
                 "Percentage value must be between 0.0 and 1.0, got {}",
                 value
             )));
@@ -70,7 +70,7 @@ impl NumericValidator {
     /// Validate quality setting (0-100)
     pub fn validate_quality(value: u8) -> Result<u8> {
         if value > 100 {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Quality must be between 0 and 100, got {}",
                 value
             )));
@@ -83,7 +83,7 @@ impl NumericValidator {
         const MAX_THREADS: usize = 256; // Reasonable upper limit
 
         if value > MAX_THREADS {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Thread count {} exceeds maximum allowed ({})",
                 value, MAX_THREADS
             )));
@@ -98,7 +98,7 @@ impl NumericValidator {
         T: PartialOrd + std::fmt::Display + Copy,
     {
         if value < min || value > max {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "{} must be between {} and {}, got {}",
                 name, min, max, value
             )));
@@ -112,7 +112,7 @@ impl NumericValidator {
         T: PartialOrd + std::fmt::Display + Copy + Default,
     {
         if value <= T::default() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "{} must be positive, got {}",
                 name, value
             )));
@@ -137,14 +137,14 @@ impl NumericValidator {
     /// Safely multiply two u32 values checking for overflow
     pub fn safe_multiply_u32(a: u32, b: u32) -> Result<u32> {
         a.checked_mul(b).ok_or_else(|| {
-            BgRemovalError::processing(&format!("Multiplication overflow: {} * {}", a, b))
+            BgRemovalError::processing(format!("Multiplication overflow: {} * {}", a, b))
         })
     }
 
     /// Safely add two u32 values checking for overflow
     pub fn safe_add_u32(a: u32, b: u32) -> Result<u32> {
         a.checked_add(b)
-            .ok_or_else(|| BgRemovalError::processing(&format!("Addition overflow: {} + {}", a, b)))
+            .ok_or_else(|| BgRemovalError::processing(format!("Addition overflow: {} + {}", a, b)))
     }
 
     /// Validate normalization parameters (mean and std arrays)
@@ -154,7 +154,7 @@ impl NumericValidator {
         expected_channels: usize,
     ) -> Result<()> {
         if mean.len() != expected_channels {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Mean array length {} doesn't match expected channels {}",
                 mean.len(),
                 expected_channels
@@ -162,7 +162,7 @@ impl NumericValidator {
         }
 
         if std.len() != expected_channels {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Std array length {} doesn't match expected channels {}",
                 std.len(),
                 expected_channels
@@ -172,7 +172,7 @@ impl NumericValidator {
         // Validate mean values are reasonable
         for (i, &value) in mean.iter().enumerate() {
             if !value.is_finite() {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Mean value at index {} is not finite: {}",
                     i, value
                 )));
@@ -182,13 +182,13 @@ impl NumericValidator {
         // Validate std values are positive and reasonable
         for (i, &value) in std.iter().enumerate() {
             if !value.is_finite() {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Std value at index {} is not finite: {}",
                     i, value
                 )));
             }
             if value <= 0.0 {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Std value at index {} must be positive: {}",
                     i, value
                 )));

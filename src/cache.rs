@@ -15,7 +15,7 @@ pub struct CachedModelInfo {
     pub model_id: String,
     /// Path to the cached model directory
     pub path: PathBuf,
-    /// Whether the model has HuggingFace format files
+    /// Whether the model has `HuggingFace` format files
     pub has_config: bool,
     /// Whether the model has preprocessor config
     pub has_preprocessor: bool,
@@ -79,7 +79,7 @@ impl ModelCache {
 
     /// Generate a model ID from a URL
     ///
-    /// Converts URLs like "https://huggingface.co/imgly/isnet-general-onnx"
+    /// Converts URLs like "<https://huggingface.co/imgly/isnet-general-onnx>"
     /// to cache-safe identifiers like "imgly--isnet-general-onnx"
     ///
     /// # Examples
@@ -95,13 +95,20 @@ impl ModelCache {
         let prefix = "https://huggingface.co/";
         if url.starts_with(prefix) {
             // Replace '/' with '--' to create filesystem-safe identifier
-            url[prefix.len()..].replace('/', "--")
+            // Safe string slicing - we already verified the prefix exists with starts_with
+            url.get(prefix.len()..).unwrap_or(url).replace('/', "--")
         } else {
             // For non-HuggingFace URLs, use a hash-based approach
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(url.as_bytes());
-            format!("url-{:x}", hasher.finalize())[..16].to_string()
+            let hash_string = format!("url-{:x}", hasher.finalize());
+            // Safe string slicing with bounds check
+            if hash_string.len() >= 16 {
+                hash_string.get(..16).unwrap_or(&hash_string).to_string()
+            } else {
+                hash_string
+            }
         }
     }
 
@@ -115,7 +122,7 @@ impl ModelCache {
     #[must_use]
     pub fn is_model_cached(&self, model_id: &str) -> bool {
         let model_path = self.cache_dir.join(model_id);
-        model_path.exists() && self.validate_model_directory(&model_path)
+        model_path.exists() && Self::validate_model_directory(&model_path)
     }
 
     /// Get the path to a cached model directory
@@ -156,7 +163,7 @@ impl ModelCache {
 
             let path = entry.path();
             if path.is_dir() {
-                if let Some(model_info) = self.analyze_model_directory(&path)? {
+                if let Some(model_info) = Self::analyze_model_directory(&path)? {
                     models.push(model_info);
                 }
             }
@@ -168,7 +175,7 @@ impl ModelCache {
     }
 
     /// Validate that a model directory contains required files
-    fn validate_model_directory(&self, model_path: &Path) -> bool {
+    fn validate_model_directory(model_path: &Path) -> bool {
         let config_path = model_path.join("config.json");
         let preprocessor_path = model_path.join("preprocessor_config.json");
         let onnx_dir = model_path.join("onnx");
@@ -178,7 +185,7 @@ impl ModelCache {
     }
 
     /// Analyze a model directory and extract information
-    fn analyze_model_directory(&self, model_path: &Path) -> Result<Option<CachedModelInfo>> {
+    fn analyze_model_directory(model_path: &Path) -> Result<Option<CachedModelInfo>> {
         let model_id = model_path
             .file_name()
             .and_then(|name| name.to_str())
@@ -191,7 +198,7 @@ impl ModelCache {
             .to_string();
 
         // Check if this is a valid model directory
-        if !self.validate_model_directory(model_path) {
+        if !Self::validate_model_directory(model_path) {
             log::debug!("Skipping invalid model directory: {}", model_path.display());
             return Ok(None);
         }
@@ -205,7 +212,10 @@ impl ModelCache {
         if let Ok(entries) = fs::read_dir(&onnx_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str() {
-                    if file_name.ends_with(".onnx") {
+                    if Path::new(file_name)
+                        .extension()
+                        .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx"))
+                    {
                         match file_name {
                             "model.onnx" => variants.push("fp32".to_string()),
                             "model_fp16.onnx" => variants.push("fp16".to_string()),
@@ -225,7 +235,7 @@ impl ModelCache {
         }
 
         // Calculate directory size
-        let size_bytes = self.calculate_directory_size(model_path).unwrap_or(0);
+        let size_bytes = Self::calculate_directory_size(model_path).unwrap_or(0);
 
         Ok(Some(CachedModelInfo {
             model_id,
@@ -238,7 +248,7 @@ impl ModelCache {
     }
 
     /// Calculate the total size of a directory
-    fn calculate_directory_size(&self, dir_path: &Path) -> Result<u64> {
+    fn calculate_directory_size(dir_path: &Path) -> Result<u64> {
         let mut total_size = 0;
 
         fn visit_dir(dir: &Path, total: &mut u64) -> std::io::Result<()> {
@@ -260,7 +270,7 @@ impl ModelCache {
         Ok(total_size)
     }
 
-    /// Get the default model ID (ISNet General)
+    /// Get the default model ID (`ISNet` General)
     #[must_use]
     pub fn get_default_model_id() -> String {
         Self::url_to_model_id("https://huggingface.co/imgly/isnet-general-onnx")
@@ -301,7 +311,7 @@ impl ModelCache {
                     .and_then(|name| name.to_str())
                     .unwrap_or("unknown");
 
-                if !self.validate_model_directory(&path) {
+                if !Self::validate_model_directory(&path) {
                     log::warn!("Removing invalid model directory: {}", path.display());
                     fs::remove_dir_all(&path).map_err(|e| {
                         BgRemovalError::file_io_error("remove invalid model directory", &path, &e)

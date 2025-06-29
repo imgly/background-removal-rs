@@ -18,8 +18,8 @@
 //! - **Multiple Models**: `ISNet`, `BiRefNet`, `BiRefNet` Lite with FP16/FP32 variants
 //! - **Multiple Backends**: ONNX Runtime (GPU acceleration) and Tract (Pure Rust)
 //! - **Format Support**: JPEG, PNG, WebP, BMP, TIFF with ICC color profile preservation
-//! - **Hardware Acceleration**: CUDA, CoreML, and CPU execution providers
-//! - **Model Management**: Automatic downloading and caching of models from HuggingFace
+//! - **Hardware Acceleration**: CUDA, `CoreML`, and CPU execution providers
+//! - **Model Management**: Automatic downloading and caching of models from `HuggingFace`
 //! - **Session Caching**: Performance optimization through cached ONNX Runtime sessions
 //! - **CLI Integration**: Optional command-line interface (enable with `cli` feature)
 //! - **WebAssembly Compatible**: Pure Rust Tract backend works in WASM

@@ -11,11 +11,11 @@ use crate::{
 };
 use anyhow::{Context, Result};
 
-/// Convert CLI arguments to unified ProcessorConfig
+/// Convert CLI arguments to unified `ProcessorConfig`
 pub(crate) struct CliConfigBuilder;
 
 impl CliConfigBuilder {
-    /// Build ProcessorConfig from CLI arguments
+    /// Build `ProcessorConfig` from CLI arguments
     pub(crate) fn from_cli(cli: &Cli) -> Result<ProcessorConfig> {
         // Parse model specification
         let (model_spec, _model_arg) = if let Some(model_arg) = &cli.model {
@@ -30,15 +30,7 @@ impl CliConfigBuilder {
                 use crate::cache::ModelCache;
                 if let Ok(cache) = ModelCache::new() {
                     if let Ok(downloaded_models) = cache.scan_cached_models() {
-                        if !downloaded_models.is_empty() {
-                            // Use first available downloaded model
-                            let default_model = &downloaded_models[0].model_id;
-                            let model_spec = ModelSpec {
-                                source: ModelSource::Downloaded(default_model.clone()),
-                                variant: None,
-                            };
-                            (model_spec, default_model.clone())
-                        } else {
+                        if downloaded_models.is_empty() {
                             // No downloaded models available - use default model URL for auto-download
                             let default_url = ModelCache::get_default_model_url();
                             let model_spec = ModelSpec {
@@ -48,6 +40,26 @@ impl CliConfigBuilder {
                                 variant: None,
                             };
                             (model_spec, ModelCache::url_to_model_id(default_url))
+                        } else {
+                            // Use first available downloaded model - safe indexing with bounds check
+                            if let Some(first_model) = downloaded_models.first() {
+                                let default_model = &first_model.model_id;
+                                let model_spec = ModelSpec {
+                                    source: ModelSource::Downloaded(default_model.clone()),
+                                    variant: None,
+                                };
+                                (model_spec, default_model.clone())
+                            } else {
+                                // Fallback to default model if somehow the vec became empty between checks
+                                let default_url = ModelCache::get_default_model_url();
+                                let model_spec = ModelSpec {
+                                    source: ModelSource::Downloaded(ModelCache::url_to_model_id(
+                                        default_url,
+                                    )),
+                                    variant: None,
+                                };
+                                (model_spec, ModelCache::url_to_model_id(default_url))
+                            }
                         }
                     } else {
                         // Cache scan failed - use default model URL for auto-download
@@ -127,10 +139,9 @@ impl CliConfigBuilder {
                         println!(
                             "💡 To use a specific model: imgly-bgremove --model MODEL_ID input.jpg"
                         );
-                        println!(
-                            "Using first available model: {}",
-                            downloaded_models[0].model_id
-                        );
+                        if let Some(first_model) = downloaded_models.first() {
+                            println!("Using first available model: {}", first_model.model_id);
+                        }
                         println!();
                     }
                 }

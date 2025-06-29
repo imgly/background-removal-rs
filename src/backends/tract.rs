@@ -19,13 +19,16 @@ use log;
 use ndarray::Array4;
 use tract_onnx::prelude::*;
 
+/// Type alias for the complex Tract model type to reduce complexity warnings
+type TractModel = RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
+
 // Use instant crate for cross-platform time compatibility
 use instant::{Duration, Instant};
 
 /// Tract backend for running background removal models using pure Rust inference
 #[derive(Debug)]
 pub struct TractBackend {
-    model: Option<RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>>,
+    model: Option<TractModel>,
     model_manager: Option<ModelManager>,
     initialized: bool,
 }
@@ -73,6 +76,7 @@ impl TractBackend {
     }
 
     /// Create a new uninitialized Tract backend
+    #[must_use]
     pub fn new() -> Self {
         Self {
             model: None,
@@ -82,6 +86,7 @@ impl TractBackend {
     }
 
     /// Create a Tract backend with a pre-configured model manager
+    #[must_use]
     pub fn with_model_manager(model_manager: ModelManager) -> Self {
         Self {
             model: None,
@@ -100,9 +105,7 @@ impl TractBackend {
         let model_load_start = Instant::now();
 
         // Get or create model manager
-        let model_manager = if let Some(ref manager) = self.model_manager {
-            manager
-        } else {
+        let Some(ref model_manager) = self.model_manager else {
             return Err(crate::error::BgRemovalError::model(
                 "No model manager available for Tract backend",
             ));
@@ -264,10 +267,10 @@ impl InferenceBackend for TractBackend {
 
         let output_array = Array4::from_shape_vec(
             (
-                output_shape[0],
-                output_shape[1],
-                output_shape[2],
-                output_shape[3],
+                output_shape.first().copied().unwrap_or(1),
+                output_shape.get(1).copied().unwrap_or(1),
+                output_shape.get(2).copied().unwrap_or(1024),
+                output_shape.get(3).copied().unwrap_or(1024),
             ),
             output_data.to_owned().into_raw_vec_and_offset().0,
         )

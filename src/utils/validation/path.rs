@@ -24,10 +24,10 @@ impl PathValidator {
     /// Validate that a path is a directory
     pub fn validate_is_directory<P: AsRef<Path>>(path: P) -> Result<()> {
         let path_ref = path.as_ref();
-        Self::validate_file_exists(&path_ref)?;
+        Self::validate_file_exists(path_ref)?;
 
         if !path_ref.is_dir() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Path is not a directory: {}",
                 path_ref.display()
             )));
@@ -38,10 +38,10 @@ impl PathValidator {
     /// Validate that a path is a file (not a directory)
     pub fn validate_is_file<P: AsRef<Path>>(path: P) -> Result<()> {
         let path_ref = path.as_ref();
-        Self::validate_file_exists(&path_ref)?;
+        Self::validate_file_exists(path_ref)?;
 
         if !path_ref.is_file() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Path is not a file: {}",
                 path_ref.display()
             )));
@@ -53,13 +53,13 @@ impl PathValidator {
     pub fn validate_image_extension<P: AsRef<Path>>(path: P) -> Result<()> {
         let path_ref = path.as_ref();
 
-        if !Self::is_supported_image_format(&path_ref) {
+        if !Self::is_supported_image_format(path_ref) {
             let extension = path_ref
                 .extension()
                 .and_then(|s| s.to_str())
                 .unwrap_or("(no extension)");
 
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Unsupported image format '{}'. Supported formats: jpg, jpeg, png, webp, tiff, tif, bmp",
                 extension
             )));
@@ -84,6 +84,7 @@ impl PathValidator {
     }
 
     /// Get the list of supported image extensions
+    #[must_use]
     pub fn supported_image_extensions() -> &'static [&'static str] {
         &["jpg", "jpeg", "png", "webp", "tiff", "tif", "bmp"]
     }
@@ -94,7 +95,7 @@ impl PathValidator {
         let actual_ext = path_ref.extension().and_then(|s| s.to_str()).unwrap_or("");
 
         if actual_ext.to_lowercase() != expected_ext.to_lowercase() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Expected {} file, but got: {}",
                 expected_ext,
                 path_ref.display()
@@ -109,7 +110,7 @@ impl PathValidator {
 
         if let Some(parent) = path_ref.parent() {
             if !parent.exists() {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Parent directory does not exist: {}",
                     parent.display()
                 )));

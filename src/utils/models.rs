@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 pub struct ModelSpecParser;
 
 impl ModelSpecParser {
-    /// Parse model argument into ModelSpec with optional variant suffix
+    /// Parse model argument into `ModelSpec` with optional variant suffix
     ///
     /// Supports syntax: "model" or "model:variant"
     /// If path exists on filesystem, treats as external model.
@@ -38,6 +38,7 @@ impl ModelSpecParser {
     /// // URL (converts to model ID)
     /// let spec = ModelSpecParser::parse("https://huggingface.co/imgly/isnet-general-onnx");
     /// ```
+    #[must_use]
     pub fn parse(model_arg: &str) -> ModelSpec {
         // Check for suffix syntax: "model:variant", but exclude URLs
         if !model_arg.starts_with("http") && model_arg.contains(':') {
@@ -103,7 +104,7 @@ impl ModelSpecParser {
             if available_variants.contains(&variant.to_string()) {
                 return Ok(variant.to_string());
             }
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Variant '{}' not available. Available variants: {:?}",
                 variant, available_variants
             )));
@@ -114,7 +115,7 @@ impl ModelSpecParser {
             if available_variants.contains(variant) {
                 return Ok(variant.clone());
             }
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Variant '{}' not available. Available variants: {:?}",
                 variant, available_variants
             )));
@@ -146,13 +147,13 @@ impl ModelSpecParser {
         match &model_spec.source {
             ModelSource::External(path) => {
                 if !path.exists() {
-                    return Err(BgRemovalError::invalid_config(&format!(
+                    return Err(BgRemovalError::invalid_config(format!(
                         "External model path does not exist: {}",
                         path.display()
                     )));
                 }
                 if !path.is_dir() {
-                    return Err(BgRemovalError::invalid_config(&format!(
+                    return Err(BgRemovalError::invalid_config(format!(
                         "External model path must be a directory: {}",
                         path.display()
                     )));
@@ -171,7 +172,7 @@ impl ModelSpecParser {
                     .chars()
                     .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
                 {
-                    return Err(BgRemovalError::invalid_config(&format!(
+                    return Err(BgRemovalError::invalid_config(format!(
                         "Invalid characters in downloaded model ID: {}",
                         model_id
                     )));
@@ -192,7 +193,7 @@ impl ModelSpecParser {
                 .chars()
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
             {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Invalid characters in model variant: {}",
                     variant
                 )));
@@ -202,9 +203,10 @@ impl ModelSpecParser {
         Ok(())
     }
 
-    /// Convert ModelSpec back to string representation
+    /// Convert `ModelSpec` back to string representation
     ///
-    /// Reconstructs the original string format used to create the ModelSpec
+    /// Reconstructs the original string format used to create the `ModelSpec`
+    #[must_use]
     pub fn to_string(model_spec: &ModelSpec) -> String {
         let base = match &model_spec.source {
             ModelSource::External(path) => path.to_string_lossy().to_string(),
@@ -219,16 +221,19 @@ impl ModelSpecParser {
     }
 
     /// Check if a model specification represents an external model
+    #[must_use]
     pub fn is_external(model_spec: &ModelSpec) -> bool {
         matches!(model_spec.source, ModelSource::External(_))
     }
 
     /// Check if a model specification represents a downloaded model
+    #[must_use]
     pub fn is_downloaded(model_spec: &ModelSpec) -> bool {
         matches!(model_spec.source, ModelSource::Downloaded(_))
     }
 
     /// Get the model name (directory name for external, model ID for downloaded)
+    #[must_use]
     pub fn get_model_name(model_spec: &ModelSpec) -> String {
         match &model_spec.source {
             ModelSource::External(path) => path
@@ -391,7 +396,7 @@ mod tests {
         assert!(ModelSpecParser::validate(&spec).is_ok());
 
         let invalid_spec = ModelSpec {
-            source: ModelSource::Downloaded("".to_string()),
+            source: ModelSource::Downloaded(String::new()),
             variant: None,
         };
         assert!(ModelSpecParser::validate(&invalid_spec).is_err());

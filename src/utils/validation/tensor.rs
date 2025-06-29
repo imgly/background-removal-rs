@@ -19,7 +19,7 @@ impl TensorValidator {
         let (batch, channels, height, width) = expected_shape;
 
         if actual_shape.len() != 4 {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Tensor must have 4 dimensions, got {}",
                 actual_shape.len()
             )));
@@ -32,7 +32,7 @@ impl TensorValidator {
             actual_shape[3],
         );
         if actual != expected_shape {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Tensor shape mismatch. Expected [{}, {}, {}, {}], got [{}, {}, {}, {}]",
                 batch, channels, height, width, actual.0, actual.1, actual.2, actual.3
             )));
@@ -58,14 +58,14 @@ impl TensorValidator {
         const MIN_DIMENSION: u32 = 1;
 
         if width < MIN_DIMENSION || height < MIN_DIMENSION {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Image dimensions too small: {}x{}. Minimum: {}x{}",
                 width, height, MIN_DIMENSION, MIN_DIMENSION
             )));
         }
 
         if width > MAX_DIMENSION || height > MAX_DIMENSION {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Image dimensions too large: {}x{}. Maximum: {}x{}",
                 width, height, MAX_DIMENSION, MAX_DIMENSION
             )));
@@ -77,7 +77,7 @@ impl TensorValidator {
     /// Validate canvas dimensions for preprocessing
     pub fn validate_canvas_dimensions(width: u32, height: u32, max_size: u32) -> Result<()> {
         if width > max_size || height > max_size {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Canvas dimensions {}x{} exceed maximum size {}",
                 width, height, max_size
             )));
@@ -92,14 +92,14 @@ impl TensorValidator {
         let width = shape[3];
 
         if x >= width {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "X coordinate {} out of bounds (width: {})",
                 x, width
             )));
         }
 
         if y >= height {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Y coordinate {} out of bounds (height: {})",
                 y, height
             )));
@@ -110,7 +110,7 @@ impl TensorValidator {
 
     /// Validate tensor values are within expected range
     pub fn validate_tensor_value_range(tensor: &Array4<f32>, min: f32, max: f32) -> Result<()> {
-        for value in tensor.iter() {
+        for value in tensor {
             if *value < min || *value > max {
                 return Err(BgRemovalError::processing(format!(
                     "Tensor value {} out of range [{}, {}]",
@@ -147,7 +147,7 @@ impl TensorValidator {
             )));
         }
 
-        let width = size.get(0).copied().unwrap_or(0) as u32;
+        let width = size.first().copied().unwrap_or(0) as u32;
         let height = size.get(1).copied().unwrap_or(0) as u32;
 
         Self::validate_image_dimensions(width, height)?;

@@ -89,7 +89,7 @@ impl ConfigValidator {
     pub fn validate_output_format(format: &str) -> Result<()> {
         let valid_formats = ["png", "jpeg", "jpg", "webp", "tiff", "rgba8"];
         if !valid_formats.contains(&format.to_lowercase().as_str()) {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Invalid output format: {}. Valid formats: {}",
                 format,
                 valid_formats.join(", ")
@@ -98,7 +98,7 @@ impl ConfigValidator {
         Ok(())
     }
 
-    /// Parse and validate output format string to OutputFormat enum
+    /// Parse and validate output format string to `OutputFormat` enum
     ///
     /// # Arguments
     /// * `format` - Output format string to parse and validate
@@ -146,6 +146,7 @@ impl ConfigValidator {
     ///
     /// # Returns
     /// Vector of valid output format strings
+    #[must_use]
     pub fn valid_output_formats() -> Vec<&'static str> {
         vec!["png", "jpeg", "jpg", "webp", "tiff", "rgba8"]
     }

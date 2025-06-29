@@ -2,7 +2,7 @@
 //!
 //! This module provides ONNX Runtime-based inference backend for the bg-remove-core library.
 //! It implements the `InferenceBackend` trait from bg-remove-core to provide model inference
-//! using ONNX Runtime with support for multiple execution providers (CPU, CUDA, CoreML).
+//! using ONNX Runtime with support for multiple execution providers (CPU, CUDA, `CoreML`).
 
 use crate::config::{ExecutionProvider, RemovalConfig};
 use crate::error::Result;
@@ -186,13 +186,13 @@ impl OnnxBackend {
         let model_data = model_manager.load_model()?;
 
         // Generate cache key for session caching (skip if caching is disabled)
-        let (cache_key, model_hash, provider_config) = if let Some(_) = &self.session_cache {
+        let (cache_key, model_hash, provider_config) = if self.session_cache.is_some() {
             if config.disable_cache {
                 log::debug!("Session caching disabled by --no-cache flag");
                 (None, None, None)
             } else {
                 let model_hash = SessionCache::calculate_model_hash(&model_data);
-                let provider_config = self.serialize_provider_config(config);
+                let provider_config = Self::serialize_provider_config(config);
                 let cache_key = SessionCache::generate_cache_key(
                     &model_hash,
                     config.execution_provider,
@@ -501,8 +501,12 @@ impl OnnxBackend {
                     model_path: model_manager.get_model_path()?,
                     execution_provider: config.execution_provider,
                     optimization_level: "Level3".to_string(),
-                    inter_op_num_threads: Some(inter_threads as i16),
-                    intra_op_num_threads: Some(intra_threads as i16),
+                    inter_op_num_threads: Some(
+                        i16::try_from(inter_threads.min(i16::MAX as usize)).unwrap_or(i16::MAX),
+                    ),
+                    intra_op_num_threads: Some(
+                        i16::try_from(intra_threads.min(i16::MAX as usize)).unwrap_or(i16::MAX),
+                    ),
                     parallel_execution: true,
                     provider_options: config_str.clone(),
                 };
@@ -538,7 +542,7 @@ impl OnnxBackend {
     }
 
     /// Serialize provider configuration for cache key generation
-    fn serialize_provider_config(&self, config: &RemovalConfig) -> String {
+    fn serialize_provider_config(config: &RemovalConfig) -> String {
         // Include all configuration parameters that affect session compilation
         // Use a simple format string since serde_json might not be available
         format!(

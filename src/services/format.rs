@@ -64,6 +64,7 @@ impl OutputFormatHandler {
     /// assert_eq!(OutputFormatHandler::get_extension(OutputFormat::Png), "png");
     /// assert_eq!(OutputFormatHandler::get_extension(OutputFormat::Jpeg), "jpg");
     /// ```
+    #[must_use]
     pub fn get_extension(format: OutputFormat) -> &'static str {
         match format {
             OutputFormat::Png => "png",
@@ -90,6 +91,7 @@ impl OutputFormatHandler {
     /// assert!(OutputFormatHandler::supports_transparency(OutputFormat::Png));
     /// assert!(!OutputFormatHandler::supports_transparency(OutputFormat::Jpeg));
     /// ```
+    #[must_use]
     pub fn supports_transparency(format: OutputFormat) -> bool {
         match format {
             OutputFormat::Png | OutputFormat::WebP | OutputFormat::Tiff | OutputFormat::Rgba8 => {
@@ -122,7 +124,7 @@ impl OutputFormatHandler {
     /// * `format` - Output format
     ///
     /// # Returns
-    /// Tuple of (default_quality, min_quality, max_quality) where applicable
+    /// Tuple of (`default_quality`, `min_quality`, `max_quality`) where applicable
     /// Returns None for formats that don't use quality settings
     ///
     /// # Examples
@@ -134,6 +136,7 @@ impl OutputFormatHandler {
     /// assert_eq!(min, 0);
     /// assert_eq!(max, 100);
     /// ```
+    #[must_use]
     pub fn get_quality_range(format: OutputFormat) -> Option<(u8, u8, u8)> {
         match format {
             OutputFormat::Jpeg => Some((90, 0, 100)), // (default, min, max)

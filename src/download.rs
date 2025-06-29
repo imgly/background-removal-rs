@@ -1,6 +1,6 @@
-//! Model downloading functionality for HuggingFace repositories
+//! Model downloading functionality for `HuggingFace` repositories
 //!
-//! This module provides async downloading of models from URLs (primarily HuggingFace)
+//! This module provides async downloading of models from URLs (primarily `HuggingFace`)
 //! with progress reporting, file integrity verification, and atomic operations.
 
 use crate::cache::ModelCache;
@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::StreamReader;
 
-/// Files that need to be downloaded for a HuggingFace model
+/// Files that need to be downloaded for a `HuggingFace` model
 const REQUIRED_FILES: &[&str] = &["config.json", "preprocessor_config.json"];
 
 /// ONNX model files to attempt downloading
@@ -117,7 +117,7 @@ impl ModelDownloader {
     /// - File integrity verification
     ///
     /// # Arguments
-    /// * `url` - Model repository URL (e.g., "https://huggingface.co/imgly/isnet-general-onnx")
+    /// * `url` - Model repository URL (e.g., "<https://huggingface.co/imgly/isnet-general-onnx>")
     /// * `show_progress` - Whether to display download progress
     ///
     /// # Errors
@@ -315,13 +315,14 @@ impl ModelDownloader {
         }
 
         // Start download
-        let response = self.client.get(url).send().await.map_err(|e| {
-            BgRemovalError::network_error(&format!("Failed to download {}", url), e)
-        })?;
+        let response =
+            self.client.get(url).send().await.map_err(|e| {
+                BgRemovalError::network_error(format!("Failed to download {}", url), e)
+            })?;
 
         if !response.status().is_success() {
             return Err(BgRemovalError::network_error(
-                &format!("HTTP error {} for {}", response.status(), url),
+                format!("HTTP error {} for {}", response.status(), url),
                 std::io::Error::new(std::io::ErrorKind::Other, "HTTP error"),
             ));
         }
@@ -433,7 +434,7 @@ impl Default for ModelDownloader {
 
 /// Validate that a URL is a supported model repository
 ///
-/// Currently only HuggingFace repositories are supported.
+/// Currently only `HuggingFace` repositories are supported.
 ///
 /// # Arguments
 /// * `url` - URL to validate
@@ -466,10 +467,10 @@ pub fn validate_model_url(url: &str) -> Result<()> {
     Ok(())
 }
 
-/// Parse a HuggingFace URL and extract repository information
+/// Parse a `HuggingFace` URL and extract repository information
 ///
 /// # Arguments
-/// * `url` - HuggingFace repository URL
+/// * `url` - `HuggingFace` repository URL
 ///
 /// # Returns
 /// `(username, repository_name)` if successful

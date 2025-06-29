@@ -23,7 +23,7 @@ struct SessionCacheMarker {
     pub creation_time: u64,
     /// ONNX Runtime version
     pub ort_version: String,
-    /// Type of cache (metadata_only, optimized_model)
+    /// Type of cache (`metadata_only`, `optimized_model`)
     pub cache_type: String,
 }
 
@@ -67,7 +67,7 @@ pub struct SessionCacheEntry {
     pub last_accessed: u64,
     /// Size of the cached session data in bytes
     pub size_bytes: u64,
-    /// Whether this session is provider-optimized (e.g., CoreML compiled)
+    /// Whether this session is provider-optimized (e.g., `CoreML` compiled)
     pub is_provider_optimized: bool,
     /// Session configuration for rebuilding
     pub session_config: SessionConfig,
@@ -164,6 +164,7 @@ impl SessionCache {
     ///
     /// # Returns
     /// A unique cache key string
+    #[must_use]
     pub fn generate_cache_key(
         model_hash: &str,
         execution_provider: ExecutionProvider,
@@ -195,6 +196,7 @@ impl SessionCache {
     ///
     /// # Returns
     /// SHA256 hash as hex string
+    #[must_use]
     pub fn calculate_model_hash(model_data: &[u8]) -> String {
         let mut hasher = Sha256::new();
         hasher.update(model_data);
@@ -208,6 +210,7 @@ impl SessionCache {
     ///
     /// # Returns
     /// `true` if the session is cached and valid
+    #[must_use]
     pub fn is_session_cached(&self, cache_key: &str) -> bool {
         if let Some(entry) = self.metadata_cache.get(cache_key) {
             let session_path = self.get_session_path(cache_key, &entry.execution_provider);
@@ -289,8 +292,7 @@ impl SessionCache {
                 && path
                     .file_stem()
                     .and_then(|s| s.to_str())
-                    .map(|s| s.ends_with(".meta"))
-                    .unwrap_or(false)
+                    .is_some_and(|s| s.ends_with(".meta"))
             {
                 if let Ok(metadata_str) = fs::read_to_string(&path) {
                     if let Ok(entry) = serde_json::from_str::<SessionCacheEntry>(&metadata_str) {
@@ -323,6 +325,7 @@ impl SessionCache {
     }
 
     /// Get current cache statistics
+    #[must_use]
     pub fn get_stats(&self) -> &SessionCacheStats {
         &self.stats
     }
@@ -601,10 +604,10 @@ impl SessionCache {
         Ok(marker_json.len() as u64)
     }
 
-    /// Find CoreML optimized model file if it exists
+    /// Find `CoreML` optimized model file if it exists
     ///
-    /// CoreML EP creates optimized .mlmodelc files that can be cached and reused.
-    /// These are typically stored in a dedicated cache directory when ModelCacheDirectory is set.
+    /// `CoreML` EP creates optimized .mlmodelc files that can be cached and reused.
+    /// These are typically stored in a dedicated cache directory when `ModelCacheDirectory` is set.
     fn find_coreml_optimized_model(&self, _session_path: &Path) -> Option<PathBuf> {
         // First check if we have a CoreML-specific cache directory in our session cache
         let coreml_cache_dir = self.get_coreml_cache_dir();
@@ -781,6 +784,7 @@ impl SessionCache {
     }
 
     /// Get cache hit ratio as a percentage
+    #[must_use]
     pub fn get_hit_ratio(&self) -> f64 {
         let total = self.stats.cache_hits + self.stats.cache_misses;
         if total == 0 {
@@ -791,11 +795,13 @@ impl SessionCache {
     }
 
     /// Get the current cache directory path
+    #[must_use]
     pub fn get_current_cache_dir(&self) -> &PathBuf {
         &self.cache_dir
     }
 
-    /// Get the CoreML model cache directory path
+    /// Get the `CoreML` model cache directory path
+    #[must_use]
     pub fn get_coreml_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("coreml_models")
     }
@@ -808,6 +814,7 @@ impl Default for SessionCache {
 }
 
 /// Format file size in human-readable format
+#[must_use]
 pub fn format_cache_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
@@ -905,19 +912,19 @@ mod tests {
         let mut cache = SessionCache::default();
 
         // Initially no hits or misses
-        assert_eq!(cache.get_hit_ratio(), 0.0);
+        assert!((cache.get_hit_ratio() - 0.0).abs() < f64::EPSILON);
 
         // Simulate cache misses
         cache.stats.cache_misses = 10;
-        assert_eq!(cache.get_hit_ratio(), 0.0);
+        assert!((cache.get_hit_ratio() - 0.0).abs() < f64::EPSILON);
 
         // Add some hits
         cache.stats.cache_hits = 5;
-        assert!((cache.get_hit_ratio() - 33.333333333333336).abs() < 0.000001); // 5/15 * 100
+        assert!((cache.get_hit_ratio() - 33.333_333_333_333_336).abs() < 0.000_001); // 5/15 * 100
 
         // Equal hits and misses
         cache.stats.cache_hits = 10;
-        assert_eq!(cache.get_hit_ratio(), 50.0); // 10/20 * 100
+        assert!((cache.get_hit_ratio() - 50.0).abs() < 0.000_001); // 10/20 * 100
     }
 
     #[test]

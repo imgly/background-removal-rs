@@ -34,17 +34,13 @@ async fn ensure_model_downloaded(model_name: &str) -> Result<PathBuf> {
     let model_dir = cache_dir.join(model_name);
 
     if !model_dir.exists() {
-        println!(
-            "Model {} not found. Please download it first using:",
-            model_name
-        );
+        println!("Model {model_name} not found. Please download it first using:");
         println!(
             "imgly-bgremove --only-download --model https://huggingface.co/imgly/{}",
             model_name.replace("--", "/")
         );
         return Err(imgly_bgremove::BgRemovalError::model(format!(
-            "Model {} not found",
-            model_name
+            "Model {model_name} not found"
         )));
     }
 
@@ -65,7 +61,7 @@ fn setup_benchmark_configs() -> Vec<BenchmarkConfig> {
     for provider in providers {
         // ONNX backend configurations
         configs.push(BenchmarkConfig {
-            provider: provider.clone(),
+            provider,
             backend: "onnx",
         });
 
@@ -148,7 +144,7 @@ fn create_processor(
     let processor_config = ProcessorConfigBuilder::new()
         .model_spec(model_spec)
         .backend_type(backend_type)
-        .execution_provider(config.provider.clone())
+        .execution_provider(config.provider)
         .output_format(OutputFormat::Png)
         .build()?;
 
@@ -275,21 +271,21 @@ fn benchmark_batch_processing(c: &mut Criterion) {
 
         for batch_size in &batch_sizes {
             group.bench_with_input(
-                BenchmarkId::new(&config_name, format!("batch_{}", batch_size)),
+                BenchmarkId::new(&config_name, format!("batch_{batch_size}")),
                 batch_size,
                 |b, &size| {
                     b.iter(|| {
                         rt.block_on(async {
                             let temp_dir = tempfile::tempdir().unwrap();
                             for i in 0..size {
-                                let input_path = temp_dir.path().join(format!("test_{}.jpg", i));
+                                let input_path = temp_dir.path().join(format!("test_{i}.jpg"));
                                 std::fs::write(&input_path, TEST_IMAGE_SMALL).unwrap();
                                 processor
                                     .process_file(black_box(&input_path))
                                     .await
                                     .unwrap();
                             }
-                        })
+                        });
                     });
                 },
             );
@@ -334,13 +330,13 @@ fn benchmark_model_variants(c: &mut Criterion) {
 
         let model_spec = ModelSpec {
             source: ModelSource::External(path.clone()),
-            variant: Some(variant.to_string()),
+            variant: Some((*variant).to_string()),
         };
 
         let processor_config = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
             .backend_type(BackendType::Onnx)
-            .execution_provider(config.provider.clone())
+            .execution_provider(config.provider)
             .output_format(OutputFormat::Png)
             .build()
             .unwrap();
@@ -354,7 +350,7 @@ fn benchmark_model_variants(c: &mut Criterion) {
             };
 
         group.bench_with_input(
-            BenchmarkId::new("model_comparison", format!("{}_{}", model_name, variant)),
+            BenchmarkId::new("model_comparison", format!("{model_name}_{variant}")),
             &TEST_IMAGE_MEDIUM,
             |b, image_data| {
                 b.iter(|| {

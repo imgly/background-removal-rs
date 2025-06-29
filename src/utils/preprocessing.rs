@@ -1,7 +1,7 @@
 //! Shared image preprocessing utilities
 //!
 //! This module consolidates image preprocessing logic that was previously
-//! duplicated between ImageProcessor and BackgroundRemovalProcessor.
+//! duplicated between `ImageProcessor` and `BackgroundRemovalProcessor`.
 
 use crate::{
     error::{BgRemovalError, Result},
@@ -189,7 +189,7 @@ impl ImagePreprocessor {
         Ok(tensor)
     }
 
-    /// Preprocess with custom padding color (for legacy ImageProcessor compatibility)
+    /// Preprocess with custom padding color (for legacy `ImageProcessor` compatibility)
     ///
     /// # Arguments
     /// * `image` - Input image to preprocess

@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     let downloader = ModelDownloader::new()?;
     let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
     let model_id = downloader.download_model(model_url, false).await?;
-    println!("✅ Model ready: {}", model_id);
+    println!("✅ Model ready: {model_id}");
 
     // Example 1: Ultra-simple bytes processing
     println!("\n📝 Example 1: Ultra-simple bytes processing");
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
                 tokio::fs::write("stream_example_1.png", png_bytes).await?;
                 println!("✅ Processed with ultra-simple API -> stream_example_1.png");
             },
-            Err(e) => println!("❌ Error: {}", e),
+            Err(e) => println!("❌ Error: {e}"),
         }
     }
 
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
                 tokio::fs::write("stream_example_2.webp", webp_bytes).await?;
                 println!("✅ Processed with custom config -> stream_example_2.webp");
             },
-            Err(e) => println!("❌ Error: {}", e),
+            Err(e) => println!("❌ Error: {e}"),
         }
     }
 
@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
                 result.save_png("stream_example_3.png")?;
                 println!("✅ Processed from file stream -> stream_example_3.png");
             },
-            Err(e) => println!("❌ Error: {}", e),
+            Err(e) => println!("❌ Error: {e}"),
         }
     } else {
         println!("⚠️ Skipped: input.jpg not found");
@@ -103,10 +103,7 @@ async fn main() -> Result<()> {
                 // Stream output to file
                 let output_file = File::create("stream_example_4.jpg").await?;
                 let bytes_written = result.write_to(output_file, OutputFormat::Jpeg, 95).await?;
-                println!(
-                    "✅ Streamed {} bytes to stream_example_4.jpg",
-                    bytes_written
-                );
+                println!("✅ Streamed {bytes_written} bytes to stream_example_4.jpg");
 
                 // Also demonstrate in-memory processing
                 let png_bytes = result.to_bytes(OutputFormat::Png, 100)?;
@@ -118,13 +115,13 @@ async fn main() -> Result<()> {
                 // Show processing metadata
                 println!("📈 Processing stats:");
                 if let Some(inference_time) = result.metadata.inference_time_ms {
-                    println!("   Inference: {:.2}ms", inference_time);
+                    println!("   Inference: {inference_time:.2}ms");
                 }
                 if let Some(total_time) = result.metadata.total_time_ms {
-                    println!("   Total: {:.2}ms", total_time);
+                    println!("   Total: {total_time:.2}ms");
                 }
             },
-            Err(e) => println!("❌ Error: {}", e),
+            Err(e) => println!("❌ Error: {e}"),
         }
     }
 
@@ -144,7 +141,7 @@ async fn main() -> Result<()> {
                 tokio::fs::write("stream_example_5.png", output_bytes).await?;
                 println!("✅ Processed from memory cursor -> stream_example_5.png");
             },
-            Err(e) => println!("❌ Error: {}", e),
+            Err(e) => println!("❌ Error: {e}"),
         }
     }
 

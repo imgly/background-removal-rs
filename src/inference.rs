@@ -57,15 +57,13 @@ pub struct BackendRegistry {
 impl BackendRegistry {
     #[must_use]
     pub fn new() -> Self {
-        let registry = Self {
-            backends: std::collections::HashMap::new(),
-        };
-
         // Register default backends
         // TODO: ONNX backend moved to separate crate - need backend injection mechanism
         // Backends must now be injected via BackendFactory pattern
 
-        registry
+        Self {
+            backends: std::collections::HashMap::new(),
+        }
     }
 
     pub fn register(&mut self, name: &str, backend: Box<dyn InferenceBackend>) {

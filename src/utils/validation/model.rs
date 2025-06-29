@@ -33,13 +33,13 @@ impl ModelValidator {
     /// Validate an external model path
     fn validate_external_model_path(path: &Path) -> Result<()> {
         if !path.exists() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "External model path does not exist: {}",
                 path.display()
             )));
         }
         if !path.is_dir() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "External model path must be a directory: {}",
                 path.display()
             )));
@@ -60,7 +60,7 @@ impl ModelValidator {
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Invalid characters in downloaded model ID: {}",
                 model_id
             )));
@@ -82,7 +82,7 @@ impl ModelValidator {
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Invalid characters in model variant: {}",
                 variant
             )));
@@ -107,7 +107,7 @@ impl ModelValidator {
 
         for field in REQUIRED_FIELDS {
             if !obj.contains_key(*field) {
-                return Err(BgRemovalError::invalid_config(&format!(
+                return Err(BgRemovalError::invalid_config(format!(
                     "Model configuration missing required field: {}",
                     field
                 )));
@@ -166,7 +166,7 @@ impl ModelValidator {
     /// Validate a model file path
     pub fn validate_model_file_path(path: &Path) -> Result<()> {
         if !path.exists() {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Model file does not exist: {}",
                 path.display()
             )));
@@ -174,7 +174,7 @@ impl ModelValidator {
 
         // Check for ONNX extension
         if path.extension().and_then(|s| s.to_str()) != Some("onnx") {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Model file must have .onnx extension: {}",
                 path.display()
             )));
@@ -227,7 +227,7 @@ mod tests {
 
         // Invalid downloaded model spec
         let invalid_spec = ModelSpec {
-            source: ModelSource::Downloaded("".to_string()),
+            source: ModelSource::Downloaded(String::new()),
             variant: None,
         };
         assert!(ModelValidator::validate_model_spec(&invalid_spec).is_err());

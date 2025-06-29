@@ -1,7 +1,7 @@
 //! Ultra-simple example: Remove background with just one function call
 //!
 //! This is the absolute shortest possible way to remove a background.
-//! Requires a model to be cached (download once with CLI or ModelDownloader).
+//! Requires a model to be cached (download once with CLI or `ModelDownloader`).
 
 use anyhow::Result;
 use imgly_bgremove::remove_background_simple;

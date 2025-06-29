@@ -91,7 +91,7 @@ pub trait ModelProvider: std::fmt::Debug {
 enum ModelFormat {
     /// Legacy format with model.json
     Legacy,
-    /// HuggingFace format with `config.json` + `preprocessor_config.json`
+    /// `HuggingFace` format with `config.json` + `preprocessor_config.json`
     HuggingFace,
 }
 
@@ -684,7 +684,7 @@ impl ExternalModelProvider {
         Ok([v0, v1, v2])
     }
 
-    /// Parse image_mean from `HuggingFace` format (convert from 0-255 to 0-1 range)
+    /// Parse `image_mean` from `HuggingFace` format (convert from 0-255 to 0-1 range)
     fn parse_image_mean_huggingface(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
         let image_mean = preprocessor
             .get("image_mean")
@@ -709,7 +709,7 @@ impl ExternalModelProvider {
         Ok([mean0, mean1, mean2])
     }
 
-    /// Parse image_std from `HuggingFace` format (convert from 0-255 to 0-1 range)
+    /// Parse `image_std` from `HuggingFace` format (convert from 0-255 to 0-1 range)
     fn parse_image_std_huggingface(preprocessor: &serde_json::Value) -> Result<[f32; 3]> {
         let image_std = preprocessor
             .get("image_std")
@@ -801,8 +801,14 @@ impl ModelProvider for ExternalModelProvider {
                     )
                 })?;
 
-                let height = size.get("height").and_then(|v| v.as_u64()).unwrap_or(1024) as usize;
-                let width = size.get("width").and_then(|v| v.as_u64()).unwrap_or(1024) as usize;
+                let height = size
+                    .get("height")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(1024) as usize;
+                let width = size
+                    .get("width")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(1024) as usize;
 
                 Ok(ModelInfo {
                     name: format!("{}-{}", model_type, self.variant),
@@ -1070,7 +1076,7 @@ impl ModelManager {
 /// Downloaded model provider for cached models
 ///
 /// This provider loads models from the cache directory that were previously
-/// downloaded from URLs. It supports the HuggingFace model format with
+/// downloaded from URLs. It supports the `HuggingFace` model format with
 /// automatic variant detection and preprocessing configuration.
 #[derive(Debug)]
 pub struct DownloadedModelProvider {

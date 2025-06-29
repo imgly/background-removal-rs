@@ -74,7 +74,7 @@ pub struct Cli {
     #[arg(long, default_value_t = true)]
     pub preserve_color_profiles: bool,
 
-    /// Download model from URL but don't process any images [default: https://huggingface.co/imgly/isnet-general-onnx]
+    /// Download model from URL but don't process any images [default: <https://huggingface.co/imgly/isnet-general-onnx>]
     #[arg(long)]
     pub only_download: bool,
 
@@ -701,15 +701,12 @@ async fn process_stdin(
     let temp_dir = std::env::temp_dir();
     let detected_format = detect_image_format(&image_data);
 
-    let temp_file = match detected_format {
-        Some(ext) => {
-            info!("Detected image format: {}", ext.to_uppercase());
-            temp_dir.join(format!("stdin_input.{}", ext))
-        },
-        None => {
-            warn!("Could not detect image format from stdin data, using generic extension. This may cause format detection issues.");
-            temp_dir.join("stdin_input.tmp")
-        },
+    let temp_file = if let Some(ext) = detected_format {
+        info!("Detected image format: {}", ext.to_uppercase());
+        temp_dir.join(format!("stdin_input.{}", ext))
+    } else {
+        warn!("Could not detect image format from stdin data, using generic extension. This may cause format detection issues.");
+        temp_dir.join("stdin_input.tmp")
     };
 
     std::fs::write(&temp_file, &image_data).with_context(|| {

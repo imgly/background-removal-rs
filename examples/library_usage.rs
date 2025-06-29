@@ -29,7 +29,9 @@ async fn main() -> Result<()> {
     println!("🔍 Scanning for cached models...");
     let cached_models = cache.scan_cached_models()?;
 
-    if !cached_models.is_empty() {
+    if cached_models.is_empty() {
+        println!("📭 No cached models found");
+    } else {
         println!("✅ Found {} cached model(s):", cached_models.len());
         for model in &cached_models {
             println!(
@@ -38,21 +40,19 @@ async fn main() -> Result<()> {
                 model.variants.join(", ")
             );
         }
-    } else {
-        println!("📭 No cached models found");
     }
 
     // 3. Download a model if needed
     let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
     let model_id = ModelCache::url_to_model_id(model_url);
 
-    if !cache.is_model_cached(&model_id) {
-        println!("\n⬇️ Downloading model: {}", model_url);
-        println!("Model ID: {}", model_id);
+    if cache.is_model_cached(&model_id) {
+        println!("✅ Model already cached: {model_id}");
+    } else {
+        println!("\n⬇️ Downloading model: {model_url}");
+        println!("Model ID: {model_id}");
         downloader.download_model(model_url, true).await?;
         println!("✅ Model downloaded successfully!");
-    } else {
-        println!("✅ Model already cached: {}", model_id);
     }
 
     // 4. Configure processing with different options
@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     // 5. Process an image (if input exists)
     let input_path = "input.jpg";
     if Path::new(input_path).exists() {
-        println!("🖼️ Processing image: {}", input_path);
+        println!("🖼️ Processing image: {input_path}");
 
         // Method 1: Use the high-level API
         let result = remove_background_with_model(input_path, &config_png, &model_spec).await?;
@@ -100,10 +100,10 @@ async fn main() -> Result<()> {
         println!("\n📊 Processing Metadata:");
         println!("  • Model: {}", result.metadata.model_name);
         if let Some(total_time) = result.metadata.total_time_ms {
-            println!("  • Total time: {:.2}ms", total_time);
+            println!("  • Total time: {total_time:.2}ms");
         }
         if let Some(inference_time) = result.metadata.inference_time_ms {
-            println!("  • Inference time: {:.2}ms", inference_time);
+            println!("  • Inference time: {inference_time:.2}ms");
         }
         println!(
             "  • Image dimensions: {}x{}",
@@ -117,11 +117,8 @@ async fn main() -> Result<()> {
             mask_stats.foreground_ratio * 100.0
         );
     } else {
-        println!(
-            "⚠️ Input image '{}' not found. Create this file to test processing.",
-            input_path
-        );
-        println!("   Example: cp /path/to/your/image.jpg {}", input_path);
+        println!("⚠️ Input image '{input_path}' not found. Create this file to test processing.");
+        println!("   Example: cp /path/to/your/image.jpg {input_path}");
     }
 
     // 6. Demonstrate different execution providers
@@ -132,7 +129,7 @@ async fn main() -> Result<()> {
         let providers = OnnxBackend::list_providers();
         for (name, available, description) in providers {
             let status = if available { "✅" } else { "❌" };
-            println!("  {} {}: {}", status, name, description);
+            println!("  {status} {name}: {description}");
         }
     }
 

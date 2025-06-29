@@ -28,7 +28,7 @@ impl ExecutionProviderManager {
     /// * `provider_str` - String in format "backend:provider" (e.g., "onnx:auto", "tract:cpu")
     ///
     /// # Returns
-    /// Tuple of (BackendType, ExecutionProvider)
+    /// Tuple of (`BackendType`, `ExecutionProvider`)
     ///
     /// # Examples
     /// ```rust
@@ -50,7 +50,7 @@ impl ExecutionProviderManager {
                         "cuda" => ExecutionProvider::Cuda,
                         "coreml" => ExecutionProvider::CoreMl,
                         _ => {
-                            return Err(BgRemovalError::invalid_config(&format!(
+                            return Err(BgRemovalError::invalid_config(format!(
                                 "Unknown ONNX provider: {}. Supported: auto, cpu, cuda, coreml",
                                 provider
                             )));
@@ -62,7 +62,7 @@ impl ExecutionProviderManager {
                     let execution_provider = match provider {
                         "cpu" => ExecutionProvider::Cpu, // Tract only supports CPU
                         _ => {
-                            return Err(BgRemovalError::invalid_config(&format!(
+                            return Err(BgRemovalError::invalid_config(format!(
                                 "Unknown Tract provider: {}. Tract only supports 'cpu'",
                                 provider
                             )));
@@ -70,7 +70,7 @@ impl ExecutionProviderManager {
                     };
                     Ok((BackendType::Tract, execution_provider))
                 },
-                _ => Err(BgRemovalError::invalid_config(&format!(
+                _ => Err(BgRemovalError::invalid_config(format!(
                     "Unknown backend: {}. Supported backends: onnx, tract, mock",
                     backend
                 ))),
@@ -90,6 +90,7 @@ impl ExecutionProviderManager {
     /// Get a list of all provider combinations with actual availability status
     ///
     /// This queries the backend-specific availability to provide accurate status information.
+    #[must_use]
     pub fn list_all_providers() -> Vec<ProviderInfo> {
         let mut providers = Vec::new();
 
@@ -208,11 +209,13 @@ impl ExecutionProviderManager {
     }
 
     /// Validate a provider string without parsing
+    #[must_use]
     pub fn is_valid_provider_string(provider_str: &str) -> bool {
         Self::parse_provider_string(provider_str).is_ok()
     }
 
     /// Get the default provider for a given backend type
+    #[must_use]
     pub fn default_provider_for_backend(backend_type: &BackendType) -> ExecutionProvider {
         match backend_type {
             BackendType::Onnx => ExecutionProvider::Auto,
@@ -221,6 +224,7 @@ impl ExecutionProviderManager {
     }
 
     /// Convert backend type and execution provider back to string
+    #[must_use]
     pub fn provider_to_string(backend_type: &BackendType, provider: &ExecutionProvider) -> String {
         let backend_str = match backend_type {
             BackendType::Onnx => "onnx",
