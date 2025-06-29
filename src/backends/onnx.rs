@@ -269,8 +269,25 @@ impl OnnxBackend {
                     );
                     log::debug!("  - Provider configuration: {coreml_provider:?}");
 
-                    // Add CoreML-specific configuration for better performance
-                    let coreml_provider = CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
+                    // Add CoreML-specific configuration for better performance and caching
+                    let mut coreml_provider =
+                        CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
+
+                    // Configure CoreML model cache directory for persistent optimized models
+                    #[cfg(feature = "cli")]
+                    if let Some(session_cache) = &self.session_cache {
+                        let coreml_cache_dir = session_cache.get_coreml_cache_dir();
+                        if let Err(e) = std::fs::create_dir_all(&coreml_cache_dir) {
+                            log::warn!("Failed to create CoreML cache directory: {}", e);
+                        } else {
+                            coreml_provider = coreml_provider
+                                .with_model_cache_dir(coreml_cache_dir.to_string_lossy());
+                            log::debug!(
+                                "CoreML model cache directory: {}",
+                                coreml_cache_dir.display()
+                            );
+                        }
+                    }
 
                     log::debug!("Enhanced CoreML provider config: {coreml_provider:?}");
                     providers.push(coreml_provider.build());
@@ -336,9 +353,25 @@ impl OnnxBackend {
                     log::debug!("  - This should provide significant speedup on Apple Silicon");
                     log::debug!("  - Base provider config: {coreml_provider:?}");
 
-                    // Enhanced CoreML configuration for better performance
-                    let enhanced_coreml_provider =
+                    // Enhanced CoreML configuration for better performance and caching
+                    let mut enhanced_coreml_provider =
                         CoreMLExecutionProvider::default().with_subgraphs(true); // Enable subgraphs for better performance
+
+                    // Configure CoreML model cache directory for persistent optimized models
+                    #[cfg(feature = "cli")]
+                    if let Some(session_cache) = &self.session_cache {
+                        let coreml_cache_dir = session_cache.get_coreml_cache_dir();
+                        if let Err(e) = std::fs::create_dir_all(&coreml_cache_dir) {
+                            log::warn!("Failed to create CoreML cache directory: {}", e);
+                        } else {
+                            enhanced_coreml_provider = enhanced_coreml_provider
+                                .with_model_cache_dir(coreml_cache_dir.to_string_lossy());
+                            log::debug!(
+                                "CoreML model cache directory: {}",
+                                coreml_cache_dir.display()
+                            );
+                        }
+                    }
 
                     log::debug!("Enhanced CoreML provider config: {enhanced_coreml_provider:?}");
                     session_builder

@@ -574,12 +574,12 @@ impl SessionCache {
         // - CoreML: Creates optimized .mlmodelc files that can be reused
         // - CPU/CUDA: Session can be rebuilt quickly from configuration
         // - DirectML: Similar to CPU/CUDA
-        
-        // For CoreML, try to find and cache the optimized model
+
+        // For CoreML, try to find and cache the optimized model from CoreML cache directory
         if let Some(optimized_model_path) = self.find_coreml_optimized_model(session_path) {
             return self.cache_optimized_model(&optimized_model_path, session_path);
         }
-        
+
         // For other providers, create a metadata-only cache marker
         let cache_marker = SessionCacheMarker {
             session_id: format!("session_{}", session as *const _ as usize),
@@ -590,10 +590,11 @@ impl SessionCache {
             ort_version: env!("CARGO_PKG_VERSION").to_string(),
             cache_type: "metadata_only".to_string(),
         };
-        
-        let marker_json = serde_json::to_string(&cache_marker)
-            .map_err(|e| BgRemovalError::invalid_config(format!("Failed to serialize cache marker: {}", e)))?;
-        
+
+        let marker_json = serde_json::to_string(&cache_marker).map_err(|e| {
+            BgRemovalError::invalid_config(format!("Failed to serialize cache marker: {}", e))
+        })?;
+
         // Ensure the parent directory exists before writing
         if let Some(parent) = session_path.parent() {
             if !parent.exists() {
@@ -602,93 +603,121 @@ impl SessionCache {
                 })?;
             }
         }
-        
-        fs::write(session_path, marker_json.as_bytes())
-            .map_err(|e| BgRemovalError::file_io_error("write session cache marker", session_path, &e))?;
+
+        fs::write(session_path, marker_json.as_bytes()).map_err(|e| {
+            BgRemovalError::file_io_error("write session cache marker", session_path, &e)
+        })?;
 
         Ok(marker_json.len() as u64)
     }
-    
+
     /// Find CoreML optimized model file if it exists
+    ///
+    /// CoreML EP creates optimized .mlmodelc files that can be cached and reused.
+    /// These are typically stored in a dedicated cache directory when ModelCacheDirectory is set.
     fn find_coreml_optimized_model(&self, _session_path: &Path) -> Option<PathBuf> {
-        // CoreML often creates .mlmodelc directories with optimized models
-        // Look in common temporary directories where CoreML might store these
-        
-        let temp_dirs = [
-            std::env::temp_dir(),
-            PathBuf::from("/tmp"),
-            PathBuf::from("/var/tmp"),
-        ];
-        
-        for temp_dir in &temp_dirs {
-            if let Ok(entries) = fs::read_dir(temp_dir) {
+        // First check if we have a CoreML-specific cache directory in our session cache
+        let coreml_cache_dir = self.get_coreml_cache_dir();
+        if coreml_cache_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&coreml_cache_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.extension().and_then(|s| s.to_str()) == Some("mlmodelc") {
-                        // This might be our optimized model
                         if path.metadata().map(|m| m.len()).unwrap_or(0) > 0 {
+                            log::debug!("Found cached CoreML model: {}", path.display());
                             return Some(path);
                         }
                     }
                 }
             }
         }
-        
+
+        // Look for CoreML models in common temporary directories where CoreML might store them
+        let temp_dirs = [
+            std::env::temp_dir(),
+            PathBuf::from("/tmp"),
+            PathBuf::from("/var/tmp"),
+        ];
+
+        for temp_dir in &temp_dirs {
+            if let Ok(entries) = fs::read_dir(temp_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) == Some("mlmodelc") {
+                        // Check if this model was recently created (within last hour)
+                        if let Ok(metadata) = path.metadata() {
+                            if let Ok(modified) = metadata.modified() {
+                                if let Ok(elapsed) = modified.elapsed() {
+                                    if elapsed.as_secs() < 3600 && metadata.len() > 0 {
+                                        log::debug!(
+                                            "Found recent CoreML model: {}",
+                                            path.display()
+                                        );
+                                        return Some(path);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         None
     }
-    
+
     /// Cache an optimized model file
     fn cache_optimized_model(&self, optimized_path: &Path, cache_path: &Path) -> Result<u64> {
         // Copy the optimized model to our cache location
-        let cache_dir = cache_path.parent().ok_or_else(|| {
-            BgRemovalError::invalid_config("Invalid cache path".to_string())
-        })?;
-        
+        let cache_dir = cache_path
+            .parent()
+            .ok_or_else(|| BgRemovalError::invalid_config("Invalid cache path".to_string()))?;
+
         if !cache_dir.exists() {
             fs::create_dir_all(cache_dir)?;
         }
-        
+
         // If it's a directory (like .mlmodelc), copy recursively
         if optimized_path.is_dir() {
             self.copy_dir_recursive(optimized_path, cache_path)?;
         } else {
             fs::copy(optimized_path, cache_path)?;
         }
-        
+
         // Return the size of the cached data
         Self::calculate_dir_size(cache_path)
     }
-    
+
     /// Copy directory recursively
     fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
         if !dst.exists() {
             fs::create_dir_all(dst)?;
         }
-        
+
         for entry in fs::read_dir(src)? {
             let entry = entry?;
             let src_path = entry.path();
             let dst_path = dst.join(entry.file_name());
-            
+
             if src_path.is_dir() {
                 self.copy_dir_recursive(&src_path, &dst_path)?;
             } else {
                 fs::copy(&src_path, &dst_path)?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Calculate total size of a directory or file
     fn calculate_dir_size(path: &Path) -> Result<u64> {
         let mut total_size = 0u64;
-        
+
         if path.is_dir() {
             for entry in fs::read_dir(path)? {
                 let entry = entry?;
                 let entry_path = entry.path();
-                
+
                 if entry_path.is_dir() {
                     total_size += Self::calculate_dir_size(&entry_path)?;
                 } else {
@@ -698,7 +727,7 @@ impl SessionCache {
         } else {
             total_size = path.metadata()?.len();
         }
-        
+
         Ok(total_size)
     }
 
@@ -710,18 +739,19 @@ impl SessionCache {
         // Read the cache file to determine what type of cache we have
         let cache_content = fs::read_to_string(session_path)
             .map_err(|e| BgRemovalError::file_io_error("read session cache", session_path, &e))?;
-        
+
         // Try to parse as a cache marker to validate cache integrity
         if let Ok(marker) = serde_json::from_str::<SessionCacheMarker>(&cache_content) {
             log::debug!("Found valid session cache marker: {:?}", marker);
-            
+
             // For now, we don't rebuild sessions but provide faster cache management
             // This speeds up cache invalidation and provides better diagnostics
             return Err(BgRemovalError::invalid_config(
-                "Session cache validated - session will be recreated with optimized settings".to_string(),
+                "Session cache validated - session will be recreated with optimized settings"
+                    .to_string(),
             ));
         }
-        
+
         // If it's not a valid marker, this is an old/invalid cache
         Err(BgRemovalError::invalid_config(
             "Invalid session cache format - will recreate session".to_string(),
@@ -773,6 +803,11 @@ impl SessionCache {
     /// Get the current cache directory path
     pub fn get_current_cache_dir(&self) -> &PathBuf {
         &self.cache_dir
+    }
+
+    /// Get the CoreML model cache directory path
+    pub fn get_coreml_cache_dir(&self) -> PathBuf {
+        self.cache_dir.join("coreml_models")
     }
 }
 
