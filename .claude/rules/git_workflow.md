@@ -17,7 +17,7 @@
 For each new task, ALWAYS create a dedicated worktree:
 
 ```bash
-git worktree add ../project-feat-NAME_OF_FEATURE -b feat/NAME_OF_FEATURE
+git worktree add worktree/feat-NAME_OF_FEATURE -b feat/NAME_OF_FEATURE
 ```
 
 Branch naming conventions:
@@ -60,8 +60,8 @@ test(user): add unit tests for user registration
 ### 1. Start Every Task with Worktree Creation
 ```bash
 # ALWAYS start with this step - NO EXCEPTIONS
-git worktree add ../bg_remove-rs-feat-NAME_OF_FEATURE -b feat/NAME_OF_FEATURE
-cd ../bg_remove-rs-feat-NAME_OF_FEATURE
+git worktree add worktree/feat-NAME_OF_FEATURE -b feat/NAME_OF_FEATURE
+cd worktree/feat-NAME_OF_FEATURE
 ```
 
 ### 2. Complete Development in Feature Worktree
@@ -73,26 +73,26 @@ cd ../bg_remove-rs-feat-NAME_OF_FEATURE
 ### 3. Integration Back to Main
 ```bash
 # Switch back to main worktree
-cd ../bg_remove-rs
+cd ../..
 
 # Merge feature branch
 git merge feat/NAME_OF_FEATURE
 
 # Clean up worktree
-git worktree remove ../bg_remove-rs-feat-NAME_OF_FEATURE
+git worktree remove worktree/feat-NAME_OF_FEATURE
 git branch -d feat/NAME_OF_FEATURE  # Optional: delete merged branch
 ```
 
 ## Worktree Management Rules
 
 ### Directory Naming Convention
-Use consistent naming: `../bg_remove-rs-feat-NAME_OF_FEATURE`
+Use consistent naming: `worktree/feat-NAME_OF_FEATURE`
 
 Examples:
-- `../bg_remove-rs-feat-changeset-implementation`
-- `../bg_remove-rs-fix-memory-leak`
-- `../bg_remove-rs-docs-api-documentation`
-- `../bg_remove-rs-refactor-processor-architecture`
+- `worktree/feat-changeset-implementation`
+- `worktree/fix-memory-leak`
+- `worktree/docs-api-documentation`
+- `worktree/refactor-processor-architecture`
 
 ### When Worktrees Are Required
 - ✅ **ALWAYS**: New features, bug fixes, documentation, refactoring
@@ -135,7 +135,7 @@ Working directly on main branch is a **serious workflow violation** that:
 If you accidentally work on main:
 1. **Stop immediately** - make no more commits
 2. **Create feature branch**: `git checkout -b feat/NAME_OF_FEATURE`
-3. **Create worktree**: `git worktree add ../bg_remove-rs-feat-NAME_OF_FEATURE feat/NAME_OF_FEATURE`
+3. **Create worktree**: `git worktree add worktree/feat-NAME_OF_FEATURE feat/NAME_OF_FEATURE`
 4. **Continue work in worktree**
 5. **Reset main**: `git checkout main && git reset --hard HEAD~N` (where N is commits to undo)
 6. **Complete feature in worktree and merge properly**

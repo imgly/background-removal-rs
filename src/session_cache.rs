@@ -292,7 +292,9 @@ impl SessionCache {
                 && path
                     .file_stem()
                     .and_then(|s| s.to_str())
-                    .is_some_and(|s| s.ends_with(".meta"))
+                    .is_some_and(|s| Path::new(s)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("meta")))
             {
                 if let Ok(metadata_str) = fs::read_to_string(&path) {
                     if let Ok(entry) = serde_json::from_str::<SessionCacheEntry>(&metadata_str) {
@@ -413,6 +415,7 @@ impl SessionCache {
     /// - Failed to serialize session data
     /// - Failed to write session or metadata files
     /// - I/O errors during caching operations
+    #[allow(clippy::too_many_arguments)]
     pub fn cache_session(
         &mut self,
         session: &Session,
@@ -530,7 +533,7 @@ impl SessionCache {
             return Ok(None);
         }
 
-        match self.try_deserialize_session(&session_path) {
+        match Self::try_deserialize_session(&session_path) {
             Ok(session) => {
                 // Update last accessed time
                 if let Some(entry) = self.metadata_cache.get_mut(cache_key) {
@@ -570,7 +573,7 @@ impl SessionCache {
 
         // For CoreML, try to find and cache the optimized model from CoreML cache directory
         if let Some(optimized_model_path) = self.find_coreml_optimized_model(session_path) {
-            return self.cache_optimized_model(&optimized_model_path, session_path);
+            return Self::cache_optimized_model(&optimized_model_path, session_path);
         }
 
         // For other providers, create a metadata-only cache marker
@@ -660,7 +663,7 @@ impl SessionCache {
     }
 
     /// Cache an optimized model file
-    fn cache_optimized_model(&self, optimized_path: &Path, cache_path: &Path) -> Result<u64> {
+    fn cache_optimized_model(optimized_path: &Path, cache_path: &Path) -> Result<u64> {
         // Copy the optimized model to our cache location
         let cache_dir = cache_path
             .parent()
@@ -672,7 +675,7 @@ impl SessionCache {
 
         // If it's a directory (like .mlmodelc), copy recursively
         if optimized_path.is_dir() {
-            self.copy_dir_recursive(optimized_path, cache_path)?;
+            Self::copy_dir_recursive(optimized_path, cache_path)?;
         } else {
             fs::copy(optimized_path, cache_path)?;
         }
@@ -682,7 +685,7 @@ impl SessionCache {
     }
 
     /// Copy directory recursively
-    fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
+    fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
         if !dst.exists() {
             fs::create_dir_all(dst)?;
         }
@@ -693,7 +696,7 @@ impl SessionCache {
             let dst_path = dst.join(entry.file_name());
 
             if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path)?;
+                Self::copy_dir_recursive(&src_path, &dst_path)?;
             } else {
                 fs::copy(&src_path, &dst_path)?;
             }
@@ -728,7 +731,7 @@ impl SessionCache {
     ///
     /// Since ONNX Runtime session rebuilding is complex and provider-dependent,
     /// this implementation validates cache metadata and provides fast cache invalidation
-    fn try_deserialize_session(&self, session_path: &Path) -> Result<Session> {
+    fn try_deserialize_session(session_path: &Path) -> Result<Session> {
         // Read the cache file to determine what type of cache we have
         let cache_content = fs::read_to_string(session_path)
             .map_err(|e| BgRemovalError::file_io_error("read session cache", session_path, &e))?;

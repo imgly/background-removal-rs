@@ -28,8 +28,8 @@ You MUST create a git worktree for ALL development activities. Working directly 
 ### 1. Start Every Task with Worktree Creation
 ```bash
 # ALWAYS the first command - NO EXCEPTIONS
-git worktree add ../bg_remove-rs-feat-DESCRIPTIVE_NAME -b feat/DESCRIPTIVE_NAME
-cd ../bg_remove-rs-feat-DESCRIPTIVE_NAME
+git worktree add worktree/feat-DESCRIPTIVE_NAME -b feat/DESCRIPTIVE_NAME
+cd worktree/feat-DESCRIPTIVE_NAME
 ```
 
 ### 2. Complete ALL Work in Feature Worktree
@@ -40,8 +40,8 @@ cd ../bg_remove-rs-feat-DESCRIPTIVE_NAME
 
 ### 3. Merge Back to Main When Complete
 ```bash
-# Switch back to main worktree
-cd ../bg_remove-rs
+# Switch back to main worktree (project root)
+cd ../..
 
 # Validate main branch is clean
 git status
@@ -50,7 +50,7 @@ git status
 git merge feat/DESCRIPTIVE_NAME
 
 # Clean up worktree
-git worktree remove ../bg_remove-rs-feat-DESCRIPTIVE_NAME
+git worktree remove worktree/feat-DESCRIPTIVE_NAME
 ```
 
 ## Branch Naming Standards
@@ -84,14 +84,14 @@ Use descriptive names with appropriate prefixes:
 
 ## Directory Naming Convention
 
-Always use the project name prefix for consistency:
+Always use the worktree subdirectory with descriptive names:
 
 ```
-../bg_remove-rs-feat-FEATURE_NAME
-../bg_remove-rs-fix-BUG_NAME
-../bg_remove-rs-docs-DOC_NAME
-../bg_remove-rs-refactor-REFACTOR_NAME
-../bg_remove-rs-chore-TASK_NAME
+worktree/feat-FEATURE_NAME
+worktree/fix-BUG_NAME
+worktree/docs-DOC_NAME
+worktree/refactor-REFACTOR_NAME
+worktree/chore-TASK_NAME
 ```
 
 ## Benefits of Mandatory Worktree Usage
@@ -134,15 +134,15 @@ If you accidentally start work on main:
 git checkout -b feat/RECOVERY_FEATURE_NAME
 
 # 3. Create worktree for the feature branch
-git worktree add ../bg_remove-rs-feat-RECOVERY_FEATURE_NAME feat/RECOVERY_FEATURE_NAME
-cd ../bg_remove-rs-feat-RECOVERY_FEATURE_NAME
+git worktree add worktree/feat-RECOVERY_FEATURE_NAME feat/RECOVERY_FEATURE_NAME
+cd worktree/feat-RECOVERY_FEATURE_NAME
 
 # 4. Reset main to clean state
-cd ../bg_remove-rs
+cd ../..
 git reset --hard HEAD~N  # N = number of commits to undo
 
 # 5. Continue development in feature worktree
-cd ../bg_remove-rs-feat-RECOVERY_FEATURE_NAME
+cd worktree/feat-RECOVERY_FEATURE_NAME
 # Continue your work here
 ```
 
@@ -171,10 +171,10 @@ cd ../bg_remove-rs-feat-RECOVERY_FEATURE_NAME
 git worktree list
 
 # Remove a worktree (when done)
-git worktree remove ../bg_remove-rs-feat-FEATURE_NAME
+git worktree remove worktree/feat-FEATURE_NAME
 
 # Remove worktree and delete branch
-git worktree remove ../bg_remove-rs-feat-FEATURE_NAME
+git worktree remove worktree/feat-FEATURE_NAME
 git branch -d feat/FEATURE_NAME
 
 # Prune deleted worktrees
@@ -184,7 +184,7 @@ git worktree prune
 ### Worktree Status Check
 ```bash
 # Check worktree status before merging
-cd ../bg_remove-rs-feat-FEATURE_NAME
+cd worktree/feat-FEATURE_NAME
 git status
 cargo check
 cargo test

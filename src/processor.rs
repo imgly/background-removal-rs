@@ -95,6 +95,7 @@ impl BackendFactory for DefaultBackendFactory {
 
 /// Unified configuration for the background removal processor
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ProcessorConfig {
     /// Model specification (embedded or external)
     pub model_spec: ModelSpec,
@@ -647,7 +648,7 @@ impl BackgroundRemovalProcessor {
         }
 
         let postprocess_start = Instant::now();
-        let mask = self.tensor_to_mask(output_tensor, original_dimensions)?;
+        let mask = Self::tensor_to_mask(output_tensor, original_dimensions)?;
 
         // Apply background removal
         if let Some(ref mut tracker) = self.progress_tracker {
@@ -718,14 +719,13 @@ impl BackgroundRemovalProcessor {
 
     /// Convert output tensor to segmentation mask with proper aspect ratio handling
     fn tensor_to_mask(
-        &self,
         tensor: &Array4<f32>,
         original_dimensions: (u32, u32),
     ) -> Result<SegmentationMask> {
         Self::validate_tensor_shape(tensor)?;
         let transformation = Self::calculate_inverse_transformation(tensor, original_dimensions);
         let mask_data =
-            self.extract_mask_values_from_tensor(tensor, original_dimensions, &transformation);
+            Self::extract_mask_values_from_tensor(tensor, original_dimensions, &transformation);
         Ok(SegmentationMask::new(mask_data, original_dimensions))
     }
 
@@ -779,7 +779,6 @@ impl BackgroundRemovalProcessor {
 
     /// Extract mask values from tensor using coordinate transformation
     fn extract_mask_values_from_tensor(
-        &self,
         tensor: &Array4<f32>,
         original_dimensions: (u32, u32),
         transformation: &CoordinateTransformation,
@@ -877,7 +876,7 @@ impl BackgroundRemovalProcessor {
         let output_tensor = backend.infer(&input_tensor)?;
 
         // Convert to mask
-        self.tensor_to_mask(&output_tensor, original_dimensions)
+        Self::tensor_to_mask(&output_tensor, original_dimensions)
     }
 
     /// Apply a pre-computed segmentation mask to an image for background removal

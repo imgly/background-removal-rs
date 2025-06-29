@@ -6,8 +6,8 @@ When starting any new plan or feature implementation, follow these steps:
 Before ANY implementation work begins, you MUST create a git worktree:
 
 ```bash
-git worktree add ../bg_remove-rs-feat-FEATURE_NAME -b feat/FEATURE_NAME
-cd ../bg_remove-rs-feat-FEATURE_NAME
+git worktree add worktree/feat-FEATURE_NAME -b feat/FEATURE_NAME
+cd worktree/feat-FEATURE_NAME
 ```
 
 **NEVER work directly on main branch.** All development must happen in isolated worktrees.
@@ -73,13 +73,13 @@ cargo check
 cargo fmt
 
 # Switch back to main
-cd ../bg_remove-rs
+cd ../..
 
 # Merge feature branch
 git merge feat/FEATURE_NAME
 
 # Clean up
-git worktree remove ../bg_remove-rs-feat-FEATURE_NAME
+git worktree remove worktree/feat-FEATURE_NAME
 ```
 
 ## 8. Enforcement

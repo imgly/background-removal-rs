@@ -301,7 +301,9 @@ impl ExternalModelProvider {
         if let Ok(entries) = fs::read_dir(&onnx_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str() {
-                    if file_name.ends_with(".onnx") {
+                    if Path::new(file_name)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx")) {
                         if file_name == "model.onnx" {
                             available_variants.push("fp32".to_string());
                         } else if file_name == "model_fp16.onnx" {
@@ -561,8 +563,7 @@ impl ExternalModelProvider {
                 let onnx_dir = self.model_path.join("onnx");
                 match self.variant.as_str() {
                     "fp16" => onnx_dir.join("model_fp16.onnx"),
-                    "fp32" => onnx_dir.join("model.onnx"),
-                    _ => onnx_dir.join("model.onnx"), // Fallback to default
+                    _ => onnx_dir.join("model.onnx"), // Default for fp32 and others
                 }
             },
         }
@@ -727,9 +728,9 @@ impl ExternalModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let std0 = (image_std.get(0).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
-        let std1 = (image_std.get(1).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
-        let std2 = (image_std.get(2).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
+        let std0 = (image_std.first().and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
+        let std1 = (image_std.get(1).and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
+        let std2 = (image_std.get(2).and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
 
         Ok([std0, std1, std2])
     }
@@ -1198,7 +1199,9 @@ impl DownloadedModelProvider {
         if let Ok(entries) = fs::read_dir(&onnx_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str() {
-                    if file_name.ends_with(".onnx") {
+                    if Path::new(file_name)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx")) {
                         match file_name {
                             "model.onnx" => available_variants.push("fp32".to_string()),
                             "model_fp16.onnx" => available_variants.push("fp16".to_string()),
