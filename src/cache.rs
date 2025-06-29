@@ -214,7 +214,7 @@ impl ModelCache {
                 if let Some(file_name) = entry.file_name().to_str() {
                     if Path::new(file_name)
                         .extension()
-                        .map_or(false, |ext| ext.eq_ignore_ascii_case("onnx"))
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
                     {
                         match file_name {
                             "model.onnx" => variants.push("fp32".to_string()),
@@ -251,23 +251,24 @@ impl ModelCache {
     fn calculate_directory_size(dir_path: &Path) -> Result<u64> {
         let mut total_size = 0;
 
-        fn visit_dir(dir: &Path, total: &mut u64) -> std::io::Result<()> {
-            for entry in fs::read_dir(dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_dir() {
-                    visit_dir(&path, total)?;
-                } else {
-                    *total += entry.metadata()?.len();
-                }
-            }
-            Ok(())
-        }
-
-        visit_dir(dir_path, &mut total_size)
+        Self::visit_dir(dir_path, &mut total_size)
             .map_err(|e| BgRemovalError::file_io_error("calculate directory size", dir_path, &e))?;
 
         Ok(total_size)
+    }
+
+    /// Recursively visit directory and accumulate file sizes
+    fn visit_dir(dir: &Path, total: &mut u64) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                Self::visit_dir(&path, total)?;
+            } else {
+                *total += entry.metadata()?.len();
+            }
+        }
+        Ok(())
     }
 
     /// Get the default model ID (`ISNet` General)
@@ -405,7 +406,7 @@ impl ModelCache {
     /// # Errors
     /// - Failed to create cache directory
     /// - Insufficient permissions to access cache directory
-    pub fn with_custom_cache_dir(cache_dir: PathBuf) -> Result<Self> {
+    pub fn with_custom_cache_dir(cache_dir: &Path) -> Result<Self> {
         let models_dir = cache_dir.join("models");
 
         // Ensure cache directory exists
@@ -446,9 +447,9 @@ pub fn format_size(bytes: u64) -> String {
     }
 
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{} {}", bytes, UNITS.get(unit_index).unwrap_or(&"B"))
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{:.1} {}", size, UNITS.get(unit_index).unwrap_or(&"B"))
     }
 }
 
@@ -521,7 +522,7 @@ mod tests {
         let custom_cache = temp_dir.path().join("custom_cache");
 
         // Create cache with custom directory
-        let cache = ModelCache::with_custom_cache_dir(custom_cache.clone()).unwrap();
+        let cache = ModelCache::with_custom_cache_dir(custom_cache.as_path()).unwrap();
 
         // Verify the cache directory was created
         assert!(custom_cache.join("models").exists());
@@ -531,7 +532,7 @@ mod tests {
     #[test]
     fn test_clear_specific_model() {
         let temp_dir = TempDir::new().unwrap();
-        let cache = ModelCache::with_custom_cache_dir(temp_dir.path().to_path_buf()).unwrap();
+        let cache = ModelCache::with_custom_cache_dir(temp_dir.path()).unwrap();
 
         let model_id = "test-model";
         let model_path = cache.get_model_path(model_id);
@@ -553,7 +554,7 @@ mod tests {
     #[test]
     fn test_clear_all_models() {
         let temp_dir = TempDir::new().unwrap();
-        let cache = ModelCache::with_custom_cache_dir(temp_dir.path().to_path_buf()).unwrap();
+        let cache = ModelCache::with_custom_cache_dir(temp_dir.path()).unwrap();
 
         // Create some fake model directories
         let model_ids = vec!["model1", "model2", "model3"];

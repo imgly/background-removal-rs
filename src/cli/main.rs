@@ -17,6 +17,7 @@ use std::time::Instant;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(name = "imgly-bgremove")]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
     /// Input image files or directories (use "-" for stdin)
     #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models", "clear_cache", "show_cache_dir"])]
@@ -116,7 +117,8 @@ pub async fn main() -> Result<()> {
 
     // Handle special flags that don't require inputs
     if cli.show_providers {
-        return show_provider_diagnostics();
+        show_provider_diagnostics();
+        return Ok(());
     }
 
     if cli.list_models {
@@ -249,7 +251,7 @@ fn init_logging(verbose_count: u8) {
 }
 
 /// Display execution provider diagnostics using core utilities
-fn show_provider_diagnostics() -> Result<()> {
+fn show_provider_diagnostics() {
     println!("🔍 Backend and Execution Provider Diagnostics");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
@@ -341,8 +343,6 @@ fn show_provider_diagnostics() -> Result<()> {
     println!("  • Tract backend is pure Rust with no external dependencies");
     println!("  • Mock backend is for testing and debugging purposes");
     println!("  • CPU provider is always available as fallback for all backends");
-
-    Ok(())
 }
 
 /// List cached models available for processing
@@ -449,7 +449,7 @@ async fn clear_cache_models(cli: &Cli) -> Result<()> {
     // Get cache instance (with custom directory if specified)
     let cache = if let Some(cache_dir_str) = &cli.cache_dir {
         let cache_dir_path = PathBuf::from(cache_dir_str);
-        ModelCache::with_custom_cache_dir(cache_dir_path)
+        ModelCache::with_custom_cache_dir(cache_dir_path.as_path())
             .context("Failed to create cache with custom directory")?
     } else {
         ModelCache::new().context("Failed to create model cache")?
@@ -568,7 +568,7 @@ fn show_current_cache_dir() -> Result<()> {
 /// Process multiple inputs efficiently using the unified processor
 async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -> Result<usize> {
     // Handle stdin specially (single input)
-    if cli.input.len() == 1 && cli.input[0] == "-" {
+    if cli.input.len() == 1 && cli.input.get(0).map_or(false, |s| s == "-") {
         return process_stdin(&cli.output, processor).await;
     }
 

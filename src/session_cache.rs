@@ -826,9 +826,9 @@ pub fn format_cache_size(bytes: u64) -> String {
     }
 
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{} {}", bytes, UNITS.get(unit_index).unwrap_or(&"B"))
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{:.1} {}", size, UNITS.get(unit_index).unwrap_or(&"B"))
     }
 }
 
