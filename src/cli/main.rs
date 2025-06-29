@@ -12,7 +12,7 @@ use log::{error, info, warn};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tracing::{debug, info as trace_info, trace};
+use tracing::{debug, info as trace_info, trace, warn as trace_warn};
 
 /// Background removal CLI tool
 #[derive(Parser)]
@@ -241,16 +241,16 @@ fn init_tracing(verbose_count: u8) -> Result<()> {
 
     if verbose_count > 0 {
         match verbose_count {
-            1 => trace_info!("ℹ️  Info level: Showing informational messages"),
-            2 => debug!("🔧 Debug level: Showing internal state and computations"),
-            3 => trace!("🔍 Trace level: Showing extremely detailed traces"),
+            1 => trace_warn!("⚠️  Warning level: Showing warnings and errors"),
+            2 => trace_info!("ℹ️  Info level: Showing informational messages"),
+            3 => debug!("🔧 Debug level: Showing internal state and computations"),
             _ => trace!("🔍 Trace level: Showing extremely detailed traces"),
         }
         let log_level = match verbose_count {
-            0 => "warn",
-            1 => "info",
-            2 => "debug",
-            3 => "trace",
+            0 => "error",
+            1 => "warn",
+            2 => "info",
+            3 => "debug",
             _ => "trace",
         };
         debug!(log_level = %log_level, "Tracing initialized");

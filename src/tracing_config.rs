@@ -98,10 +98,10 @@ impl TracingConfig {
     /// Convert verbosity level to tracing filter string
     pub fn verbosity_to_filter(&self) -> &'static str {
         match self.verbosity {
-            0 => "warn",  // Default: warnings and errors
-            1 => "info",  // -v: informational messages and above
-            2 => "debug", // -vv: internal state and computations
-            3 => "trace", // -vvv: extremely detailed traces
+            0 => "error", // Default: only errors
+            1 => "warn",  // -v: warnings and errors
+            2 => "info",  // -vv: informational messages and above
+            3 => "debug", // -vvv: internal state and computations
             _ => "trace", // -vvvv+: extremely detailed traces
         }
     }
@@ -473,10 +473,10 @@ mod tests {
 
     #[test]
     fn test_verbosity_mapping() {
-        assert_eq!(TracingConfig::new().with_verbosity(0).verbosity_to_filter(), "warn");
-        assert_eq!(TracingConfig::new().with_verbosity(1).verbosity_to_filter(), "info");
-        assert_eq!(TracingConfig::new().with_verbosity(2).verbosity_to_filter(), "debug");
-        assert_eq!(TracingConfig::new().with_verbosity(3).verbosity_to_filter(), "trace");
+        assert_eq!(TracingConfig::new().with_verbosity(0).verbosity_to_filter(), "error");
+        assert_eq!(TracingConfig::new().with_verbosity(1).verbosity_to_filter(), "warn");
+        assert_eq!(TracingConfig::new().with_verbosity(2).verbosity_to_filter(), "info");
+        assert_eq!(TracingConfig::new().with_verbosity(3).verbosity_to_filter(), "debug");
         assert_eq!(TracingConfig::new().with_verbosity(4).verbosity_to_filter(), "trace");
         assert_eq!(TracingConfig::new().with_verbosity(10).verbosity_to_filter(), "trace");
     }

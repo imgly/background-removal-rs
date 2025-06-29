@@ -127,22 +127,22 @@ impl CliConfigBuilder {
 
     /// Show available downloaded models when no model is specified
     fn show_available_models_info() {
+        use tracing::info;
         {
             use crate::cache::ModelCache;
             if let Ok(cache) = ModelCache::new() {
                 if let Ok(downloaded_models) = cache.scan_cached_models() {
                     if !downloaded_models.is_empty() {
-                        println!("📦 Available downloaded models:");
+                        info!("📦 Available downloaded models:");
                         for model in &downloaded_models {
-                            println!("  • {} ({})", model.model_id, model.variants.join(", "));
+                            info!("  • {} ({})", model.model_id, model.variants.join(", "));
                         }
-                        println!(
+                        info!(
                             "💡 To use a specific model: imgly-bgremove --model MODEL_ID input.jpg"
                         );
                         if let Some(first_model) = downloaded_models.first() {
-                            println!("Using first available model: {}", first_model.model_id);
+                            info!("Using first available model: {}", first_model.model_id);
                         }
-                        println!();
                     }
                 }
             }
