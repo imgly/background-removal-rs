@@ -612,11 +612,11 @@ impl SessionCache {
             if let Ok(entries) = fs::read_dir(&coreml_cache_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().and_then(|s| s.to_str()) == Some("mlmodelc") {
-                        if path.metadata().map(|m| m.len()).unwrap_or(0) > 0 {
-                            log::debug!("Found cached CoreML model: {}", path.display());
-                            return Some(path);
-                        }
+                    if path.extension().and_then(|s| s.to_str()) == Some("mlmodelc")
+                        && path.metadata().map(|m| m.len()).unwrap_or(0) > 0
+                    {
+                        log::debug!("Found cached CoreML model: {}", path.display());
+                        return Some(path);
                     }
                 }
             }

@@ -7,7 +7,7 @@
 //! # IMG.LY Background Removal Library
 //!
 //! A high-performance Rust library for background removal using ONNX Runtime and Tract backends
-//! with support for multiple neural network models including ISNet, BiRefNet, and BiRefNet Lite.
+//! with support for multiple neural network models including `ISNet`, `BiRefNet`, and `BiRefNet` Lite.
 //!
 //! This consolidated library provides efficient background removal capabilities with support for
 //! multiple image formats, execution providers, and model configurations. It's designed to be
@@ -15,7 +15,7 @@
 //!
 //! ## Features
 //!
-//! - **Multiple Models**: ISNet, BiRefNet, BiRefNet Lite with FP16/FP32 variants
+//! - **Multiple Models**: `ISNet`, `BiRefNet`, `BiRefNet` Lite with FP16/FP32 variants
 //! - **Multiple Backends**: ONNX Runtime (GPU acceleration) and Tract (Pure Rust)
 //! - **Format Support**: JPEG, PNG, WebP, BMP, TIFF with ICC color profile preservation
 //! - **Hardware Acceleration**: CUDA, CoreML, and CPU execution providers
@@ -355,6 +355,7 @@ pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
             let mask_y = (y as f32 * height as f32 / original_dimensions.1 as f32) as usize;
 
             let mask_value = if mask_x < width && mask_y < height {
+                #[allow(clippy::indexing_slicing)]
                 output_tensor[[0, 0, mask_y.min(height - 1), mask_x.min(width - 1)]]
             } else {
                 0.0
@@ -446,7 +447,7 @@ pub async fn remove_background_from_bytes(
     remove_background_from_image(image, config, model_spec).await
 }
 
-/// Remove background from a DynamicImage directly
+/// Remove background from a `DynamicImage` directly
 ///
 /// This is the most flexible API for in-memory image processing. It accepts
 /// a pre-loaded `DynamicImage` and processes it without any file I/O.
@@ -617,7 +618,15 @@ pub async fn remove_background_simple_bytes(image_bytes: &[u8]) -> Result<Vec<u8
     }
 
     let model_spec = ModelSpec {
-        source: ModelSource::Downloaded(cached_models[0].model_id.clone()),
+        source: ModelSource::Downloaded(
+            cached_models
+                .first()
+                .ok_or_else(|| {
+                    BgRemovalError::invalid_config("No cached models available".to_string())
+                })?
+                .model_id
+                .clone(),
+        ),
         variant: None,
     };
 
@@ -639,7 +648,7 @@ pub async fn remove_background_simple_bytes(image_bytes: &[u8]) -> Result<Vec<u8
 /// * `model_spec` - Specification of which model to use
 ///
 /// # Returns
-/// Image bytes in the format specified by config.output_format
+/// Image bytes in the format specified by `config.output_format`
 ///
 /// # Examples
 /// ```rust,no_run

@@ -2,9 +2,6 @@
 //!
 //! Command-line interface for removing backgrounds from images using the unified processor.
 
-mod backend_factory;
-mod config;
-
 use super::backend_factory::CliBackendFactory;
 use super::config::CliConfigBuilder;
 use crate::{processor::BackgroundRemovalProcessor, utils::ExecutionProviderManager};

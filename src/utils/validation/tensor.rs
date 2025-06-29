@@ -112,7 +112,7 @@ impl TensorValidator {
     pub fn validate_tensor_value_range(tensor: &Array4<f32>, min: f32, max: f32) -> Result<()> {
         for value in tensor.iter() {
             if *value < min || *value > max {
-                return Err(BgRemovalError::processing(&format!(
+                return Err(BgRemovalError::processing(format!(
                     "Tensor value {} out of range [{}, {}]",
                     value, min, max
                 )));
@@ -130,7 +130,7 @@ impl TensorValidator {
     pub fn validate_mask_dimensions(mask_data_len: usize, width: u32, height: u32) -> Result<()> {
         let expected_len = (width * height) as usize;
         if mask_data_len != expected_len {
-            return Err(BgRemovalError::processing(&format!(
+            return Err(BgRemovalError::processing(format!(
                 "Mask data length {} doesn't match image dimensions {}x{} (expected {} pixels)",
                 mask_data_len, width, height, expected_len
             )));
@@ -141,14 +141,14 @@ impl TensorValidator {
     /// Validate preprocessing target size
     pub fn validate_target_size(size: &[u64]) -> Result<(u32, u32)> {
         if size.len() != 2 {
-            return Err(BgRemovalError::invalid_config(&format!(
+            return Err(BgRemovalError::invalid_config(format!(
                 "Target size must have exactly 2 dimensions, got {}",
                 size.len()
             )));
         }
 
-        let width = size[0] as u32;
-        let height = size[1] as u32;
+        let width = size.get(0).copied().unwrap_or(0) as u32;
+        let height = size.get(1).copied().unwrap_or(0) as u32;
 
         Self::validate_image_dimensions(width, height)?;
 

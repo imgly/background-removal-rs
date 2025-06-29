@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Changed package name from bg-remove-* to imgly-bgremove
 - **BREAKING**: Updated CLI binary name to imgly-bgremove
 - **BREAKING**: Import paths changed from bg_remove_* to imgly_bgremove
+- Improved code quality by fixing 248 clippy warnings including:
+  - Fixed missing backticks in documentation for technical terms
+  - Collapsed nested if statements for better readability
+  - Removed needless borrows for cleaner code
+  - Improved safety with safer indexing methods
+  - Fixed duplicate module declarations
 - Default features now include all backends and CLI functionality
 - Improved error messages with contextual information and troubleshooting suggestions
 - Enhanced performance with optimized threading and provider selection
