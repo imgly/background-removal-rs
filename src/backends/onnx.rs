@@ -26,6 +26,8 @@ pub struct OnnxBackend {
     initialized: bool,
     #[cfg(feature = "cli")]
     session_cache: Option<SessionCache>,
+    /// Time taken to load and initialize the model
+    model_load_time: Option<std::time::Duration>,
 }
 
 impl OnnxBackend {
@@ -151,6 +153,7 @@ impl OnnxBackend {
             initialized: false,
             #[cfg(feature = "cli")]
             session_cache: SessionCache::new().ok(),
+            model_load_time: None,
         }
     }
 
@@ -163,6 +166,7 @@ impl OnnxBackend {
             initialized: false,
             #[cfg(feature = "cli")]
             session_cache: SessionCache::new().ok(),
+            model_load_time: None,
         }
     }
 
@@ -217,6 +221,7 @@ impl OnnxBackend {
                 self.initialized = true;
 
                 let model_load_time = model_load_start.elapsed();
+                self.model_load_time = Some(model_load_time);
                 log::info!(
                     "📊 Model loading complete (cached): {:.0}ms",
                     model_load_time.as_secs_f64() * 1000.0
@@ -532,6 +537,7 @@ impl OnnxBackend {
         self.initialized = true;
 
         let model_load_time = model_load_start.elapsed();
+        self.model_load_time = Some(model_load_time);
         log::info!(
             "📊 Model loading complete: {:.0}ms",
             model_load_time.as_secs_f64() * 1000.0
@@ -698,6 +704,15 @@ impl InferenceBackend for OnnxBackend {
             total_inference_time.as_secs_f64() * 1000.0
         );
         log::debug!("  └─ Breakdown:");
+
+        // Include model load time if available
+        if let Some(load_time) = self.model_load_time {
+            log::debug!(
+                "     ├─ Model load/init: {:.2}ms (one-time)",
+                load_time.as_secs_f64() * 1000.0
+            );
+        }
+
         log::debug!(
             "     ├─ Tensor conversion: {:.2}ms ({:.1}%)",
             tensor_conversion_time.as_secs_f64() * 1000.0,
