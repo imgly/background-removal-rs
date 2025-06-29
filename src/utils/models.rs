@@ -255,7 +255,7 @@ mod tests {
         let spec = ModelSpecParser::parse("imgly--isnet-general-onnx");
         match spec.source {
             ModelSource::Downloaded(model_id) => assert_eq!(model_id, "imgly--isnet-general-onnx"),
-            _ => panic!("Expected downloaded model"),
+            ModelSource::External(_) => panic!("Expected downloaded model"),
         }
         assert_eq!(spec.variant, None);
     }
@@ -265,7 +265,7 @@ mod tests {
         let spec = ModelSpecParser::parse("imgly--birefnet-portrait:fp32");
         match spec.source {
             ModelSource::Downloaded(model_id) => assert_eq!(model_id, "imgly--birefnet-portrait"),
-            _ => panic!("Expected downloaded model"),
+            ModelSource::External(_) => panic!("Expected downloaded model"),
         }
         assert_eq!(spec.variant, Some("fp32".to_string()));
     }
@@ -281,7 +281,7 @@ mod tests {
                 #[cfg(not(feature = "cli"))]
                 assert_eq!(model_id, "https://huggingface.co/imgly/isnet-general-onnx");
             },
-            _ => panic!("Expected downloaded model for URL"),
+            ModelSource::External(_) => panic!("Expected downloaded model for URL"),
         }
     }
 
@@ -303,7 +303,7 @@ mod tests {
                     "ModelSpecParser should produce same result as direct cache call"
                 );
             },
-            _ => panic!("Expected downloaded model for URL"),
+            ModelSource::External(_) => panic!("Expected downloaded model for URL"),
         }
     }
 

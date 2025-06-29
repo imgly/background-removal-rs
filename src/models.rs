@@ -1361,9 +1361,9 @@ impl DownloadedModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let std0 = (image_std[0].as_f64().unwrap_or(255.0) / 255.0) as f32;
-        let std1 = (image_std[1].as_f64().unwrap_or(255.0) / 255.0) as f32;
-        let std2 = (image_std[2].as_f64().unwrap_or(255.0) / 255.0) as f32;
+        let std0 = (image_std.get(0).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
+        let std1 = (image_std.get(1).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
+        let std2 = (image_std.get(2).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
 
         Ok([std0, std1, std2])
     }

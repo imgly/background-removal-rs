@@ -920,41 +920,41 @@ fn detect_image_format(data: &[u8]) -> Option<&'static str> {
     }
 
     // PNG: 89 50 4E 47 0D 0A 1A 0A
-    if data.len() >= 8 && data.get(0..8).map_or(false, |slice| slice == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+    if data.len() >= 8 && data.get(0..8).is_some_and(|slice| slice == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
         return Some("png");
     }
 
     // JPEG: FF D8 FF
-    if data.len() >= 3 && data.get(0..3).map_or(false, |slice| slice == [0xFF, 0xD8, 0xFF]) {
+    if data.len() >= 3 && data.get(0..3).is_some_and(|slice| slice == [0xFF, 0xD8, 0xFF]) {
         return Some("jpg");
     }
 
     // WebP: RIFF....WEBP
     if data.len() >= 12
-        && data.get(0..4).map_or(false, |slice| slice == [0x52, 0x49, 0x46, 0x46]) // "RIFF"
-        && data.get(8..12).map_or(false, |slice| slice == [0x57, 0x45, 0x42, 0x50])
+        && data.get(0..4).is_some_and(|slice| slice == [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        && data.get(8..12).is_some_and(|slice| slice == [0x57, 0x45, 0x42, 0x50])
     // "WEBP"
     {
         return Some("webp");
     }
 
     // TIFF (Little Endian): 49 49 2A 00
-    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x49, 0x49, 0x2A, 0x00]) {
+    if data.len() >= 4 && data.get(0..4).is_some_and(|slice| slice == [0x49, 0x49, 0x2A, 0x00]) {
         return Some("tiff");
     }
 
     // TIFF (Big Endian): 4D 4D 00 2A
-    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x4D, 0x4D, 0x00, 0x2A]) {
+    if data.len() >= 4 && data.get(0..4).is_some_and(|slice| slice == [0x4D, 0x4D, 0x00, 0x2A]) {
         return Some("tiff");
     }
 
     // BMP: 42 4D (check at least 2 bytes but ensure we have 4 bytes for consistent logic)
-    if data.len() >= 2 && data.get(0..2).map_or(false, |slice| slice == [0x42, 0x4D]) {
+    if data.len() >= 2 && data.get(0..2).is_some_and(|slice| slice == [0x42, 0x4D]) {
         return Some("bmp");
     }
 
     // GIF: 47 49 46 38 (GIF8)
-    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x47, 0x49, 0x46, 0x38]) {
+    if data.len() >= 4 && data.get(0..4).is_some_and(|slice| slice == [0x47, 0x49, 0x46, 0x38]) {
         return Some("gif");
     }
 

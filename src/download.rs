@@ -138,12 +138,12 @@ impl ModelDownloader {
         }
 
         // Create temporary directory for atomic download
-        let temp_dir = self.create_temp_download_dir(&model_id)?;
+        let temp_dir = Self::create_temp_download_dir(&model_id)?;
         let final_dir = self.cache.get_model_path(&model_id);
 
         // Setup progress reporting
         let progress = if show_progress {
-            Some(self.create_progress_indicator())
+            Some(Self::create_progress_indicator())
         } else {
             None
         };
@@ -194,7 +194,7 @@ impl ModelDownloader {
     }
 
     /// Create a temporary directory for downloading
-    fn create_temp_download_dir(&self, model_id: &str) -> Result<PathBuf> {
+    fn create_temp_download_dir(model_id: &str) -> Result<PathBuf> {
         let temp_dir = std::env::temp_dir().join(format!("imgly-bgremove-{}", model_id));
 
         if temp_dir.exists() {
@@ -210,7 +210,7 @@ impl ModelDownloader {
     }
 
     /// Create a progress indicator for download reporting
-    fn create_progress_indicator(&self) -> ProgressIndicator {
+    fn create_progress_indicator() -> ProgressIndicator {
         #[cfg(feature = "cli")]
         {
             let pb = ProgressBar::new(100);
