@@ -287,7 +287,7 @@ impl ImageIOService {
         _format_hint: Option<image::ImageFormat>,
     ) -> Result<DynamicImage> {
         use tokio::io::AsyncReadExt;
-        
+
         // Read all data from the stream into memory
         let mut buffer = Vec::new();
         AsyncReadExt::read_to_end(&mut reader, &mut buffer)
@@ -340,7 +340,7 @@ impl ImageIOService {
         quality: u8,
     ) -> Result<u64> {
         use tokio::io::AsyncWriteExt;
-        
+
         // Encode to bytes using existing format handling logic
         let bytes = match format {
             OutputFormat::Png => {

@@ -243,7 +243,7 @@ impl ModelDownloader {
             )));
         }
 
-        // Create base raw URL for file downloads  
+        // Create base raw URL for file downloads
         let raw_base = format!("{}/resolve/main/", base_url);
 
         // Download required configuration files
@@ -485,8 +485,14 @@ pub fn parse_huggingface_url(url: &str) -> Result<(String, String)> {
     }
 
     Ok((
-        (*parts.first().ok_or_else(|| BgRemovalError::invalid_config("Missing username in URL".to_string()))?).to_string(),
-        (*parts.get(1).ok_or_else(|| BgRemovalError::invalid_config("Missing repository name in URL".to_string()))?).to_string(),
+        (*parts.first().ok_or_else(|| {
+            BgRemovalError::invalid_config("Missing username in URL".to_string())
+        })?)
+        .to_string(),
+        (*parts.get(1).ok_or_else(|| {
+            BgRemovalError::invalid_config("Missing repository name in URL".to_string())
+        })?)
+        .to_string(),
     ))
 }
 

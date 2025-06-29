@@ -289,12 +289,11 @@ impl SessionCache {
 
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("json")
-                && path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .is_some_and(|s| Path::new(s)
+                && path.file_stem().and_then(|s| s.to_str()).is_some_and(|s| {
+                    Path::new(s)
                         .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("meta")))
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("meta"))
+                })
             {
                 if let Ok(metadata_str) = fs::read_to_string(&path) {
                     if let Ok(entry) = serde_json::from_str::<SessionCacheEntry>(&metadata_str) {

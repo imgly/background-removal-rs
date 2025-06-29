@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Model selection messages**: Converted from println! to tracing::info! (only shown with -vv flag)
 
 ### Fixed
+- **Color profile preservation in stream-based processing**: Fixed issue where ICC color profiles were detected but not preserved when processing files through `process_file()` method
 - Resolved 150+ clippy warnings across the codebase for improved code quality
 - Fixed potential panic conditions with array indexing using safe .get() methods
 - Corrected unsafe type casting with proper bounds checking using try_from()

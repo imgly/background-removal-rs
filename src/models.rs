@@ -320,7 +320,8 @@ impl ExternalModelProvider {
                 if let Some(file_name) = entry.file_name().to_str() {
                     if Path::new(file_name)
                         .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx")) {
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                    {
                         if file_name == "model.onnx" {
                             available_variants.push("fp32".to_string());
                         } else if file_name == "model_fp16.onnx" {
@@ -597,10 +598,22 @@ impl ExternalModelProvider {
 
         if let Some(arr) = shape_array {
             if arr.len() >= 4 {
-                let dim0 = arr.get(0).and_then(serde_json::Value::as_u64).unwrap_or(default.0 as u64) as usize;
-                let dim1 = arr.get(1).and_then(serde_json::Value::as_u64).unwrap_or(default.1 as u64) as usize;
-                let dim2 = arr.get(2).and_then(serde_json::Value::as_u64).unwrap_or(default.2 as u64) as usize;
-                let dim3 = arr.get(3).and_then(serde_json::Value::as_u64).unwrap_or(default.3 as u64) as usize;
+                let dim0 = arr
+                    .get(0)
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(default.0 as u64) as usize;
+                let dim1 = arr
+                    .get(1)
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(default.1 as u64) as usize;
+                let dim2 = arr
+                    .get(2)
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(default.2 as u64) as usize;
+                let dim3 = arr
+                    .get(3)
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(default.3 as u64) as usize;
                 return (dim0, dim1, dim2, dim3);
             }
         }
@@ -691,15 +704,24 @@ impl ExternalModelProvider {
             )));
         }
 
-        let v0 = values.get(0).and_then(serde_json::Value::as_f64).ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[0] value"))
-        })? as f32;
-        let v1 = values.get(1).and_then(serde_json::Value::as_f64).ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[1] value"))
-        })? as f32;
-        let v2 = values.get(2).and_then(serde_json::Value::as_f64).ok_or_else(|| {
-            crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[2] value"))
-        })? as f32;
+        let v0 = values
+            .get(0)
+            .and_then(serde_json::Value::as_f64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[0] value"))
+            })? as f32;
+        let v1 = values
+            .get(1)
+            .and_then(serde_json::Value::as_f64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[1] value"))
+            })? as f32;
+        let v2 = values
+            .get(2)
+            .and_then(serde_json::Value::as_f64)
+            .ok_or_else(|| {
+                crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[2] value"))
+            })? as f32;
 
         Ok([v0, v1, v2])
     }
@@ -723,9 +745,21 @@ impl ExternalModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let mean0 = (image_mean.get(0).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
-        let mean1 = (image_mean.get(1).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
-        let mean2 = (image_mean.get(2).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
+        let mean0 = (image_mean
+            .get(0)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
+        let mean1 = (image_mean
+            .get(1)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
+        let mean2 = (image_mean
+            .get(2)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
 
         Ok([mean0, mean1, mean2])
     }
@@ -749,9 +783,21 @@ impl ExternalModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let std0 = (image_std.get(0).and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
-        let std1 = (image_std.get(1).and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
-        let std2 = (image_std.get(2).and_then(serde_json::Value::as_f64).unwrap_or(256.0) / 255.0) as f32;
+        let std0 = (image_std
+            .get(0)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(256.0)
+            / 255.0) as f32;
+        let std1 = (image_std
+            .get(1)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(256.0)
+            / 255.0) as f32;
+        let std2 = (image_std
+            .get(2)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(256.0)
+            / 255.0) as f32;
 
         Ok([std0, std1, std2])
     }
@@ -1222,7 +1268,8 @@ impl DownloadedModelProvider {
                 if let Some(file_name) = entry.file_name().to_str() {
                     if Path::new(file_name)
                         .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx")) {
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                    {
                         match file_name {
                             "model.onnx" => available_variants.push("fp32".to_string()),
                             "model_fp16.onnx" => available_variants.push("fp16".to_string()),
@@ -1361,9 +1408,21 @@ impl DownloadedModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let mean0 = (image_mean.get(0).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
-        let mean1 = (image_mean.get(1).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
-        let mean2 = (image_mean.get(2).and_then(serde_json::Value::as_f64).unwrap_or(128.0) / 255.0) as f32;
+        let mean0 = (image_mean
+            .get(0)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
+        let mean1 = (image_mean
+            .get(1)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
+        let mean2 = (image_mean
+            .get(2)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(128.0)
+            / 255.0) as f32;
 
         Ok([mean0, mean1, mean2])
     }
@@ -1387,9 +1446,21 @@ impl DownloadedModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let std0 = (image_std.get(0).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
-        let std1 = (image_std.get(1).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
-        let std2 = (image_std.get(2).and_then(serde_json::Value::as_f64).unwrap_or(255.0) / 255.0) as f32;
+        let std0 = (image_std
+            .get(0)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(255.0)
+            / 255.0) as f32;
+        let std1 = (image_std
+            .get(1)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(255.0)
+            / 255.0) as f32;
+        let std2 = (image_std
+            .get(2)
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(255.0)
+            / 255.0) as f32;
 
         Ok([std0, std1, std2])
     }

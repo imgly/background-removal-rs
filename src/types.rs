@@ -519,7 +519,7 @@ impl RemovalResult {
         quality: u8,
     ) -> Result<u64> {
         use tokio::io::AsyncWriteExt;
-        
+
         // Encode to bytes first (reuse existing logic)
         let bytes = self.to_bytes(format, quality)?;
 

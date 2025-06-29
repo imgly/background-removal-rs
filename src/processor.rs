@@ -385,26 +385,36 @@ impl BackgroundRemovalProcessor {
             tracker.report_stage(ProcessingStage::ImageLoading);
         }
 
-        // Read file and use stream-based processing
-        let file = tokio::fs::File::open(input_path_ref)
-            .await
-            .map_err(|e| BgRemovalError::processing(format!("Failed to open file: {}", e)))?;
-
-        let result = self.process_reader(file, None).await?;
-
-        // Extract and preserve color profile if enabled (file-specific feature)
-        if self.config.preserve_color_profiles {
-            if let Ok(_color_profile) =
-                crate::services::ImageIOService::extract_color_profile(input_path_ref)
-            {
-                // Update the result with the extracted color profile
-                // Note: This requires accessing the private field, which we'll handle differently
-                // For now, just log that we detected a color profile
-                log::debug!("Color profile detected but not preserved in stream-based processing");
+        // Extract color profile first if enabled (file-specific feature)
+        let color_profile = if self.config.preserve_color_profiles {
+            match crate::services::ImageIOService::extract_color_profile(input_path_ref) {
+                Ok(Some(profile)) => {
+                    trace_debug!(
+                        "Extracted ICC color profile ({}, {} bytes) from input file",
+                        profile.color_space,
+                        profile.data_size()
+                    );
+                    Some(profile)
+                },
+                Ok(None) => {
+                    trace_debug!("No color profile found in input file");
+                    None
+                },
+                Err(e) => {
+                    trace_debug!("Failed to extract color profile from input file: {}", e);
+                    None
+                },
             }
-        }
+        } else {
+            None
+        };
 
-        Ok(result)
+        // Load the image directly for processing with color profile
+        let image = image::open(input_path_ref)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to load image file: {}", e)))?;
+
+        // Process the image with the extracted color profile
+        self.process_image_with_profile(&image, color_profile)
     }
 
     /// Process a `DynamicImage` directly for background removal
@@ -608,7 +618,7 @@ impl BackgroundRemovalProcessor {
         _format_hint: Option<image::ImageFormat>,
     ) -> Result<RemovalResult> {
         use tokio::io::AsyncReadExt;
-        
+
         // Read all data from the stream into memory
         // TODO: For very large images, consider streaming decode if image crate supports it
         let mut buffer = Vec::new();

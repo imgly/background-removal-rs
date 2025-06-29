@@ -473,12 +473,32 @@ mod tests {
 
     #[test]
     fn test_verbosity_mapping() {
-        assert_eq!(TracingConfig::new().with_verbosity(0).verbosity_to_filter(), "error");
-        assert_eq!(TracingConfig::new().with_verbosity(1).verbosity_to_filter(), "warn");
-        assert_eq!(TracingConfig::new().with_verbosity(2).verbosity_to_filter(), "info");
-        assert_eq!(TracingConfig::new().with_verbosity(3).verbosity_to_filter(), "debug");
-        assert_eq!(TracingConfig::new().with_verbosity(4).verbosity_to_filter(), "trace");
-        assert_eq!(TracingConfig::new().with_verbosity(10).verbosity_to_filter(), "trace");
+        assert_eq!(
+            TracingConfig::new().with_verbosity(0).verbosity_to_filter(),
+            "error"
+        );
+        assert_eq!(
+            TracingConfig::new().with_verbosity(1).verbosity_to_filter(),
+            "warn"
+        );
+        assert_eq!(
+            TracingConfig::new().with_verbosity(2).verbosity_to_filter(),
+            "info"
+        );
+        assert_eq!(
+            TracingConfig::new().with_verbosity(3).verbosity_to_filter(),
+            "debug"
+        );
+        assert_eq!(
+            TracingConfig::new().with_verbosity(4).verbosity_to_filter(),
+            "trace"
+        );
+        assert_eq!(
+            TracingConfig::new()
+                .with_verbosity(10)
+                .verbosity_to_filter(),
+            "trace"
+        );
     }
 
     #[test]
