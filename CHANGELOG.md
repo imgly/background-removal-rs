@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI tracing integration**: Maintains emoji-rich output while adding structured debugging capabilities
 
 ### Changed  
-- **Verbosity levels**: Improved verbosity progression with ERROR as default (0=error, 1=warn, 2=info, 3=debug, 4+=trace)
+- **Default log level**: Set to WARN so users see important warnings by default (0=warn, 1=info, 2=debug, 3+=trace)
 
 ### Fixed
 - Resolved 150+ clippy warnings across the codebase for improved code quality
