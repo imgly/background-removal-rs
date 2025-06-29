@@ -578,10 +578,10 @@ impl ExternalModelProvider {
 
         if let Some(arr) = shape_array {
             if arr.len() >= 4 {
-                let dim0 = arr[0].as_u64().unwrap_or(default.0 as u64) as usize;
-                let dim1 = arr[1].as_u64().unwrap_or(default.1 as u64) as usize;
-                let dim2 = arr[2].as_u64().unwrap_or(default.2 as u64) as usize;
-                let dim3 = arr[3].as_u64().unwrap_or(default.3 as u64) as usize;
+                let dim0 = arr.get(0).and_then(serde_json::Value::as_u64).unwrap_or(default.0 as u64) as usize;
+                let dim1 = arr.get(1).and_then(serde_json::Value::as_u64).unwrap_or(default.1 as u64) as usize;
+                let dim2 = arr.get(2).and_then(serde_json::Value::as_u64).unwrap_or(default.2 as u64) as usize;
+                let dim3 = arr.get(3).and_then(serde_json::Value::as_u64).unwrap_or(default.3 as u64) as usize;
                 return Ok((dim0, dim1, dim2, dim3));
             }
         }
@@ -671,13 +671,13 @@ impl ExternalModelProvider {
             )));
         }
 
-        let v0 = values[0].as_f64().ok_or_else(|| {
+        let v0 = values.get(0).and_then(|v| v.as_f64()).ok_or_else(|| {
             crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[0] value"))
         })? as f32;
-        let v1 = values[1].as_f64().ok_or_else(|| {
+        let v1 = values.get(1).and_then(|v| v.as_f64()).ok_or_else(|| {
             crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[1] value"))
         })? as f32;
-        let v2 = values[2].as_f64().ok_or_else(|| {
+        let v2 = values.get(2).and_then(|v| v.as_f64()).ok_or_else(|| {
             crate::error::BgRemovalError::invalid_config(format!("Invalid {key}[2] value"))
         })? as f32;
 
@@ -702,9 +702,9 @@ impl ExternalModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
-        let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
-        let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean0 = (image_mean.get(0).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
+        let mean1 = (image_mean.get(1).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
+        let mean2 = (image_mean.get(2).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
 
         Ok([mean0, mean1, mean2])
     }
@@ -727,9 +727,9 @@ impl ExternalModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let std0 = (image_std[0].as_f64().unwrap_or(256.0) / 255.0) as f32;
-        let std1 = (image_std[1].as_f64().unwrap_or(256.0) / 255.0) as f32;
-        let std2 = (image_std[2].as_f64().unwrap_or(256.0) / 255.0) as f32;
+        let std0 = (image_std.get(0).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
+        let std1 = (image_std.get(1).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
+        let std2 = (image_std.get(2).and_then(|v| v.as_f64()).unwrap_or(256.0) / 255.0) as f32;
 
         Ok([std0, std1, std2])
     }
@@ -1336,9 +1336,9 @@ impl DownloadedModelProvider {
         }
 
         // Convert from 0-255 range to 0-1 range
-        let mean0 = (image_mean[0].as_f64().unwrap_or(128.0) / 255.0) as f32;
-        let mean1 = (image_mean[1].as_f64().unwrap_or(128.0) / 255.0) as f32;
-        let mean2 = (image_mean[2].as_f64().unwrap_or(128.0) / 255.0) as f32;
+        let mean0 = (image_mean.get(0).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
+        let mean1 = (image_mean.get(1).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
+        let mean2 = (image_mean.get(2).and_then(|v| v.as_f64()).unwrap_or(128.0) / 255.0) as f32;
 
         Ok([mean0, mean1, mean2])
     }

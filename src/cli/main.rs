@@ -568,8 +568,8 @@ fn show_current_cache_dir() -> Result<()> {
 /// Process multiple inputs efficiently using the unified processor
 async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -> Result<usize> {
     // Handle stdin specially (single input)
-    if cli.input.len() == 1 && cli.input.get(0).map_or(false, |s| s == "-") {
-        return process_stdin(&cli.output, processor).await;
+    if cli.input.len() == 1 && cli.input.first().is_some_and(|s| s == "-") {
+        return process_stdin(cli.output.as_ref(), processor).await;
     }
 
     // Collect all image files from inputs (files and directories)
@@ -639,7 +639,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
             None
         };
 
-        match process_single_file(processor, &input_file, &output_path).await {
+        match process_single_file(processor, &input_file, output_path.as_ref()).await {
             Ok(_) => {
                 processed_count += 1;
                 if cli.verbose > 1 {
@@ -689,7 +689,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
 
 /// Process image from stdin using the unified processor
 async fn process_stdin(
-    output_target: &Option<String>,
+    output_target: Option<&String>,
     processor: &mut BackgroundRemovalProcessor,
 ) -> Result<usize> {
     info!("Reading image from stdin");
@@ -782,7 +782,7 @@ async fn process_stdin(
 async fn process_single_file(
     processor: &mut BackgroundRemovalProcessor,
     input_path: &Path,
-    output_path: &Option<String>,
+    output_path: Option<&String>,
 ) -> Result<usize> {
     let mut result = processor
         .process_file(input_path)
@@ -920,41 +920,41 @@ fn detect_image_format(data: &[u8]) -> Option<&'static str> {
     }
 
     // PNG: 89 50 4E 47 0D 0A 1A 0A
-    if data.len() >= 8 && data[0..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
+    if data.len() >= 8 && data.get(0..8).map_or(false, |slice| slice == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
         return Some("png");
     }
 
     // JPEG: FF D8 FF
-    if data.len() >= 3 && data[0..3] == [0xFF, 0xD8, 0xFF] {
+    if data.len() >= 3 && data.get(0..3).map_or(false, |slice| slice == [0xFF, 0xD8, 0xFF]) {
         return Some("jpg");
     }
 
     // WebP: RIFF....WEBP
     if data.len() >= 12
-        && data[0..4] == [0x52, 0x49, 0x46, 0x46] // "RIFF"
-        && data[8..12] == [0x57, 0x45, 0x42, 0x50]
+        && data.get(0..4).map_or(false, |slice| slice == [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        && data.get(8..12).map_or(false, |slice| slice == [0x57, 0x45, 0x42, 0x50])
     // "WEBP"
     {
         return Some("webp");
     }
 
     // TIFF (Little Endian): 49 49 2A 00
-    if data.len() >= 4 && data[0..4] == [0x49, 0x49, 0x2A, 0x00] {
+    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x49, 0x49, 0x2A, 0x00]) {
         return Some("tiff");
     }
 
     // TIFF (Big Endian): 4D 4D 00 2A
-    if data.len() >= 4 && data[0..4] == [0x4D, 0x4D, 0x00, 0x2A] {
+    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x4D, 0x4D, 0x00, 0x2A]) {
         return Some("tiff");
     }
 
     // BMP: 42 4D (check at least 2 bytes but ensure we have 4 bytes for consistent logic)
-    if data.len() >= 2 && data[0..2] == [0x42, 0x4D] {
+    if data.len() >= 2 && data.get(0..2).map_or(false, |slice| slice == [0x42, 0x4D]) {
         return Some("bmp");
     }
 
     // GIF: 47 49 46 38 (GIF8)
-    if data.len() >= 4 && data[0..4] == [0x47, 0x49, 0x46, 0x38] {
+    if data.len() >= 4 && data.get(0..4).map_or(false, |slice| slice == [0x47, 0x49, 0x46, 0x38]) {
         return Some("gif");
     }
 

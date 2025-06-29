@@ -26,10 +26,10 @@ impl TensorValidator {
         }
 
         let actual = (
-            actual_shape[0],
-            actual_shape[1],
-            actual_shape[2],
-            actual_shape[3],
+            actual_shape.get(0).copied().unwrap_or(0),
+            actual_shape.get(1).copied().unwrap_or(0),
+            actual_shape.get(2).copied().unwrap_or(0),
+            actual_shape.get(3).copied().unwrap_or(0),
         );
         if actual != expected_shape {
             return Err(BgRemovalError::processing(format!(
@@ -44,7 +44,7 @@ impl TensorValidator {
     /// Validate that tensor has batch size of 1 and single channel
     pub fn validate_single_batch_single_channel(tensor: &Array4<f32>) -> Result<()> {
         let shape = tensor.shape();
-        if shape[0] != 1 || shape[1] != 1 {
+        if shape.get(0).copied().unwrap_or(0) != 1 || shape.get(1).copied().unwrap_or(0) != 1 {
             return Err(BgRemovalError::processing(
                 "Tensor must have batch size 1 and single channel for mask generation",
             ));
@@ -88,8 +88,8 @@ impl TensorValidator {
     /// Validate tensor coordinate bounds
     pub fn validate_tensor_coordinates(tensor: &Array4<f32>, x: usize, y: usize) -> Result<()> {
         let shape = tensor.shape();
-        let height = shape[2];
-        let width = shape[3];
+        let height = shape.get(2).copied().unwrap_or(0);
+        let width = shape.get(3).copied().unwrap_or(0);
 
         if x >= width {
             return Err(BgRemovalError::processing(format!(

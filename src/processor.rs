@@ -836,11 +836,7 @@ impl BackgroundRemovalProcessor {
 
         for (x, y, pixel) in rgba_image.enumerate_pixels() {
             let pixel_index = (y * width + x) as usize;
-            let mask_value = if pixel_index < mask.data.len() {
-                mask.data[pixel_index]
-            } else {
-                0
-            };
+            let mask_value = mask.data.get(pixel_index).copied().unwrap_or(0);
             let alpha = mask_value;
 
             if alpha > 0 {

@@ -487,7 +487,10 @@ pub fn parse_huggingface_url(url: &str) -> Result<(String, String)> {
         )));
     }
 
-    Ok((parts[0].to_string(), parts[1].to_string()))
+    Ok((
+        parts.get(0).ok_or_else(|| BgRemovalError::invalid_config("Missing username in URL".to_string()))?.to_string(),
+        parts.get(1).ok_or_else(|| BgRemovalError::invalid_config("Missing repository name in URL".to_string()))?.to_string(),
+    ))
 }
 
 #[cfg(test)]
