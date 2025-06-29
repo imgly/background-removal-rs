@@ -24,7 +24,12 @@ onnx = ["dep:ort"]
 tract = ["dep:tract-onnx", "dep:tract-core"]
 
 # CLI functionality (UI-specific features only)
-cli = ["dep:clap", "dep:indicatif", "dep:env_logger", "dep:glob", "dep:walkdir"]
+cli = ["dep:clap", "dep:indicatif", "dep:tracing-subscriber", "dep:uuid", "dep:glob", "dep:walkdir"]
+
+# Tracing output formats (optional)
+tracing-json = ["tracing-subscriber/json"]
+tracing-files = ["dep:tracing-appender"]
+tracing-otel = ["dep:tracing-opentelemetry"]
 
 # WebP support (pure Rust, WASM-compatible via image crate)
 webp-support = ["image/webp"]
@@ -45,8 +50,9 @@ tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# Logging
-log = "0.4"
+# Logging and Tracing
+log = "0.4"  # Keep for backward compatibility
+tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 
 # WASM-compatible time
@@ -62,9 +68,14 @@ tract-core = { version = "0.21", optional = true }
 # CLI dependencies (feature-gated)
 clap = { version = "4.0", features = ["derive"], optional = true }
 indicatif = { version = "0.17", optional = true }
-env_logger = { version = "0.11", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], optional = true }
+uuid = { version = "1.0", features = ["v4"], optional = true }
 glob = { version = "0.3", optional = true }
 walkdir = { version = "2.0", optional = true }
+
+# Advanced tracing features (optional)
+tracing-appender = { version = "0.2", optional = true }
+tracing-opentelemetry = { version = "0.22", optional = true }
 
 # Model download and caching dependencies (always available)
 reqwest = { version = "0.11", features = ["rustls-tls", "stream"] }

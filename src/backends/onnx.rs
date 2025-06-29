@@ -16,6 +16,7 @@ use ort::execution_providers::{
 };
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{self, value::Value};
+use tracing::{debug, instrument, span, Level};
 
 /// ONNX Runtime backend for running background removal models
 #[derive(Debug)]
@@ -561,17 +562,23 @@ impl Default for OnnxBackend {
 }
 
 impl InferenceBackend for OnnxBackend {
+    #[instrument(skip(self, config), fields(execution_provider = %config.execution_provider))]
     fn initialize(&mut self, config: &RemovalConfig) -> Result<Option<std::time::Duration>> {
         if self.initialized {
             return Ok(None); // No model loading time for already initialized backend
         }
 
-        let model_load_time = self.load_model(config)?;
+        let model_load_time = {
+            let _span = span!(Level::INFO, "model_loading", provider = %config.execution_provider)
+                .entered();
+            self.load_model(config)?
+        };
         Ok(Some(model_load_time))
     }
 
     #[allow(clippy::too_many_lines)] // Complex inference with detailed diagnostics
     #[allow(clippy::get_first)]
+    #[instrument(skip(self, input), fields(input_shape = ?input.dim()))]
     fn infer(&mut self, input: &Array4<f32>) -> Result<Array4<f32>> {
         use std::time::Instant;
 
@@ -587,7 +594,10 @@ impl InferenceBackend for OnnxBackend {
 
         // Start detailed timing for inference diagnostics
         let inference_start = Instant::now();
-        log::debug!("🚀 Starting inference with input shape: {:?}", input.dim());
+        debug!(
+            input_shape = ?input.dim(),
+            "🚀 Starting ONNX inference"
+        );
 
         // Convert ndarray to ort Value
         let tensor_conversion_start = Instant::now();

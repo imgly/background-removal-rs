@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Consolidated imgly-bgremove library with unified API
+- **Comprehensive tracing integration**: Migrated from `env_logger` to `tracing` ecosystem for structured logging
+- **Tracing configuration module**: Centralized subscriber setup with support for console, JSON, and file outputs
+- **Structured logging with spans**: Added hierarchical tracing to processing pipeline, model loading, and inference operations
+- **Performance tracking spans**: Detailed timing and resource usage tracking with structured fields
+- **Session correlation**: Automatic session ID generation for request correlation and debugging
+- **Feature-gated tracing outputs**: Optional JSON logging, file appenders, and OpenTelemetry support
+- **CLI tracing integration**: Maintains emoji-rich output while adding structured debugging capabilities
 
 ### Fixed
 - Resolved 150+ clippy warnings across the codebase for improved code quality

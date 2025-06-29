@@ -13,6 +13,23 @@ pub enum ModelSource {
     Downloaded(String),
 }
 
+impl ModelSource {
+    /// Get a display name for tracing and logging
+    pub fn display_name(&self) -> String {
+        match self {
+            ModelSource::External(path) => {
+                format!(
+                    "external:{}",
+                    path.file_name().unwrap_or_default().to_string_lossy()
+                )
+            },
+            ModelSource::Downloaded(model_id) => {
+                format!("cached:{}", model_id)
+            },
+        }
+    }
+}
+
 /// Complete model specification including source and optional variant
 #[derive(Debug, Clone)]
 pub struct ModelSpec {

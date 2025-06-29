@@ -124,6 +124,8 @@ pub mod models;
 pub mod processor;
 pub mod services;
 pub mod session_cache;
+#[cfg(feature = "cli")]
+pub mod tracing_config;
 pub mod types;
 pub mod utils;
 
@@ -154,6 +156,12 @@ pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, ModelValidator,
     NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo, TensorValidator,
+};
+
+#[cfg(feature = "cli")]
+pub use tracing_config::{
+    events, init_cli_tracing, init_library_tracing, spans, TracingConfig, TracingFormat,
+    TracingOutput,
 };
 
 /// Remove background with minimal setup (convenience function)
