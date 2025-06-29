@@ -273,7 +273,6 @@ fn show_provider_diagnostics() {
     println!("\n🔧 Available Backends:");
     println!("  • onnx: ONNX Runtime backend (default) - Full hardware acceleration support");
     println!("  • tract: Pure Rust backend - No external dependencies, WebAssembly compatible");
-    println!("  • mock: Mock backend for testing and debugging");
 
     // Get provider information from core utilities
     let all_providers = ExecutionProviderManager::list_all_providers();
@@ -291,50 +290,6 @@ fn show_provider_diagnostics() {
         );
     }
 
-    // Try to get actual availability from backends
-    println!("\n🔍 Checking Backend-Specific Availability:");
-
-    // Check ONNX providers
-    #[cfg(feature = "onnx")]
-    {
-        use crate::backends::OnnxBackend;
-        let providers = OnnxBackend::list_providers();
-        println!("ONNX Runtime providers:");
-        for (name, available, description) in providers {
-            let status = if available {
-                "✅ Available"
-            } else {
-                "❌ Not Available"
-            };
-            println!(
-                "  • onnx:{}: {} - {}",
-                name.to_lowercase(),
-                status,
-                description
-            );
-        }
-    }
-
-    // Check Tract providers
-    #[cfg(feature = "tract")]
-    {
-        use crate::backends::TractBackend;
-        let tract_providers = TractBackend::list_providers();
-        println!("Tract providers:");
-        for (name, available, description) in tract_providers {
-            let status = if available {
-                "✅ Available"
-            } else {
-                "❌ Not Available"
-            };
-            println!(
-                "  • tract:{}: {} - {}",
-                name.to_lowercase(),
-                status,
-                description
-            );
-        }
-    }
 
     println!("\n💡 Usage Examples:");
     println!("  --execution-provider onnx:auto    # Auto-select best ONNX provider (default)");
@@ -344,13 +299,11 @@ fn show_provider_diagnostics() {
     println!("  --execution-provider onnx         # Same as onnx:auto");
     println!("  --execution-provider tract:cpu    # Use pure Rust Tract backend");
     println!("  --execution-provider tract        # Same as tract:cpu");
-    println!("  --execution-provider mock:cpu     # Use mock backend for testing");
 
     println!("\n📋 Notes:");
     println!("  • Default backend is 'onnx' if none specified");
     println!("  • ONNX backend provides GPU acceleration with compatible hardware/drivers");
     println!("  • Tract backend is pure Rust with no external dependencies");
-    println!("  • Mock backend is for testing and debugging purposes");
     println!("  • CPU provider is always available as fallback for all backends");
 }
 
