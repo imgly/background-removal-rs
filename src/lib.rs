@@ -160,9 +160,8 @@ pub use utils::{
 
 #[cfg(feature = "cli")]
 pub use tracing_config::{
-    TracingConfig, TracingFormat, TracingOutput,
-    init_cli_tracing, init_library_tracing,
-    spans, events,
+    events, init_cli_tracing, init_library_tracing, spans, TracingConfig, TracingFormat,
+    TracingOutput,
 };
 
 /// Remove background with minimal setup (convenience function)

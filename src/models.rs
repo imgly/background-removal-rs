@@ -18,11 +18,14 @@ impl ModelSource {
     pub fn display_name(&self) -> String {
         match self {
             ModelSource::External(path) => {
-                format!("external:{}", path.file_name().unwrap_or_default().to_string_lossy())
-            }
+                format!(
+                    "external:{}",
+                    path.file_name().unwrap_or_default().to_string_lossy()
+                )
+            },
             ModelSource::Downloaded(model_id) => {
                 format!("cached:{}", model_id)
-            }
+            },
         }
     }
 }

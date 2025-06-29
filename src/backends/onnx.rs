@@ -10,13 +10,13 @@ use crate::inference::InferenceBackend;
 use crate::models::ModelManager;
 use crate::session_cache::SessionCache;
 use log;
-use tracing::{debug, error, info, instrument, span, Level};
 use ndarray::Array4;
 use ort::execution_providers::{
     CUDAExecutionProvider, CoreMLExecutionProvider, ExecutionProvider as OrtExecutionProvider,
 };
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{self, value::Value};
+use tracing::{debug, error, info, instrument, span, Level};
 
 /// ONNX Runtime backend for running background removal models
 #[derive(Debug)]
@@ -569,7 +569,8 @@ impl InferenceBackend for OnnxBackend {
         }
 
         let model_load_time = {
-            let _span = span!(Level::INFO, "model_loading", provider = %config.execution_provider).entered();
+            let _span = span!(Level::INFO, "model_loading", provider = %config.execution_provider)
+                .entered();
             self.load_model(config)?
         };
         Ok(Some(model_load_time))

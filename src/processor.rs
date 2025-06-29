@@ -16,9 +16,9 @@ use crate::{
 use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
 use instant::Instant;
 use log::{debug, info};
-use tracing::{debug as trace_debug, info as trace_info, instrument, span, Span, Level};
 use ndarray::Array4;
 use std::path::Path;
+use tracing::{debug as trace_debug, info as trace_info, instrument, span, Level, Span};
 
 /// Coordinate transformation parameters for tensor-to-mask conversion
 #[derive(Debug, Clone)]
@@ -469,7 +469,8 @@ impl BackgroundRemovalProcessor {
                 "preprocessing",
                 original_width = %original_dimensions.0,
                 original_height = %original_dimensions.1
-            ).entered();
+            )
+            .entered();
             self.preprocess_image_for_inference(image, &mut timings)?
         };
 
@@ -480,7 +481,8 @@ impl BackgroundRemovalProcessor {
                 "inference",
                 backend = ?self.config.backend_type,
                 model = %self.config.model_spec.source.display_name()
-            ).entered();
+            )
+            .entered();
             self.perform_inference(&input_tensor, &mut timings)?
         };
 
@@ -491,7 +493,8 @@ impl BackgroundRemovalProcessor {
                 "background_removal",
                 width = %original_dimensions.0,
                 height = %original_dimensions.1
-            ).entered();
+            )
+            .entered();
             self.generate_mask_and_remove_background(
                 &output_tensor,
                 image,

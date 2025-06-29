@@ -98,10 +98,10 @@ impl TracingConfig {
     /// Convert verbosity level to tracing filter string
     pub fn verbosity_to_filter(&self) -> &'static str {
         match self.verbosity {
-            0 => "warn",   // Default: only warnings and errors
-            1 => "info",   // -v: user-actionable information
-            2 => "debug",  // -vv: internal state and computations
-            _ => "trace",  // -vvv+: extremely detailed traces
+            0 => "warn",  // Default: only warnings and errors
+            1 => "info",  // -v: user-actionable information
+            2 => "debug", // -vv: internal state and computations
+            _ => "trace", // -vvv+: extremely detailed traces
         }
     }
 
@@ -134,7 +134,7 @@ impl TracingConfig {
                     .compact();
 
                 registry.with(fmt_layer).init();
-            }
+            },
 
             // Compact console output
             (TracingFormat::Compact, TracingOutput::Console) => {
@@ -148,7 +148,7 @@ impl TracingConfig {
                     .compact();
 
                 registry.with(fmt_layer).init();
-            }
+            },
 
             #[cfg(feature = "tracing-json")]
             // JSON output for structured logging
@@ -159,7 +159,7 @@ impl TracingConfig {
                     .with_span_list(true);
 
                 registry.with(fmt_layer).init();
-            }
+            },
 
             #[cfg(feature = "tracing-files")]
             // File output
@@ -168,7 +168,8 @@ impl TracingConfig {
 
                 let file_appender = rolling::never(
                     path.parent().unwrap_or_else(|| std::path::Path::new(".")),
-                    path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("bgremove.log")),
+                    path.file_name()
+                        .unwrap_or_else(|| std::ffi::OsStr::new("bgremove.log")),
                 );
                 let (file_writer, _guard) = non_blocking(file_appender);
 
@@ -186,7 +187,7 @@ impl TracingConfig {
                 };
 
                 registry.with(fmt_layer).init();
-            }
+            },
 
             #[cfg(feature = "tracing-files")]
             // Both console and file output
@@ -195,14 +196,12 @@ impl TracingConfig {
 
                 // Console layer
                 let console_layer = match format {
-                    TracingFormat::Console => fmt::layer()
-                        .with_ansi(true)
-                        .with_target(false)
-                        .compact(),
-                    TracingFormat::Compact => fmt::layer()
-                        .with_ansi(false)
-                        .with_target(false)
-                        .compact(),
+                    TracingFormat::Console => {
+                        fmt::layer().with_ansi(true).with_target(false).compact()
+                    },
+                    TracingFormat::Compact => {
+                        fmt::layer().with_ansi(false).with_target(false).compact()
+                    },
                     #[cfg(feature = "tracing-json")]
                     TracingFormat::Json => fmt::layer()
                         .json()
@@ -213,7 +212,8 @@ impl TracingConfig {
                 // File layer
                 let file_appender = rolling::daily(
                     path.parent().unwrap_or_else(|| std::path::Path::new(".")),
-                    path.file_stem().unwrap_or_else(|| std::ffi::OsStr::new("bgremove")),
+                    path.file_stem()
+                        .unwrap_or_else(|| std::ffi::OsStr::new("bgremove")),
                 );
                 let (file_writer, _guard) = non_blocking(file_appender);
 
@@ -231,7 +231,7 @@ impl TracingConfig {
                     .compact();
 
                 registry.with(console_layer).with(file_layer).init();
-            }
+            },
         }
 
         // Set session ID as a global field if provided
@@ -248,9 +248,11 @@ impl TracingConfig {
 
 /// Convenience function to initialize tracing with CLI-friendly defaults
 #[cfg(feature = "cli")]
-pub fn init_cli_tracing(verbosity: u8) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+pub fn init_cli_tracing(
+    verbosity: u8,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let session_id = uuid::Uuid::new_v4().to_string();
-    
+
     TracingConfig::new()
         .with_verbosity(verbosity)
         .with_format(TracingFormat::Console)
@@ -264,8 +266,10 @@ pub fn init_library_tracing() -> Result<(), Box<dyn std::error::Error + Send + S
     if tracing::subscriber::try_set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
             .with_env_filter(EnvFilter::from_default_env())
-            .finish()
-    ).is_ok() {
+            .finish(),
+    )
+    .is_ok()
+    {
         tracing::debug!("📚 Library tracing initialized");
     }
     Ok(())
@@ -273,7 +277,7 @@ pub fn init_library_tracing() -> Result<(), Box<dyn std::error::Error + Send + S
 
 /// Span creation helpers for common operations
 pub mod spans {
-    use tracing::{Span, Level};
+    use tracing::{Level, Span};
 
     /// Create a session span for the entire CLI operation
     pub fn session(session_id: &str, model_name: &str, provider: &str) -> Span {
@@ -370,7 +374,7 @@ pub mod spans {
 
 /// Event helpers for common logging patterns
 pub mod events {
-    use tracing::{info, warn, error, debug};
+    use tracing::{debug, error, info, warn};
 
     /// Log a user-facing progress update
     pub fn progress(message: &str, emoji: &str) {
@@ -396,13 +400,17 @@ pub mod events {
     }
 
     /// Log performance metrics
-    pub fn performance_metric(operation: &str, duration_ms: u64, additional_fields: Option<&[(&str, &dyn std::fmt::Display)]>) {
+    pub fn performance_metric(
+        operation: &str,
+        duration_ms: u64,
+        additional_fields: Option<&[(&str, &dyn std::fmt::Display)]>,
+    ) {
         let mut event = debug!(
             operation = %operation,
             duration_ms = %duration_ms,
             "⏱️  Performance metric"
         );
-        
+
         // Add additional fields if provided
         if let Some(fields) = additional_fields {
             for (key, value) in fields {
