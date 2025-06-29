@@ -129,7 +129,8 @@ pub mod utils;
 
 // Internal imports for lib functions
 use crate::types::ProcessingMetadata;
-use image::GenericImageView;
+use image::{GenericImageView, ImageFormat};
+use tokio::io::AsyncRead;
 
 // Public API exports
 pub use backends::*;
@@ -181,25 +182,18 @@ pub async fn remove_background_simple<P: AsRef<std::path::Path>>(
     input_path: P,
     output_path: P,
 ) -> Result<()> {
-    // Find first available cached model
-    let cache = ModelCache::new()?;
-    let cached_models = cache.scan_cached_models()?;
+    // Read image bytes
+    let image_bytes = tokio::fs::read(input_path)
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Failed to read input file: {}", e)))?;
 
-    if cached_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No cached models found. Download a model first using ModelDownloader or the CLI."
-                .to_string(),
-        ));
-    }
+    // Process using stream-based API
+    let png_bytes = remove_background_simple_bytes(&image_bytes).await?;
 
-    let model_spec = ModelSpec {
-        source: ModelSource::Downloaded(cached_models[0].model_id.clone()),
-        variant: None,
-    };
-
-    let config = RemovalConfig::default();
-    let result = remove_background_with_model(input_path, &config, &model_spec).await?;
-    result.save_png(output_path)?;
+    // Write output bytes
+    tokio::fs::write(output_path, png_bytes)
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Failed to write output file: {}", e)))?;
 
     Ok(())
 }
@@ -305,24 +299,13 @@ pub async fn remove_background_with_model<P: AsRef<std::path::Path>>(
     config: &RemovalConfig,
     model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
-    // Convert RemovalConfig to ProcessorConfig for unified processor
-    let processor_config = ProcessorConfigBuilder::new()
-        .model_spec(model_spec.clone())
-        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
-        .execution_provider(config.execution_provider)
-        .output_format(config.output_format)
-        .jpeg_quality(config.jpeg_quality)
-        .webp_quality(config.webp_quality)
-        .debug(config.debug)
-        .intra_threads(config.intra_threads)
-        .inter_threads(config.inter_threads)
-        .preserve_color_profiles(config.preserve_color_profiles)
-        .build()?;
+    // Read image bytes
+    let image_bytes = tokio::fs::read(input_path)
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Failed to read input file: {}", e)))?;
 
-    let backend_factory = Box::new(DefaultBackendFactory);
-    let mut unified_processor =
-        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.process_file(input_path).await
+    // Use the bytes-based API
+    remove_background_from_bytes(&image_bytes, config, model_spec).await
 }
 
 /// Remove background from an image file with a custom backend
@@ -397,6 +380,296 @@ pub async fn remove_background_with_backend<P: AsRef<std::path::Path>>(
         original_dimensions,
         metadata,
     ))
+}
+
+/// Remove background from an image provided as bytes
+///
+/// This is a stream-based API that accepts image data as bytes, making it suitable
+/// for web servers, memory-based processing, and scenarios where files aren't available.
+///
+/// # Arguments
+///
+/// * `image_bytes` - Raw image data as bytes (JPEG, PNG, WebP, BMP, TIFF)
+/// * `config` - Configuration for the removal operation
+/// * `model_spec` - Specification of which model to use
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image, mask, and metadata
+///
+/// # Examples
+///
+/// ## Web server usage
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
+///
+/// # async fn example(upload_bytes: Vec<u8>) -> anyhow::Result<()> {
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_from_bytes(&upload_bytes, &config, &model_spec).await?;
+/// let output_bytes = result.to_bytes(config.output_format, 90)?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Memory-based processing
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let image_data = download_image_from_api().await?;
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_from_bytes(&image_data, &config, &model_spec).await?;
+/// let png_bytes = result.to_bytes(imgly_bgremove::OutputFormat::Png, 100)?;
+/// # Ok(())
+/// # }
+/// # async fn download_image_from_api() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+/// ```
+pub async fn remove_background_from_bytes(
+    image_bytes: &[u8],
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<RemovalResult> {
+    // Load image from bytes using the image crate
+    let image = image::load_from_memory(image_bytes).map_err(|e| {
+        BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
+    })?;
+
+    // Use the existing image processing function
+    remove_background_from_image(image, config, model_spec).await
+}
+
+/// Remove background from a DynamicImage directly
+///
+/// This is the most flexible API for in-memory image processing. It accepts
+/// a pre-loaded `DynamicImage` and processes it without any file I/O.
+///
+/// # Arguments
+///
+/// * `image` - A `DynamicImage` to process (from image crate)
+/// * `config` - Configuration for the removal operation
+/// * `model_spec` - Specification of which model to use
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image, mask, and metadata
+///
+/// # Examples
+///
+/// ## Process existing image
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_image, ModelSpec, ModelSource};
+/// use image::DynamicImage;
+///
+/// # async fn example(img: DynamicImage) -> anyhow::Result<()> {
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_from_image(img, &config, &model_spec).await?;
+/// result.save_png("output.png")?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn remove_background_from_image(
+    image: image::DynamicImage,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<RemovalResult> {
+    // Convert RemovalConfig to ProcessorConfig for unified processor
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(model_spec.clone())
+        .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
+        .execution_provider(config.execution_provider)
+        .output_format(config.output_format)
+        .jpeg_quality(config.jpeg_quality)
+        .webp_quality(config.webp_quality)
+        .debug(config.debug)
+        .intra_threads(config.intra_threads)
+        .inter_threads(config.inter_threads)
+        .preserve_color_profiles(config.preserve_color_profiles)
+        .build()?;
+
+    let backend_factory = Box::new(DefaultBackendFactory);
+    let mut unified_processor =
+        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
+    unified_processor.process_image(&image)
+}
+
+/// Remove background from an async reader stream
+///
+/// This API accepts any async readable stream, making it suitable for processing
+/// images from network streams, large files, or any other async data source.
+///
+/// # Arguments
+///
+/// * `reader` - Any type implementing `AsyncRead + Unpin`
+/// * `format_hint` - Optional hint about the image format for better performance
+/// * `config` - Configuration for the removal operation
+/// * `model_spec` - Specification of which model to use
+///
+/// # Returns
+///
+/// A `RemovalResult` containing the processed image, mask, and metadata
+///
+/// # Examples
+///
+/// ## Process from file stream
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource};
+/// use tokio::fs::File;
+/// use image::ImageFormat;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let file = File::open("large_image.jpg").await?;
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_from_reader(
+///     file,
+///     Some(ImageFormat::Jpeg),
+///     &config,
+///     &model_spec
+/// ).await?;
+/// result.save_png("output.png")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Process from network (simplified example)
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// // Download image bytes from network
+/// let image_bytes = download_image_bytes().await?;
+///
+/// let config = RemovalConfig::default();
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let result = remove_background_from_bytes(&image_bytes, &config, &model_spec).await?;
+/// # Ok(())
+/// # }
+/// # async fn download_image_bytes() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+/// ```
+pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
+    mut reader: R,
+    _format_hint: Option<ImageFormat>,
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<RemovalResult> {
+    // Read all data from the stream into memory
+    // TODO: For very large images, consider streaming decode if image crate supports it
+    let mut buffer = Vec::new();
+    tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut buffer)
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Failed to read from stream: {}", e)))?;
+
+    // Use the bytes-based API
+    remove_background_from_bytes(&buffer, config, model_spec).await
+}
+
+/// Remove background with minimal setup and return PNG bytes
+///
+/// This is the simplest stream-based API - provide image bytes, get PNG bytes back.
+/// Uses default configuration and the first available cached model.
+///
+/// # Arguments
+/// * `image_bytes` - Raw image data as bytes
+///
+/// # Returns
+/// PNG-encoded bytes with transparent background
+///
+/// # Examples
+/// ```rust,no_run
+/// use imgly_bgremove::remove_background_simple_bytes;
+///
+/// # async fn example(upload_data: Vec<u8>) -> anyhow::Result<()> {
+/// // Ultra-simple: bytes in, PNG bytes out
+/// let png_bytes = remove_background_simple_bytes(&upload_data).await?;
+/// // Send PNG bytes back to client, save to file, etc.
+/// tokio::fs::write("result.png", png_bytes).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn remove_background_simple_bytes(image_bytes: &[u8]) -> Result<Vec<u8>> {
+    // Find first available cached model
+    let cache = ModelCache::new()?;
+    let cached_models = cache.scan_cached_models()?;
+
+    if cached_models.is_empty() {
+        return Err(BgRemovalError::invalid_config(
+            "No cached models found. Download a model first using ModelDownloader or the CLI."
+                .to_string(),
+        ));
+    }
+
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded(cached_models[0].model_id.clone()),
+        variant: None,
+    };
+
+    let config = RemovalConfig::default();
+    let result = remove_background_from_bytes(image_bytes, &config, &model_spec).await?;
+
+    // Return PNG bytes
+    result.to_bytes(OutputFormat::Png, 100)
+}
+
+/// Remove background with model selection and return bytes
+///
+/// This stream-based API provides full control over configuration and model selection
+/// while returning the result as bytes in the specified format.
+///
+/// # Arguments
+/// * `image_bytes` - Raw image data as bytes
+/// * `config` - Configuration including output format and quality
+/// * `model_spec` - Specification of which model to use
+///
+/// # Returns
+/// Image bytes in the format specified by config.output_format
+///
+/// # Examples
+/// ```rust,no_run
+/// use imgly_bgremove::{
+///     remove_background_with_model_bytes, RemovalConfig, ModelSpec, ModelSource, OutputFormat
+/// };
+///
+/// # async fn example(image_data: Vec<u8>) -> anyhow::Result<()> {
+/// let config = RemovalConfig::builder()
+///     .output_format(OutputFormat::WebP)
+///     .webp_quality(90)
+///     .build()?;
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let webp_bytes = remove_background_with_model_bytes(&image_data, &config, &model_spec).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn remove_background_with_model_bytes(
+    image_bytes: &[u8],
+    config: &RemovalConfig,
+    model_spec: &ModelSpec,
+) -> Result<Vec<u8>> {
+    let result = remove_background_from_bytes(image_bytes, config, model_spec).await?;
+    result.to_bytes(
+        config.output_format,
+        config.webp_quality.max(config.jpeg_quality),
+    )
 }
 
 #[cfg(test)]

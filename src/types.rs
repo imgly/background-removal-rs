@@ -1,6 +1,9 @@
 //! Core types for background removal operations
 
-use crate::{config::OutputFormat, error::Result};
+use crate::{
+    config::OutputFormat,
+    error::{BgRemovalError, Result},
+};
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
 use log;
 use serde::{Deserialize, Serialize};
@@ -236,7 +239,9 @@ impl RemovalResult {
     /// Returns `BgRemovalError` for file I/O errors, permission issues,
     /// or disk space problems.
     pub fn save_png<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        self.image.save_with_format(path, image::ImageFormat::Png)?;
+        let png_bytes = self.to_bytes(OutputFormat::Png, 100)?;
+        std::fs::write(path, png_bytes)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write PNG file: {}", e)))?;
         Ok(())
     }
 
@@ -250,9 +255,11 @@ impl RemovalResult {
     pub fn save_png_with_timing<P: AsRef<Path>>(&self, path: P) -> Result<u64> {
         let encode_start = Instant::now();
         self.image.save_with_format(path, image::ImageFormat::Png)?;
-        encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("PNG encoding time too large for u64")
-        })
+        encode_start
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("PNG encoding time too large for u64"))
     }
 
     /// Save the result as JPEG with ICC profile support
@@ -262,11 +269,9 @@ impl RemovalResult {
     /// - JPEG encoding errors from underlying image library
     /// - Invalid quality parameter (though already validated in builder)
     pub fn save_jpeg<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
-        let rgb_image = self.image.to_rgb8();
-        let mut file = std::fs::File::create(path)?;
-        let mut jpeg_encoder =
-            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, quality);
-        jpeg_encoder.encode_image(&rgb_image)?;
+        let jpeg_bytes = self.to_bytes(OutputFormat::Jpeg, quality)?;
+        std::fs::write(path, jpeg_bytes)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write JPEG file: {}", e)))?;
         Ok(())
     }
 
@@ -278,9 +283,9 @@ impl RemovalResult {
     /// - Permission errors or disk space issues
     /// - Invalid quality parameter (outside 0-100 range)
     pub fn save_webp<P: AsRef<Path>>(&self, path: P, quality: u8) -> Result<()> {
-        // For now, use basic WebP encoding until API issues are resolved
-        let webp_data = self.encode_webp(quality);
-        std::fs::write(path, webp_data)?;
+        let webp_bytes = self.to_bytes(OutputFormat::WebP, quality)?;
+        std::fs::write(path, webp_bytes)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write WebP file: {}", e)))?;
         Ok(())
     }
 
@@ -309,8 +314,9 @@ impl RemovalResult {
     /// Returns `BgRemovalError` for file I/O errors, permission issues,
     /// or disk space problems.
     pub fn save_tiff<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        self.image
-            .save_with_format(path, image::ImageFormat::Tiff)?;
+        let tiff_bytes = self.to_bytes(OutputFormat::Tiff, 100)?;
+        std::fs::write(path, tiff_bytes)
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write TIFF file: {}", e)))?;
         Ok(())
     }
 
@@ -462,6 +468,73 @@ impl RemovalResult {
         }
     }
 
+    /// Write result to an async writer stream
+    ///
+    /// This method writes the processed image to any async writer, making it suitable
+    /// for streaming to network connections, files, or any other async destination.
+    ///
+    /// # Arguments
+    /// * `writer` - Any type implementing `AsyncWrite + Unpin`
+    /// * `format` - Output image format (PNG, JPEG, WebP, etc.)
+    /// * `quality` - Quality setting for lossy formats (0-100)
+    ///
+    /// # Returns
+    /// Number of bytes written to the stream
+    ///
+    /// # Examples
+    ///
+    /// ## Stream to file
+    /// ```rust,no_run
+    /// use imgly_bgremove::{RemovalResult, OutputFormat};
+    /// use tokio::fs::File;
+    ///
+    /// # async fn example(result: RemovalResult) -> anyhow::Result<()> {
+    /// let mut output_file = File::create("result.png").await?;
+    /// let bytes_written = result.write_to(output_file, OutputFormat::Png, 100).await?;
+    /// println!("Wrote {} bytes", bytes_written);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Stream to network
+    /// ```rust,no_run
+    /// use imgly_bgremove::{RemovalResult, OutputFormat};
+    /// use tokio::net::TcpStream;
+    ///
+    /// # async fn example(result: RemovalResult, mut stream: TcpStream) -> anyhow::Result<()> {
+    /// let bytes_written = result.write_to(&mut stream, OutputFormat::Jpeg, 90).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns `BgRemovalError` for:
+    /// - I/O errors when writing to the stream
+    /// - Image encoding errors
+    /// - Network errors when streaming over network connections
+    pub async fn write_to<W: tokio::io::AsyncWrite + Unpin>(
+        &self,
+        mut writer: W,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<u64> {
+        // Encode to bytes first (reuse existing logic)
+        let bytes = self.to_bytes(format, quality)?;
+
+        // Write to stream
+        use tokio::io::AsyncWriteExt;
+        AsyncWriteExt::write_all(&mut writer, &bytes)
+            .await
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write to stream: {}", e)))?;
+
+        // Flush to ensure data is sent
+        AsyncWriteExt::flush(&mut writer)
+            .await
+            .map_err(|e| BgRemovalError::processing(format!("Failed to flush stream: {}", e)))?;
+
+        Ok(bytes.len() as u64)
+    }
+
     /// Get image dimensions
     #[must_use]
     pub fn dimensions(&self) -> (u32, u32) {
@@ -491,9 +564,11 @@ impl RemovalResult {
         let path_str = path.as_ref().display().to_string();
         let encode_start = Instant::now();
         self.image.save_with_format(&path, format)?;
-        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("Image encoding time too large for u64")
-        })?;
+        let encode_ms = encode_start
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("Image encoding time too large for u64"))?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -546,9 +621,11 @@ impl RemovalResult {
         );
         jpeg_encoder.encode_image(&rgb_image)?;
 
-        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("JPEG encoding time too large for u64")
-        })?;
+        let encode_ms = encode_start
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("JPEG encoding time too large for u64"))?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -585,9 +662,11 @@ impl RemovalResult {
         let webp_data = self.encode_webp(quality);
         std::fs::write(&path, webp_data)?;
 
-        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("WebP encoding time too large for u64")
-        })?;
+        let encode_ms = encode_start
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("WebP encoding time too large for u64"))?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -624,9 +703,11 @@ impl RemovalResult {
         self.image
             .save_with_format(&path, image::ImageFormat::Tiff)?;
 
-        let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing("TIFF encoding time too large for u64")
-        })?;
+        let encode_ms = encode_start
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .map_err(|_| BgRemovalError::processing("TIFF encoding time too large for u64"))?;
 
         // Update the timings
         self.metadata.timings.image_encode_ms = Some(encode_ms);
@@ -675,9 +756,7 @@ impl RemovalResult {
                 std::fs::write(&path, rgba_image.as_raw())?;
 
                 let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-                    crate::error::BgRemovalError::processing(
-                        "RGBA8 encoding time too large for u64",
-                    )
+                    BgRemovalError::processing("RGBA8 encoding time too large for u64")
                 })?;
 
                 // Update the timings
@@ -897,9 +976,7 @@ impl RemovalResult {
         }
 
         let encode_ms = encode_start.elapsed().as_millis().try_into().map_err(|_| {
-            crate::error::BgRemovalError::processing(
-                "Color profile encoding time too large for u64",
-            )
+            BgRemovalError::processing("Color profile encoding time too large for u64")
         })?;
 
         // Update the timings
@@ -1054,9 +1131,8 @@ impl SegmentationMask {
     /// - Invalid mask data that cannot be converted to a valid image buffer
     pub fn to_image(&self) -> Result<ImageBuffer<image::Luma<u8>, Vec<u8>>> {
         let (width, height) = self.dimensions;
-        ImageBuffer::from_raw(width, height, self.data.clone()).ok_or_else(|| {
-            crate::error::BgRemovalError::processing("Failed to create image from mask data")
-        })
+        ImageBuffer::from_raw(width, height, self.data.clone())
+            .ok_or_else(|| BgRemovalError::processing("Failed to create image from mask data"))
     }
 
     /// Apply the mask to an RGBA image
@@ -1070,7 +1146,7 @@ impl SegmentationMask {
         let (mask_width, mask_height) = self.dimensions;
 
         if img_width != mask_width || img_height != mask_height {
-            return Err(crate::error::BgRemovalError::processing(
+            return Err(BgRemovalError::processing(
                 "Image and mask dimensions do not match",
             ));
         }

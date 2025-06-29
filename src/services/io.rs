@@ -228,6 +228,170 @@ impl ImageIOService {
             false
         }
     }
+
+    /// Load an image from bytes
+    ///
+    /// This method accepts raw image bytes and attempts to decode them,
+    /// making it suitable for processing images from memory, network, or
+    /// any other byte source.
+    ///
+    /// # Arguments
+    /// * `bytes` - Raw image data as bytes
+    ///
+    /// # Returns
+    /// * `Ok(DynamicImage)` - Successfully loaded image
+    /// * `Err(BgRemovalError)` - Failed to decode image
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use imgly_bgremove::services::ImageIOService;
+    ///
+    /// let image_data = std::fs::read("input.jpg")?;
+    /// let image = ImageIOService::load_from_bytes(&image_data)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage> {
+        image::load_from_memory(bytes).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
+        })
+    }
+
+    /// Load an image from an async reader
+    ///
+    /// This method reads image data from any async reader and decodes it,
+    /// making it suitable for processing images from streams, files, or
+    /// network connections.
+    ///
+    /// # Arguments
+    /// * `reader` - Any type implementing `AsyncRead + Unpin`
+    /// * `format_hint` - Optional hint about the image format
+    ///
+    /// # Returns
+    /// * `Ok(DynamicImage)` - Successfully loaded image
+    /// * `Err(BgRemovalError)` - Failed to read or decode image
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use imgly_bgremove::services::ImageIOService;
+    /// use tokio::fs::File;
+    /// use image::ImageFormat;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let file = File::open("image.jpg").await?;
+    /// let image = ImageIOService::load_from_reader(file, Some(ImageFormat::Jpeg)).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn load_from_reader<R: tokio::io::AsyncRead + Unpin>(
+        mut reader: R,
+        _format_hint: Option<image::ImageFormat>,
+    ) -> Result<DynamicImage> {
+        // Read all data from the stream into memory
+        let mut buffer = Vec::new();
+        use tokio::io::AsyncReadExt;
+        AsyncReadExt::read_to_end(&mut reader, &mut buffer)
+            .await
+            .map_err(|e| {
+                BgRemovalError::processing(format!("Failed to read from stream: {}", e))
+            })?;
+
+        // Use the bytes-based loading
+        Self::load_from_bytes(&buffer)
+    }
+
+    /// Save an image to an async writer
+    ///
+    /// This method writes image data to any async writer, making it suitable
+    /// for streaming to files, network connections, or any other async destination.
+    ///
+    /// # Arguments
+    /// * `image` - The image to save
+    /// * `writer` - Any type implementing `AsyncWrite + Unpin`
+    /// * `format` - Output format specification
+    /// * `quality` - Quality setting for lossy formats (0-100)
+    ///
+    /// # Returns
+    /// * `Ok(u64)` - Number of bytes written
+    /// * `Err(BgRemovalError)` - Failed to encode or write image
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use imgly_bgremove::{services::ImageIOService, OutputFormat};
+    /// use tokio::fs::File;
+    /// use image::DynamicImage;
+    ///
+    /// # async fn example(image: DynamicImage) -> anyhow::Result<()> {
+    /// let output_file = File::create("output.jpg").await?;
+    /// let bytes_written = ImageIOService::save_to_writer(
+    ///     &image,
+    ///     output_file,
+    ///     OutputFormat::Jpeg,
+    ///     90
+    /// ).await?;
+    /// println!("Wrote {} bytes", bytes_written);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn save_to_writer<W: tokio::io::AsyncWrite + Unpin>(
+        image: &DynamicImage,
+        mut writer: W,
+        format: OutputFormat,
+        quality: u8,
+    ) -> Result<u64> {
+        // Encode to bytes using existing format handling logic
+        let bytes = match format {
+            OutputFormat::Png => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                image
+                    .write_to(&mut cursor, image::ImageFormat::Png)
+                    .map_err(|e| {
+                        BgRemovalError::processing(format!("Failed to encode PNG: {}", e))
+                    })?;
+                buffer
+            },
+            OutputFormat::Jpeg => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                let rgb_image = image.to_rgb8();
+                let mut jpeg_encoder =
+                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, quality);
+                jpeg_encoder.encode_image(&rgb_image).map_err(|e| {
+                    BgRemovalError::processing(format!("Failed to encode JPEG: {}", e))
+                })?;
+                buffer
+            },
+            OutputFormat::WebP => {
+                return Err(BgRemovalError::processing(
+                    "WebP encoding in stream mode not yet implemented".to_string(),
+                ));
+            },
+            OutputFormat::Tiff => {
+                let mut buffer = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut buffer);
+                image
+                    .write_to(&mut cursor, image::ImageFormat::Tiff)
+                    .map_err(|e| {
+                        BgRemovalError::processing(format!("Failed to encode TIFF: {}", e))
+                    })?;
+                buffer
+            },
+            OutputFormat::Rgba8 => image.to_rgba8().into_raw(),
+        };
+
+        // Write to stream
+        use tokio::io::AsyncWriteExt;
+        AsyncWriteExt::write_all(&mut writer, &bytes)
+            .await
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write to stream: {}", e)))?;
+
+        // Flush to ensure data is sent
+        AsyncWriteExt::flush(&mut writer)
+            .await
+            .map_err(|e| BgRemovalError::processing(format!("Failed to flush stream: {}", e)))?;
+
+        Ok(bytes.len() as u64)
+    }
 }
 
 #[cfg(test)]
