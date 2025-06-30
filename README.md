@@ -129,6 +129,15 @@ let model_spec = ModelSpec {
 let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 let file = File::open("input.jpg").await?;
 remove_background_from_reader(file, &config).await?.save_png("output.png")?;
+
+// For processing multiple images efficiently:
+// Initialize once, reuse for multiple images
+// let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+// for image_path in ["image1.jpg", "image2.jpg", "image3.jpg"] {
+//     let file = File::open(image_path).await?;
+//     let output_name = format!("output_{}", image_path.replace(".jpg", ".png"));
+//     remove_background_from_reader(file, &config).await?.save_png(&output_name)?;
+// }
 ```
 
 ### Advanced Configuration
@@ -170,6 +179,15 @@ let config = RemovalConfig::builder()
 let file = File::open("input.jpg").await?;
 let result = remove_background_from_reader(file, &config).await?;
 result.save_png("output.png")?;
+
+// For batch processing: initialize model once, process multiple images
+// let image_paths = ["photo1.jpg", "photo2.jpg", "photo3.jpg"];
+// for (i, image_path) in image_paths.iter().enumerate() {
+//     let file = File::open(image_path).await?;
+//     let result = remove_background_from_reader(file, &config).await?;
+//     result.save_png(&format!("processed_{}.png", i))?;
+//     println!("Processed: {} -> processed_{}.png", image_path, i);
+// }
 ```
 
 ## CLI Reference
