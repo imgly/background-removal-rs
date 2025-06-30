@@ -290,7 +290,6 @@ fn show_provider_diagnostics() {
         );
     }
 
-
     println!("\n💡 Usage Examples:");
     println!("  --execution-provider onnx:auto    # Auto-select best ONNX provider (default)");
     println!("  --execution-provider onnx:coreml  # Use Apple CoreML (macOS)");

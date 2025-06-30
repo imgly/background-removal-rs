@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Model source specification
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ModelSource {
     /// External model from filesystem path
     External(PathBuf),
@@ -31,10 +31,20 @@ impl ModelSource {
 }
 
 /// Complete model specification including source and optional variant
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ModelSpec {
     pub source: ModelSource,
     pub variant: Option<String>,
+}
+
+impl Default for ModelSpec {
+    fn default() -> Self {
+        // Default to using the first available cached model
+        Self {
+            source: ModelSource::Downloaded(String::new()), // Will be resolved at runtime
+            variant: None,
+        }
+    }
 }
 
 // Include generated model configuration and registry

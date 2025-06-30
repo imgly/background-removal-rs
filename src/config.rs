@@ -1,5 +1,7 @@
 //! Configuration types for background removal operations
 
+use crate::models::ModelSpec;
+use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 
 /// Execution provider options for ONNX Runtime
@@ -83,6 +85,13 @@ pub struct RemovalConfig {
 
     /// Disable all caches during processing (default: false)
     pub disable_cache: bool,
+
+    /// Model specification including source and variant
+    pub model_spec: ModelSpec,
+
+    /// Optional format hint for reader-based processing
+    #[serde(skip)]
+    pub format_hint: Option<ImageFormat>,
 }
 
 impl Default for RemovalConfig {
@@ -93,10 +102,12 @@ impl Default for RemovalConfig {
             jpeg_quality: 90,
             webp_quality: 85,
             debug: false,
-            intra_threads: 0,              // Auto-detect optimal intra-op threads
-            inter_threads: 0,              // Auto-detect optimal inter-op threads
-            preserve_color_profiles: true, // Default: preserve color profiles
-            disable_cache: false,          // Default: enable caches
+            intra_threads: 0,                 // Auto-detect optimal intra-op threads
+            inter_threads: 0,                 // Auto-detect optimal inter-op threads
+            preserve_color_profiles: true,    // Default: preserve color profiles
+            disable_cache: false,             // Default: enable caches
+            model_spec: ModelSpec::default(), // Default: use first available cached model
+            format_hint: None,                // Default: auto-detect format
         }
     }
 }
@@ -299,6 +310,20 @@ impl RemovalConfigBuilder {
     #[must_use]
     pub fn disable_cache(mut self, disable: bool) -> Self {
         self.config.disable_cache = disable;
+        self
+    }
+
+    /// Set the model specification
+    #[must_use]
+    pub fn model_spec(mut self, model_spec: ModelSpec) -> Self {
+        self.config.model_spec = model_spec;
+        self
+    }
+
+    /// Set the format hint for reader-based processing
+    #[must_use]
+    pub fn format_hint(mut self, format: Option<ImageFormat>) -> Self {
+        self.config.format_hint = format;
         self
     }
 

@@ -144,6 +144,8 @@ impl ProcessorConfig {
             inter_threads: self.inter_threads,
             preserve_color_profiles: self.preserve_color_profiles,
             disable_cache: self.disable_cache,
+            model_spec: self.model_spec.clone(),
+            format_hint: None,
         }
     }
 }

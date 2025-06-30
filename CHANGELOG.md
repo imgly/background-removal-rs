@@ -16,10 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session correlation**: Automatic session ID generation for request correlation and debugging
 - **Feature-gated tracing outputs**: Optional JSON logging, file appenders, and OpenTelemetry support
 - **CLI tracing integration**: Maintains emoji-rich output while adding structured debugging capabilities
+- **Simplified API**: `remove_background_from_reader` is now the primary function with 2-parameter signature
+- **Unified configuration**: Model specification is now included in `RemovalConfig` for simplified usage
+- **Format hint support**: Added optional format hint field to `RemovalConfig` for reader-based processing
 
 ### Changed  
+- **BREAKING**: Simplified API to use `remove_background_from_reader(reader, config)` as primary function
+- **BREAKING**: `RemovalConfig` now includes `model_spec` field for unified configuration
+- **BREAKING**: `RemovalConfigBuilder` updated with `model_spec()` and `format_hint()` methods  
 - **Default log level**: Set to ERROR for quiet operation by default (0=error, 1=warn, 2=info, 3=debug, 4+=trace)
 - **Model selection messages**: Converted from println! to tracing::info! (only shown with -vv flag)
+
+### Removed
+- **BREAKING**: Removed `remove_background_with_model()` function - use `remove_background_from_reader()` instead
+- **BREAKING**: Removed `remove_background_with_backend()` function - functionality merged into unified API
+- **BREAKING**: Removed `remove_background_simple()` function - use `remove_background_simple_bytes()` for basic usage
+- **BREAKING**: Removed `remove_background_with_model_bytes()` function - use `remove_background_from_reader()` with `Cursor::new()`
 
 ### Fixed
 - **Color profile preservation in stream-based processing**: Fixed issue where ICC color profiles were detected but not preserved when processing files through `process_file()` method
