@@ -37,7 +37,11 @@ Remove backgrounds from images using state-of-the-art deep learning models with 
 Install the command-line tool:
 
 ```bash
+# From crates.io (recommended)
 cargo install imgly-bgremove
+
+# Or directly from GitHub (latest development version)
+cargo install --git https://github.com/imgly/background-removal-rs
 ```
 
 Remove background from an image:
@@ -51,7 +55,11 @@ imgly-bgremove input.jpg --output output.png
 Add to your Rust project:
 
 ```bash
+# From crates.io (recommended)
 cargo add imgly-bgremove
+
+# Or directly from GitHub (latest development version)
+cargo add --git https://github.com/imgly/background-removal-rs
 ```
 
 Use in your code:

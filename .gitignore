@@ -3,7 +3,12 @@
 **/*.rs.bk
 Cargo.lock
 
-# Test outputs
+# Build artifacts and logs
+clippy_output.txt
+clippy_warnings.log
+*.log
+
+# Test outputs and temp files
 *_bg_removed.*
 *test_output*
 *debug_*
@@ -20,6 +25,10 @@ timed_*.png
 test_results/
 test_*.png
 *_test_*.png
+uut.jpg
+uut_bg_removed.png
+test.png
+/tmp/
 
 # IDE
 .vscode/
