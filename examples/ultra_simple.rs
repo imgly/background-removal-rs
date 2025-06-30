@@ -4,7 +4,9 @@
 //! Requires a model to be downloaded/cached.
 
 use anyhow::Result;
-use imgly_bgremove::{remove_background_from_reader, ModelDownloader, ModelSource, ModelSpec, RemovalConfig};
+use imgly_bgremove::{
+    remove_background_from_reader, ModelDownloader, ModelSource, ModelSpec, RemovalConfig,
+};
 use tokio::fs::File;
 
 #[tokio::main]
@@ -19,9 +21,7 @@ async fn main() -> Result<()> {
         source: ModelSource::Downloaded(model_id),
         variant: None,
     };
-    let config = RemovalConfig::builder()
-        .model_spec(model_spec)
-        .build()?;
+    let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 
     // Process image: file reader -> processed result
     let file = File::open("input.jpg").await?;

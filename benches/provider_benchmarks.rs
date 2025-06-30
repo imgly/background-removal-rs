@@ -1,11 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use imgly_bgremove::{
-    backends::{OnnxBackend, TractBackend},
+    RemovalSession, RemovalConfig,
     config::{ExecutionProvider, OutputFormat},
     error::Result,
-    inference::InferenceBackend,
-    models::{ModelManager, ModelSource, ModelSpec},
-    processor::{BackendFactory, BackendType, BackgroundRemovalProcessor, ProcessorConfigBuilder},
+    models::{ModelSource, ModelSpec},
 };
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
@@ -77,80 +75,22 @@ fn setup_benchmark_configs() -> Vec<BenchmarkConfig> {
     configs
 }
 
-struct BenchmarkBackendFactory;
-
-impl BackendFactory for BenchmarkBackendFactory {
-    fn create_backend(
-        &self,
-        backend_type: BackendType,
-        model_manager: ModelManager,
-    ) -> Result<Box<dyn InferenceBackend>> {
-        match backend_type {
-            BackendType::Onnx => {
-                #[cfg(feature = "onnx")]
-                {
-                    let backend = OnnxBackend::with_model_manager(model_manager);
-                    Ok(Box::new(backend))
-                }
-                #[cfg(not(feature = "onnx"))]
-                Err(imgly_bgremove::BgRemovalError::invalid_config(
-                    "ONNX feature not enabled",
-                ))
-            },
-            BackendType::Tract => {
-                #[cfg(feature = "tract")]
-                {
-                    let backend = TractBackend::with_model_manager(model_manager);
-                    Ok(Box::new(backend))
-                }
-                #[cfg(not(feature = "tract"))]
-                Err(imgly_bgremove::BgRemovalError::invalid_config(
-                    "Tract feature not enabled",
-                ))
-            },
-        }
-    }
-
-    fn available_backends(&self) -> Vec<BackendType> {
-        let mut backends = Vec::new();
-        #[cfg(feature = "onnx")]
-        backends.push(BackendType::Onnx);
-        #[cfg(feature = "tract")]
-        backends.push(BackendType::Tract);
-        backends
-    }
-}
-
-fn create_processor(
+fn create_session(
     config: &BenchmarkConfig,
     model_path: PathBuf,
-) -> Result<BackgroundRemovalProcessor> {
+) -> Result<RemovalSession> {
     let model_spec = ModelSpec {
         source: ModelSource::External(model_path),
         variant: Some("fp32".to_string()),
     };
 
-    let backend_type = match config.backend {
-        "onnx" => BackendType::Onnx,
-        "tract" => BackendType::Tract,
-        _ => {
-            return Err(imgly_bgremove::BgRemovalError::invalid_config(format!(
-                "Unknown backend: {}",
-                config.backend
-            )))
-        },
-    };
-
-    let processor_config = ProcessorConfigBuilder::new()
+    let session_config = RemovalConfig::builder()
         .model_spec(model_spec)
-        .backend_type(backend_type)
         .execution_provider(config.provider)
         .output_format(OutputFormat::Png)
         .build()?;
 
-    let backend_factory = Box::new(BenchmarkBackendFactory);
-
-    BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)
+    RemovalSession::new(session_config)
 }
 
 fn benchmark_single_image_processing(c: &mut Criterion) {
@@ -172,9 +112,9 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             format!("{:?}", config.provider).to_lowercase()
         );
 
-        // Skip if backend creation fails (provider not available)
-        let mut processor = match create_processor(&config, model_path.clone()) {
-            Ok(p) => p,
+        // Skip if session creation fails (provider not available)
+        let mut session = match create_session(&config, model_path.clone()) {
+            Ok(s) => s,
             Err(_) => continue,
         };
 
@@ -185,15 +125,11 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        // Save test image to temp file for processing
-                        let temp_dir = tempfile::tempdir().unwrap();
-                        let input_path = temp_dir.path().join("test.jpg");
-                        std::fs::write(&input_path, image_data).unwrap();
-
-                        processor
-                            .process_file(black_box(&input_path))
-                            .await
-                            .unwrap()
+                        black_box(
+                            session
+                                .remove_background_from_bytes(image_data)
+                                .unwrap()
+                        )
                     })
                 });
             },
@@ -206,14 +142,11 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        let temp_dir = tempfile::tempdir().unwrap();
-                        let input_path = temp_dir.path().join("test.jpg");
-                        std::fs::write(&input_path, image_data).unwrap();
-
-                        processor
-                            .process_file(black_box(&input_path))
-                            .await
-                            .unwrap()
+                        black_box(
+                            session
+                                .remove_background_from_bytes(image_data)
+                                .unwrap()
+                        )
                     })
                 });
             },
@@ -226,14 +159,11 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        let temp_dir = tempfile::tempdir().unwrap();
-                        let input_path = temp_dir.path().join("test.jpg");
-                        std::fs::write(&input_path, image_data).unwrap();
-
-                        processor
-                            .process_file(black_box(&input_path))
-                            .await
-                            .unwrap()
+                        black_box(
+                            session
+                                .remove_background_from_bytes(image_data)
+                                .unwrap()
+                        )
                     })
                 });
             },

@@ -6,12 +6,12 @@
 
 use anyhow::Result;
 use imgly_bgremove::{
-    remove_background_from_reader, BackendType, BackgroundRemovalProcessor, ExecutionProvider,
-    ModelCache, ModelDownloader, ModelSource, ModelSpec, OutputFormat, ProcessorConfigBuilder,
+    remove_background_from_reader, RemovalSession, ExecutionProvider,
+    ModelCache, ModelDownloader, ModelSource, ModelSpec, OutputFormat,
     RemovalConfig,
 };
-use tokio::fs::File;
 use std::path::Path;
+use tokio::fs::File;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
         source: ModelSource::Downloaded(model_id.clone()),
         variant: None, // Auto-select based on execution provider
     };
-    
+
     let config_png = RemovalConfig::builder()
         .model_spec(model_spec.clone())
         .execution_provider(ExecutionProvider::Auto) // Auto-detect best provider
@@ -83,21 +83,27 @@ async fn main() -> Result<()> {
         result.save_png("output_reader.png")?;
         println!("✅ Reader API result saved to: output_reader.png");
 
-        // Method 2: Use the unified processor for more control
-        let processor_config = ProcessorConfigBuilder::new()
+        // Method 2: Use RemovalSession for efficient reuse (batch processing)
+        let session_config = RemovalConfig::builder()
             .model_spec(model_spec.clone())
-            .backend_type(BackendType::Onnx)
             .execution_provider(ExecutionProvider::Auto)
             .output_format(OutputFormat::Jpeg)
             .jpeg_quality(95)
             .preserve_color_profiles(true)
-            .disable_cache(false) // Enable session caching for performance
             .build()?;
 
-        let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
-        let result2 = processor.process_file(input_path).await?;
-        result2.save("output_processor.jpg", OutputFormat::Jpeg, 95)?;
-        println!("✅ Processor API result saved to: output_processor.jpg");
+        let mut session = RemovalSession::new(session_config)?;
+        let file2 = File::open(input_path).await?;
+        let result2 = session.remove_background_from_reader(file2).await?;
+        result2.save_png("output_session.png")?;
+        println!("✅ Session API result saved to: output_session.png");
+
+        // Demonstrate session efficiency by processing the same image again
+        println!("🔄 Processing same image again with cached model...");
+        let file3 = File::open(input_path).await?;
+        let result3 = session.remove_background_from_reader(file3).await?;
+        result3.save_png("output_session_cached.png")?;
+        println!("✅ Cached session result saved to: output_session_cached.png");
 
         // Display processing metadata
         println!("\n📊 Processing Metadata:");

@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration Guide
 
-For users upgrading from the workspace version (v0.1.x) to the consolidated version (v0.2.x):
+For users upgrading from the workspace version (v0.1.x) to the consolidated version (v0.1.x):
 
 #### Dependency Updates
 ```toml
@@ -127,7 +127,7 @@ bg-remove-cli = "0.1.0"
 
 # New (consolidated version)
 [dependencies]
-imgly-bgremove = "0.2.0"
+imgly-bgremove = "0.1.0"
 ```
 
 #### Import Updates
@@ -156,9 +156,9 @@ imgly-bgremove input.jpg output.png
 bg-remove-core = { version = "0.1.0", features = ["embed-isnet-fp32"] }
 
 # New feature configuration  
-imgly-bgremove = { version = "0.2.0", features = ["embed-isnet-fp32"] }
+imgly-bgremove = { version = "0.1.0", features = ["embed-isnet-fp32"] }
 # Or use default features for everything:
-imgly-bgremove = "0.2.0"  # Includes onnx, tract, cli, embed-isnet-fp32
+imgly-bgremove = "0.1.0"  # Includes onnx, tract, cli, embed-isnet-fp32
 ```
 
 #### Backend Usage Updates

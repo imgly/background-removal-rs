@@ -22,9 +22,7 @@ async fn main() -> Result<()> {
         source: ModelSource::Downloaded(model_id),
         variant: None,
     };
-    let config = RemovalConfig::builder()
-        .model_spec(model_spec)
-        .build()?;
+    let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 
     // Simple usage: reader-based API
     let file = File::open("input.jpg").await?;
