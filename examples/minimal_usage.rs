@@ -1,12 +1,13 @@
-//! Minimal example showing the shortest possible way to remove backgrounds
+//! Minimal example showing the simplest way to remove backgrounds
 //!
-//! This demonstrates the absolute simplest usage - just one function call
+//! This demonstrates simple usage with the new unified API
 //! after the model is downloaded once.
 
 use anyhow::Result;
 use imgly_bgremove::{
-    remove_background_with_model, ModelDownloader, ModelSource, ModelSpec, RemovalConfig,
+    remove_background_from_reader, ModelDownloader, ModelSource, ModelSpec, RemovalConfig,
 };
+use tokio::fs::File;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,16 +17,18 @@ async fn main() -> Result<()> {
         .download_model("https://huggingface.co/imgly/isnet-general-onnx", false)
         .await?;
 
-    // Minimal usage: One function call to remove background
-    let result = remove_background_with_model(
-        "input.jpg",
-        &RemovalConfig::default(),
-        &ModelSpec {
-            source: ModelSource::Downloaded(model_id),
-            variant: None,
-        },
-    )
-    .await?;
+    // Setup unified configuration
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded(model_id),
+        variant: None,
+    };
+    let config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .build()?;
+
+    // Simple usage: reader-based API
+    let file = File::open("input.jpg").await?;
+    let result = remove_background_from_reader(file, &config).await?;
 
     result.save_png("output.png")?;
     println!("✅ Background removed! Saved to output.png");

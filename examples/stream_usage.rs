@@ -5,9 +5,9 @@
 
 use anyhow::Result;
 use imgly_bgremove::{
-    remove_background_from_reader, remove_background_simple_bytes,
-    remove_background_with_model_bytes, BackendType, BackgroundRemovalProcessor, ExecutionProvider,
-    ModelDownloader, ModelSource, ModelSpec, OutputFormat, ProcessorConfigBuilder, RemovalConfig,
+    remove_background_from_bytes, remove_background_from_reader, BackendType,
+    BackgroundRemovalProcessor, ExecutionProvider, ModelDownloader, ModelSource, ModelSpec,
+    OutputFormat, ProcessorConfigBuilder, RemovalConfig,
 };
 use std::io::Cursor;
 use tokio::fs::File;
@@ -26,13 +26,23 @@ async fn main() -> Result<()> {
     let model_id = downloader.download_model(model_url, false).await?;
     println!("✅ Model ready: {model_id}");
 
-    // Example 1: Ultra-simple bytes processing
-    println!("\n📝 Example 1: Ultra-simple bytes processing");
+    // Example 1: Simple bytes processing with new API
+    println!("\n📝 Example 1: Simple bytes processing with new API");
     if let Ok(sample_data) = create_sample_image() {
-        match remove_background_simple_bytes(&sample_data).await {
-            Ok(png_bytes) => {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded(model_id.clone()),
+            variant: None,
+        };
+        let config = RemovalConfig::builder()
+            .model_spec(model_spec)
+            .output_format(OutputFormat::Png)
+            .build()?;
+
+        match remove_background_from_bytes(&sample_data, &config).await {
+            Ok(result) => {
+                let png_bytes = result.to_bytes(OutputFormat::Png, 100)?;
                 tokio::fs::write("stream_example_1.png", png_bytes).await?;
-                println!("✅ Processed with ultra-simple API -> stream_example_1.png");
+                println!("✅ Processed with bytes API -> stream_example_1.png");
             },
             Err(e) => println!("❌ Error: {e}"),
         }
@@ -41,19 +51,21 @@ async fn main() -> Result<()> {
     // Example 2: Bytes processing with custom configuration
     println!("\n🎛️ Example 2: Bytes processing with custom format");
     if let Ok(sample_data) = create_sample_image() {
-        let config = RemovalConfig::builder()
-            .output_format(OutputFormat::WebP)
-            .webp_quality(85)
-            .execution_provider(ExecutionProvider::Auto)
-            .build()?;
-
         let model_spec = ModelSpec {
             source: ModelSource::Downloaded(model_id.clone()),
             variant: None,
         };
 
-        match remove_background_with_model_bytes(&sample_data, &config, &model_spec).await {
-            Ok(webp_bytes) => {
+        let config = RemovalConfig::builder()
+            .model_spec(model_spec)
+            .output_format(OutputFormat::WebP)
+            .webp_quality(85)
+            .execution_provider(ExecutionProvider::Auto)
+            .build()?;
+
+        match remove_background_from_bytes(&sample_data, &config).await {
+            Ok(result) => {
+                let webp_bytes = result.to_bytes(OutputFormat::WebP, 85)?;
                 tokio::fs::write("stream_example_2.webp", webp_bytes).await?;
                 println!("✅ Processed with custom config -> stream_example_2.webp");
             },
@@ -65,13 +77,13 @@ async fn main() -> Result<()> {
     println!("\n📁 Example 3: Stream processing from file reader");
     if std::path::Path::new("input.jpg").exists() {
         let file = File::open("input.jpg").await?;
-        let config = RemovalConfig::default();
         let model_spec = ModelSpec {
             source: ModelSource::Downloaded(model_id.clone()),
             variant: None,
         };
+        let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 
-        match remove_background_from_reader(file, None, &config, &model_spec).await {
+        match remove_background_from_reader(file, &config).await {
             Ok(result) => {
                 result.save_png("stream_example_3.png")?;
                 println!("✅ Processed from file stream -> stream_example_3.png");
@@ -129,13 +141,13 @@ async fn main() -> Result<()> {
     println!("\n💾 Example 5: Memory cursor processing");
     if let Ok(sample_data) = create_sample_image() {
         let cursor = Cursor::new(sample_data);
-        let config = RemovalConfig::default();
         let model_spec = ModelSpec {
             source: ModelSource::Downloaded(model_id),
             variant: None,
         };
+        let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 
-        match remove_background_from_reader(cursor, None, &config, &model_spec).await {
+        match remove_background_from_reader(cursor, &config).await {
             Ok(result) => {
                 let output_bytes = result.to_bytes(OutputFormat::Png, 100)?;
                 tokio::fs::write("stream_example_5.png", output_bytes).await?;

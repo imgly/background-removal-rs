@@ -1,25 +1,27 @@
-//! One-liner example: Remove background with just one function call
+//! Concise example: Remove background with the new unified API
 //!
 //! This example assumes you have already downloaded a model using the CLI or
-//! another example. It shows the absolute shortest code to remove a background.
+//! another example. It shows concise code to remove a background.
 
 use anyhow::Result;
-use imgly_bgremove::{remove_background_with_model, ModelSource, ModelSpec, RemovalConfig};
+use imgly_bgremove::{remove_background_from_reader, ModelSource, ModelSpec, RemovalConfig};
+use tokio::fs::File;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // ONE LINE: Remove background and save result
-    remove_background_with_model(
-        "input.jpg",
-        &RemovalConfig::default(),
-        &ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: None,
-        },
-    )
-    .await?
-    .save_png("output.png")?;
+    // Setup unified config with model
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+        variant: None,
+    };
+    let config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .build()?;
 
-    println!("✅ Done! Background removed in one line of code.");
+    // Process and save in just two lines
+    let file = File::open("input.jpg").await?;
+    remove_background_from_reader(file, &config).await?.save_png("output.png")?;
+
+    println!("✅ Done! Background removed with the new unified API.");
     Ok(())
 }
