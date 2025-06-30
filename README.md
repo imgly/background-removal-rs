@@ -11,10 +11,13 @@ Remove backgrounds from images using state-of-the-art deep learning models with 
 
 ## Why imgly-bgremove?
 
-- **Fast**: 2-5x faster than JavaScript implementations with hardware acceleration
+- **Fast**: Hardware acceleration with automatic provider detection
 - **Flexible**: Works as both CLI tool and Rust library 
-- **Smart**: Automatic hardware detection with manual override support
-- **Production-ready**: Comprehensive error handling and logging
+- **Multi-model**: Support for multiple AI models and any compatible ONNX model
+- **Multi-backend**: ONNX Runtime and pure Rust Tract backends
+- **Model and Session Caching**: Fast startup with cached models and sessions
+- **Batching**: Efficient batch processing of multiple images
+- **Color Profile Support**: Preserves ICC color profiles from input images
 
 ## Supported Platforms
 
@@ -40,7 +43,7 @@ cargo install imgly-bgremove
 Remove background from an image:
 
 ```bash
-imgly-bgremove input.jpg output.png
+imgly-bgremove input.jpg --output output.png
 ```
 
 ### Library Usage
@@ -54,59 +57,60 @@ cargo add imgly-bgremove
 Use in your code:
 
 ```rust
-use imgly_bgremove::remove_background_simple;
+use imgly_bgremove::{remove_background_from_reader, RemovalConfig, ModelSpec, ModelSource};
+use tokio::fs::File;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Remove background with default settings
-    remove_background_simple("input.jpg", "output.png").await?;
+    // Configure with a downloaded model (assumes model already cached)
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+        variant: None,
+    };
+    let config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .build()?;
+
+    // Remove background and save result
+    let file = File::open("input.jpg").await?;
+    remove_background_from_reader(file, &config).await?.save_png("output.png")?;
     Ok(())
 }
 ```
 
 For advanced usage, see the [documentation](https://docs.rs/imgly-bgremove).
 
-## Key Features
+## Available Models
 
-### Multiple AI Models
 - **ISNet**: General-purpose background removal (FP16/FP32)
 - **BiRefNet**: Portrait-optimized models (FP16/FP32)  
 - **BiRefNet Lite**: Lightweight variant for faster processing
 - **Custom Models**: Any compatible ONNX background removal model
 
-### Dual Backend Architecture
-- **ONNX Runtime**: Hardware acceleration (CUDA, CoreML, CPU)
-- **Tract**: Pure Rust backend for maximum compatibility
+## Execution Providers
 
-### Execution Providers
 - **Auto**: Automatically selects best available provider
 - **CUDA**: NVIDIA GPU acceleration
 - **CoreML**: Apple Silicon GPU acceleration  
 - **CPU**: Universal fallback
 
-### Advanced Features
-- **Model Caching**: Automatic download and caching from HuggingFace
-- **Color Profiles**: ICC color profile preservation
-- **Batch Processing**: Process directories and multiple files
-- **Pipeline Support**: stdin/stdout for shell integration
-
 ## CLI Examples
 
 ```bash
 # Basic usage
-imgly-bgremove photo.jpg result.png
+imgly-bgremove photo.jpg --output result.png
 
 # Batch process a directory
-imgly-bgremove photos/ --output-dir results/ --recursive
+imgly-bgremove photos/ --output results/ --recursive
 
 # Use specific execution provider
-imgly-bgremove input.jpg output.png --execution-provider onnx:coreml
+imgly-bgremove input.jpg --output output.png --execution-provider onnx:coreml
 
 # Pipeline usage
-curl -s https://example.com/image.jpg | imgly-bgremove - - | upload-tool
+curl -s https://example.com/image.jpg | imgly-bgremove - --output - | upload-tool
 
 # Force specific model
-imgly-bgremove input.jpg output.png --model birefnet --variant fp16
+imgly-bgremove input.jpg --output output.png --model birefnet --variant fp16
 ```
 
 ## Library Examples
@@ -114,23 +118,30 @@ imgly-bgremove input.jpg output.png --model birefnet --variant fp16
 ### Basic Usage
 
 ```rust
-use imgly_bgremove::remove_background_simple;
+use imgly_bgremove::{remove_background_from_reader, RemovalConfig, ModelSpec, ModelSource};
+use tokio::fs::File;
 
-// One-line background removal
-remove_background_simple("input.jpg", "output.png").await?;
+// Simple background removal with cached model
+let model_spec = ModelSpec {
+    source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    variant: None,
+};
+let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+let file = File::open("input.jpg").await?;
+remove_background_from_reader(file, &config).await?.save_png("output.png")?;
 ```
 
 ### Advanced Configuration
 
 ```rust
 use imgly_bgremove::{
-    ModelDownloader, ModelSpec, ModelSource,
-    BackgroundRemovalProcessor, RemovalConfig,
-    ExecutionProvider, OutputFormat
+    ModelDownloader, ModelSpec, ModelSource, remove_background_from_reader,
+    RemovalConfig, ExecutionProvider, OutputFormat
 };
+use tokio::fs::File;
 
 // Download and cache a model from HuggingFace
-let downloader = ModelDownloader::new();
+let downloader = ModelDownloader::new()?;
 
 // Example: ISNet general-purpose model
 let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
@@ -141,7 +152,7 @@ let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
 
 let model_id = downloader.download_model(model_url, true).await?;
 
-// Configure processor with downloaded model
+// Configure processing with downloaded model
 let model_spec = ModelSpec {
     source: ModelSource::Downloaded(model_id),
     variant: None, // Auto-select best variant
@@ -150,12 +161,15 @@ let model_spec = ModelSpec {
 let config = RemovalConfig::builder()
     .model_spec(model_spec)
     .execution_provider(ExecutionProvider::Auto)
+    .output_format(OutputFormat::Png)
+    .jpeg_quality(95)
+    .preserve_color_profiles(true)
     .build()?;
 
-// Process image
-let mut processor = BackgroundRemovalProcessor::new(config)?;
-let result = processor.process_image_file("input.jpg").await?;
-result.save("output.png", OutputFormat::Png, 90)?;
+// Process image with the unified API
+let file = File::open("input.jpg").await?;
+let result = remove_background_from_reader(file, &config).await?;
+result.save_png("output.png")?;
 ```
 
 ## CLI Reference
@@ -167,18 +181,22 @@ ARGUMENTS:
   [INPUT]...  Input image files or directories
 
 OPTIONS:
-  -o, --output <OUTPUT>                    Output file or directory
+  -o, --output <OUTPUT>                    Output file or directory (use "-" for stdout)
   -f, --format <FORMAT>                    Output format [default: png]
-  -p, --execution-provider <PROVIDER>      Execution provider [default: onnx:auto]
+  -e, --execution-provider <PROVIDER>      Execution provider [default: onnx:auto]
       --jpeg-quality <QUALITY>             JPEG quality (0-100) [default: 90]
       --webp-quality <QUALITY>             WebP quality (0-100) [default: 85]
   -t, --threads <THREADS>                  Number of threads [default: 0]
+  -v, --verbose...                         Enable verbose logging (-v: INFO, -vv: DEBUG, -vvv: TRACE)
   -r, --recursive                          Process directory recursively
-      --pattern <PATTERN>                  File pattern for batch processing
-  -m, --model <MODEL>                      Model name or path
-      --variant <VARIANT>                  Model variant (fp16, fp32)
-      --preserve-color-profiles <BOOL>     Preserve ICC color profiles [default: true]
-  -v, --verbose                            Enable verbose logging
+      --pattern <PATTERN>                  Pattern for batch processing (e.g., "*.jpg")
+      --show-providers                     Show execution provider diagnostics and exit
+  -m, --model <MODEL>                      Model name, URL, or path to model folder
+      --variant <VARIANT>                  Model variant (fp16, fp32) [default: fp16]
+      --preserve-color-profiles            Preserve ICC color profiles [default: true]
+      --list-models                        List cached models available for processing
+      --clear-cache                        Clear cached models
+      --no-cache                           Disable all caches during processing
   -h, --help                               Print help
   -V, --version                            Print version
 ```
@@ -188,7 +206,7 @@ OPTIONS:
 **CUDA Provider Not Available**
 ```bash
 # Check CUDA installation and try CPU fallback
-imgly-bgremove input.jpg output.png --execution-provider onnx:cpu
+imgly-bgremove input.jpg --output output.png --execution-provider onnx:cpu
 ```
 
 **CoreML Provider Issues** 
@@ -200,7 +218,7 @@ imgly-bgremove --show-providers
 **Model Loading Errors**
 ```bash
 # Enable debug logging
-imgly-bgremove input.jpg output.png --debug -vv
+imgly-bgremove input.jpg --output output.png -vv
 ```
 
 ## Contributing
