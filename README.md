@@ -1,429 +1,211 @@
-# bg-remove
+# imgly-bgremove
 
 [![CI](https://github.com/imgly/background-removal-rust/workflows/CI/badge.svg)](https://github.com/imgly/background-removal-rust/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![Version](https://img.shields.io/crates/v/bg-remove-cli.svg)](https://crates.io/crates/bg-remove-cli)
-[![Documentation](https://docs.rs/bg-remove-core/badge.svg)](https://docs.rs/bg-remove-core)
+[![Version](https://img.shields.io/crates/v/imgly-bgremove.svg)](https://crates.io/crates/imgly-bgremove)
+[![Documentation](https://docs.rs/imgly-bgremove/badge.svg)](https://docs.rs/imgly-bgremove)
 
-**High-performance background removal CLI built in Rust**
+**A high-performance Rust library for AI-powered background removal**
 
-Remove backgrounds from images using state-of-the-art deep learning models with hardware acceleration support across multiple platforms.
+Remove backgrounds from images using state-of-the-art deep learning models with hardware acceleration support. Built for speed, accuracy, and production use.
 
-## ✨ Features
+## Why imgly-bgremove?
 
-- 🚀 **Dual Backend Architecture**: ONNX Runtime for hardware acceleration + Tract for pure Rust deployment
-- 🎯 **Intelligent Provider Selection**: Automatic detection with manual override (CPU, CUDA, CoreML, Auto)
-- ⚡ **Universal Caching**: Provider-specific optimizations for improved performance
-- 🎨 **Multiple Models**: ISNet and BiRefNet variants with FP16/FP32 precision options
-- 📁 **Batch Processing**: Process single files, directories, or use stdin/stdout for pipelines
-- 🖼️ **Format Support**: PNG, JPEG, WebP, TIFF input/output with color profile preservation
-- 🔧 **Production Ready**: Comprehensive error handling, logging, and monitoring
+- **Fast**: 2-5x faster than JavaScript implementations with hardware acceleration
+- **Flexible**: Works as both CLI tool and Rust library 
+- **Smart**: Automatic hardware detection with manual override support
+- **Production-ready**: Comprehensive error handling and logging
 
-## 🚀 Quick Start
+## Supported Platforms
 
-### Installation
+- **macOS**: Apple Silicon (M1/M2/M3) with CoreML acceleration, Intel Macs
+- **Linux**: NVIDIA GPUs with CUDA, CPU fallback
+- **Windows**: NVIDIA GPUs with CUDA, CPU fallback
 
-#### From Pre-built Binaries
-Download the latest release for your platform from [GitHub Releases](https://github.com/imgly/background-removal-rust/releases).
+## Supported Formats
 
-#### Using Cargo
-```bash
-cargo install bg-remove-cli
-```
+**Input**: JPEG, PNG, WebP, TIFF, BMP  
+**Output**: PNG (with transparency), JPEG, WebP, TIFF, raw RGBA8
 
-#### Build from Source
-```bash
-git clone https://github.com/imgly/background-removal-rust.git
-cd background-removal-rust
-cargo build --release
-```
+## Getting Started
 
-### Basic Usage
+### CLI Usage
+
+Install the command-line tool:
 
 ```bash
-# Remove background from a single image
-bg-remove input.jpg output.png
-
-# Process with specific execution provider
-bg-remove input.jpg output.png --execution-provider onnx:coreml
-
-# Batch process a directory
-bg-remove photos/ --recursive --format png
-
-# Use in a pipeline
-cat image.jpg | bg-remove - - > output.png
+cargo install imgly-bgremove
 ```
 
-## 📚 Usage Guide
-
-### Single File Processing
+Remove background from an image:
 
 ```bash
-# Basic usage with auto-detection
-bg-remove portrait.jpg result.png
-
-# Specify output format and quality
-bg-remove photo.jpg result.jpg --format jpeg --jpeg-quality 95
-
-# Use specific model variant
-bg-remove input.jpg output.png --model birefnet --variant fp16
+imgly-bgremove input.jpg output.png
 ```
 
-### Batch Processing
+### Library Usage
+
+Add to your Rust project:
 
 ```bash
-# Process all images in a directory
-bg-remove photos/ --output-dir results/
-
-# Recursive processing with file patterns
-bg-remove . --recursive --pattern "*.jpg" --format webp
-
-# Process multiple specific files
-bg-remove img1.jpg img2.png img3.webp
+cargo add imgly-bgremove
 ```
 
-### Pipeline Integration
-
-```bash
-# Read from stdin, write to stdout
-curl -s https://example.com/image.jpg | bg-remove - - | upload-tool
-
-# Process and pipe to another tool
-bg-remove input.jpg - --format png | image-optimizer --stdin
-```
-
-### Execution Provider Selection
-
-```bash
-# Auto-select best available provider (default)
-bg-remove input.jpg output.png --execution-provider onnx:auto
-
-# Force specific providers
-bg-remove input.jpg output.png --execution-provider onnx:coreml  # Apple CoreML
-bg-remove input.jpg output.png --execution-provider onnx:cuda    # NVIDIA CUDA
-bg-remove input.jpg output.png --execution-provider onnx:cpu     # CPU only
-bg-remove input.jpg output.png --execution-provider tract:cpu    # Pure Rust backend
-```
-
-### Advanced Options
-
-```bash
-# Enable verbose logging for debugging
-bg-remove input.jpg output.png -vv
-
-# Configure threading
-bg-remove input.jpg output.png --threads 8
-
-# Disable color profile preservation
-bg-remove input.jpg output.png --preserve-color-profiles false
-
-# Show provider diagnostics
-bg-remove --show-providers
-```
-
-## 🏗️ Architecture
-
-### Backend Systems
-
-**ONNX Runtime Backend** (`onnx:*`)
-- Hardware acceleration support (CUDA, CoreML, CPU)
-- Optimized model caching with `with_optimized_model_path()`
-- Provider-specific optimizations
-- Production-grade performance
-
-**Tract Backend** (`tract:*`)
-- Pure Rust implementation
-- No external dependencies
-- WebAssembly compatible
-- Consistent cross-platform behavior
-
-### Caching System
-
-The universal caching system provides significant performance improvements:
-
-- **CoreML Provider**: Native Apple caching via `with_model_cache_dir()`
-- **CPU/CUDA Providers**: Optimized model caching via `with_optimized_model_path()`
-- **Cache Isolation**: Provider-specific cache keys prevent conflicts
-- **Automatic Management**: Cache validation and cleanup
-
-### Model Variants
-
-| Model | Precision | Binary Size | Use Case |
-|-------|-----------|-------------|----------|
-| ISNet FP16 | Half | ~90MB | Balanced performance (default) |
-| ISNet FP32 | Full | ~175MB | Maximum accuracy |
-| BiRefNet FP16 | Half | ~467MB | Portrait optimization |
-| BiRefNet FP32 | Full | ~928MB | Portrait maximum quality |
-| BiRefNet Lite FP16 | Half | ~45MB | Lightweight portraits |
-| BiRefNet Lite FP32 | Full | ~90MB | Lightweight high quality |
-
-## 🔧 Installation Options
-
-### Feature Flags
-
-Control which models are embedded at build time:
-
-```bash
-# Default: ISNet FP32 model
-cargo install bg-remove-cli
-
-# Lightweight build with FP16 model
-cargo install bg-remove-cli --no-default-features --features embed-isnet-fp16
-
-# Portrait-optimized build
-cargo install bg-remove-cli --no-default-features --features embed-birefnet-fp16
-
-# All models (large binary)
-cargo install bg-remove-cli --features embed-all
-```
-
-### Docker Usage
-
-```dockerfile
-FROM rust:1.70 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/bg-remove /usr/local/bin/
-ENTRYPOINT ["bg-remove"]
-```
-
-```bash
-# Build and run
-docker build -t bg-remove .
-docker run --rm -v $(pwd):/workspace bg-remove /workspace/input.jpg /workspace/output.png
-```
-
-## 🛠️ Development
-
-### Library Integration
-
-Use bg-remove as a Rust library:
+Use in your code:
 
 ```rust
-use bg_remove_core::{
-    BackgroundRemovalProcessor, 
-    RemovalConfig, 
-    BackendType, 
-    ExecutionProvider
-};
+use imgly_bgremove::remove_background_simple;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Configure the processor
-    let config = RemovalConfig::builder()
-        .backend_type(BackendType::Onnx)
-        .execution_provider(ExecutionProvider::Auto)
-        .build()?;
-    
-    // Create processor with embedded models
-    let mut processor = BackgroundRemovalProcessor::new(config)?;
-    
-    // Process an image
-    let result = processor.process_file("input.jpg").await?;
-    result.save("output.png", bg_remove_core::OutputFormat::Png, 90)?;
-    
+async fn main() -> anyhow::Result<()> {
+    // Remove background with default settings
+    remove_background_simple("input.jpg", "output.png").await?;
     Ok(())
 }
 ```
 
-### Testing
+For advanced usage, see the [documentation](https://docs.rs/imgly-bgremove).
 
-The project includes comprehensive testing:
+## Key Features
+
+### Multiple AI Models
+- **ISNet**: General-purpose background removal (FP16/FP32)
+- **BiRefNet**: Portrait-optimized models (FP16/FP32)  
+- **BiRefNet Lite**: Lightweight variant for faster processing
+
+### Dual Backend Architecture
+- **ONNX Runtime**: Hardware acceleration (CUDA, CoreML, CPU)
+- **Tract**: Pure Rust backend for maximum compatibility
+
+### Execution Providers
+- **Auto**: Automatically selects best available provider
+- **CUDA**: NVIDIA GPU acceleration
+- **CoreML**: Apple Silicon GPU acceleration  
+- **CPU**: Universal fallback
+
+### Advanced Features
+- **Model Caching**: Automatic download and caching from HuggingFace
+- **Color Profiles**: ICC color profile preservation
+- **Batch Processing**: Process directories and multiple files
+- **Pipeline Support**: stdin/stdout for shell integration
+
+## CLI Examples
 
 ```bash
-# Fast development tests
-cargo test
+# Basic usage
+imgly-bgremove photo.jpg result.png
 
-# Comprehensive test suite
-cargo test --features expensive-tests
+# Batch process a directory
+imgly-bgremove photos/ --output-dir results/ --recursive
 
-# Performance regression tests
-cargo test --features regression-tests
+# Use specific execution provider
+imgly-bgremove input.jpg output.png --execution-provider onnx:coreml
 
-# Full test coverage
-cargo test --all-features
+# Pipeline usage
+curl -s https://example.com/image.jpg | imgly-bgremove - - | upload-tool
 
-# Performance benchmarking
-cargo bench
+# Force specific model
+imgly-bgremove input.jpg output.png --model birefnet --variant fp16
 ```
 
-### Benchmarking
+## Library Examples
 
-The project includes comprehensive benchmarks for performance validation:
+### Basic Usage
 
-```bash
-# Run all benchmark suites
-cargo bench
+```rust
+use imgly_bgremove::remove_background_simple;
 
-# Run specific benchmark groups
-cargo bench provider_benchmarks
-cargo bench cache_benchmarks
-cargo bench cache_verification
-
-# Generate HTML reports (in target/criterion/)
-cargo bench -- --html
+// One-line background removal
+remove_background_simple("input.jpg", "output.png").await?;
 ```
 
-**Available Benchmark Suites:**
+### Advanced Configuration
 
-- **`provider_benchmarks`**: Tests performance across different execution providers (CPU, CoreML, CUDA) and backends (ONNX, Tract)
-- **`cache_benchmarks`**: Compares cached vs uncached session performance for cold starts and repeated inference
-- **`cache_verification`**: Validates that session caching is working correctly and measures its impact
+```rust
+use imgly_bgremove::{
+    ModelDownloader, ModelSpec, ModelSource,
+    BackgroundRemovalProcessor, RemovalConfig,
+    ExecutionProvider, OutputFormat
+};
 
-**Benchmark Features:**
-- Pre-downloads required models to exclude download time from measurements
-- Tests various image sizes and batch configurations
-- Validates cache behavior with detailed diagnostics
-- Generates statistical analysis with confidence intervals
-- Produces HTML reports with performance graphs
+// Download and cache a model
+let downloader = ModelDownloader::new();
+let model_spec = ModelSpec::new("isnet-general-use", ModelSource::HuggingFace);
+let model_path = downloader.download_model(&model_spec).await?;
 
-### Contributing
+// Configure processor
+let config = RemovalConfig::builder()
+    .execution_provider(ExecutionProvider::Auto)
+    .build()?;
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`cargo test`)
-5. Run linting (`cargo clippy`)
-6. Format code (`cargo fmt`)
-7. Commit your changes (`git commit -m 'Add amazing feature'`)
-8. Push to the branch (`git push origin feature/amazing-feature`)
-9. Open a Pull Request
+// Process image
+let mut processor = BackgroundRemovalProcessor::new(config)?;
+let result = processor.process_file_with_model("input.jpg", &model_path).await?;
+result.save("output.png", OutputFormat::Png, 90)?;
+```
 
-## 📋 CLI Reference
+## CLI Reference
 
 ```
-bg-remove [OPTIONS] [INPUT]...
+imgly-bgremove [OPTIONS] [INPUT]...
 
 ARGUMENTS:
-  [INPUT]...  Input image files or directories (use "-" for stdin)
+  [INPUT]...  Input image files or directories
 
 OPTIONS:
-  -o, --output <OUTPUT>                    Output file or directory (use "-" for stdout)
-  -f, --format <FORMAT>                    Output format [default: png] [possible values: png, jpeg, webp, tiff, rgba8]
+  -o, --output <OUTPUT>                    Output file or directory
+  -f, --format <FORMAT>                    Output format [default: png]
   -p, --execution-provider <PROVIDER>      Execution provider [default: onnx:auto]
       --jpeg-quality <QUALITY>             JPEG quality (0-100) [default: 90]
       --webp-quality <QUALITY>             WebP quality (0-100) [default: 85]
-  -t, --threads <THREADS>                  Number of threads (0 = auto-detect) [default: 0]
-  -d, --debug                              Enable debug mode
-  -v, --verbose                            Enable verbose logging (-v: INFO, -vv: DEBUG, -vvv: TRACE)
+  -t, --threads <THREADS>                  Number of threads [default: 0]
   -r, --recursive                          Process directory recursively
-      --pattern <PATTERN>                  Pattern for batch processing (e.g., "*.jpg")
-      --show-providers                     Show execution provider diagnostics and exit
-  -m, --model <MODEL>                      Model name or path to model folder
+      --pattern <PATTERN>                  File pattern for batch processing
+  -m, --model <MODEL>                      Model name or path
       --variant <VARIANT>                  Model variant (fp16, fp32)
       --preserve-color-profiles <BOOL>     Preserve ICC color profiles [default: true]
+  -v, --verbose                            Enable verbose logging
   -h, --help                               Print help
   -V, --version                            Print version
 ```
 
-## 🚨 Troubleshooting
-
-### Common Issues
+## Troubleshooting
 
 **CUDA Provider Not Available**
 ```bash
-# Check CUDA installation
-nvidia-smi
-# Verify CUDA toolkit version compatibility
-# Try CPU fallback: --execution-provider onnx:cpu
+# Check CUDA installation and try CPU fallback
+imgly-bgremove input.jpg output.png --execution-provider onnx:cpu
 ```
 
-**CoreML Provider Issues**
+**CoreML Provider Issues** 
 ```bash
-# Check system compatibility (macOS only)
-bg-remove --show-providers
-# Verify Apple Silicon or Intel Mac with CoreML support
+# Check provider diagnostics
+imgly-bgremove --show-providers
 ```
 
 **Model Loading Errors**
 ```bash
-# Check embedded models
-bg-remove --debug --show-providers
-# Verify sufficient disk space and memory
-# Try different model variant: --variant fp16
+# Enable debug logging
+imgly-bgremove input.jpg output.png --debug -vv
 ```
 
-**Performance Issues**
-```bash
-# Enable caching diagnostics
-bg-remove input.jpg output.png -vv
-# Check cache directory permissions
-# Monitor system resources during processing
-```
-
-### Debug Mode
-
-Enable comprehensive diagnostics:
-
-```bash
-# Debug with verbose logging
-bg-remove input.jpg output.png --debug -vv
-
-# Show provider information
-bg-remove --show-providers
-
-# Test with different backends
-bg-remove input.jpg output.png --execution-provider tract:cpu --debug
-```
-
-## 📊 CI/CD Integration
-
-### GitHub Actions
-
-```yaml
-name: Background Removal Pipeline
-on: [push, pull_request]
-
-jobs:
-  process-images:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install bg-remove
-        run: cargo install bg-remove-cli
-      - name: Process marketing images
-        run: |
-          bg-remove assets/raw/ --output-dir assets/processed/ \
-            --recursive --format webp --execution-provider onnx:cpu
-```
-
-### Docker Pipeline
-
-```yaml
-version: '3.8'
-services:
-  bg-remove:
-    build: .
-    volumes:
-      - ./input:/input:ro
-      - ./output:/output
-    command: bg-remove /input --output-dir /output --recursive
-```
-
-## 📄 License
-
-This project is licensed under either of
-
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## 🔗 Links
+## License
 
-- [Documentation](https://docs.rs/bg-remove-core)
-- [Crates.io](https://crates.io/crates/bg-remove-cli)
+This project is licensed under either of
+
+ * Apache License, Version 2.0, (http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license (http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Links
+
+- [Documentation](https://docs.rs/imgly-bgremove)
+- [Crates.io](https://crates.io/crates/imgly-bgremove)
 - [Issues](https://github.com/imgly/background-removal-rust/issues)
 - [Releases](https://github.com/imgly/background-removal-rust/releases)
 
