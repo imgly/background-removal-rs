@@ -72,6 +72,7 @@ For advanced usage, see the [documentation](https://docs.rs/imgly-bgremove).
 - **ISNet**: General-purpose background removal (FP16/FP32)
 - **BiRefNet**: Portrait-optimized models (FP16/FP32)  
 - **BiRefNet Lite**: Lightweight variant for faster processing
+- **Custom Models**: Any compatible ONNX background removal model
 
 ### Dual Backend Architecture
 - **ONNX Runtime**: Hardware acceleration (CUDA, CoreML, CPU)
@@ -128,19 +129,32 @@ use imgly_bgremove::{
     ExecutionProvider, OutputFormat
 };
 
-// Download and cache a model
+// Download and cache a model from HuggingFace
 let downloader = ModelDownloader::new();
-let model_spec = ModelSpec::new("isnet-general-use", ModelSource::HuggingFace);
-let model_path = downloader.download_model(&model_spec).await?;
 
-// Configure processor
+// Example: ISNet general-purpose model
+let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
+// Example: BiRefNet portrait-optimized model
+// let model_url = "https://huggingface.co/imgly/birefnet-portrait-onnx";
+// Example: Any compatible ONNX background removal model
+// let model_url = "https://huggingface.co/your-org/your-model-onnx";
+
+let model_id = downloader.download_model(model_url, true).await?;
+
+// Configure processor with downloaded model
+let model_spec = ModelSpec {
+    source: ModelSource::Downloaded(model_id),
+    variant: None, // Auto-select best variant
+};
+
 let config = RemovalConfig::builder()
+    .model_spec(model_spec)
     .execution_provider(ExecutionProvider::Auto)
     .build()?;
 
 // Process image
 let mut processor = BackgroundRemovalProcessor::new(config)?;
-let result = processor.process_file_with_model("input.jpg", &model_path).await?;
+let result = processor.process_image_file("input.jpg").await?;
 result.save("output.png", OutputFormat::Png, 90)?;
 ```
 
