@@ -23,14 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed  
 - **BREAKING**: Simplified API to use `remove_background_from_reader(reader, config)` as primary function
 - **BREAKING**: `RemovalConfig` now includes `model_spec` field for unified configuration
-- **BREAKING**: `RemovalConfigBuilder` updated with `model_spec()` and `format_hint()` methods  
+- **BREAKING**: `RemovalConfigBuilder` updated with `model_spec()` and `format_hint()` methods
+- **BREAKING**: `remove_background_from_bytes(bytes, config)` now uses 2-parameter signature
+- **BREAKING**: `remove_background_from_image(image, config)` now uses 2-parameter signature  
 - **Default log level**: Set to ERROR for quiet operation by default (0=error, 1=warn, 2=info, 3=debug, 4+=trace)
 - **Model selection messages**: Converted from println! to tracing::info! (only shown with -vv flag)
 
 ### Removed
 - **BREAKING**: Removed `remove_background_with_model()` function - use `remove_background_from_reader()` instead
 - **BREAKING**: Removed `remove_background_with_backend()` function - functionality merged into unified API
-- **BREAKING**: Removed `remove_background_simple()` function - use `remove_background_simple_bytes()` for basic usage
+- **BREAKING**: Removed `remove_background_simple()` and `remove_background_simple_bytes()` functions - use `remove_background_from_reader()` or `remove_background_from_bytes()` instead
 - **BREAKING**: Removed `remove_background_with_model_bytes()` function - use `remove_background_from_reader()` with `Cursor::new()`
 
 ### Fixed

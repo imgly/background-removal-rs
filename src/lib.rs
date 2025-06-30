@@ -27,22 +27,7 @@
 //!
 //! ## Quick Start
 //!
-//! ### Ultra-Simple Usage (Bytes-Based)
-//!
-//! If you have a model cached, background removal from bytes is simple:
-//!
-//! ```rust,no_run
-//! use imgly_bgremove::remove_background_simple_bytes;
-//!
-//! # async fn example(image_data: Vec<u8>) -> anyhow::Result<()> {
-//! // Simple: bytes in, PNG bytes out
-//! let png_bytes = remove_background_simple_bytes(&image_data).await?;
-//! tokio::fs::write("output.png", png_bytes).await?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ### Full Control Usage (Primary API)
+//! ### Primary API Usage
 //!
 //! For custom configuration and model management:
 //!
@@ -187,12 +172,14 @@ pub use tracing_config::{
 /// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
 ///
 /// # async fn example(upload_bytes: Vec<u8>) -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
 /// };
-/// let result = remove_background_from_bytes(&upload_bytes, &config, &model_spec).await?;
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .build()?;
+/// let result = remove_background_from_bytes(&upload_bytes, &config).await?;
 /// let output_bytes = result.to_bytes(config.output_format, 90)?;
 /// # Ok(())
 /// # }
@@ -204,12 +191,14 @@ pub use tracing_config::{
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let image_data = download_image_from_api().await?;
-/// let config = RemovalConfig::default();
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
 /// };
-/// let result = remove_background_from_bytes(&image_data, &config, &model_spec).await?;
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .build()?;
+/// let result = remove_background_from_bytes(&image_data, &config).await?;
 /// let png_bytes = result.to_bytes(imgly_bgremove::OutputFormat::Png, 100)?;
 /// # Ok(())
 /// # }
@@ -218,15 +207,14 @@ pub use tracing_config::{
 pub async fn remove_background_from_bytes(
     image_bytes: &[u8],
     config: &RemovalConfig,
-    model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
     // Load image from bytes using the image crate
     let image = image::load_from_memory(image_bytes).map_err(|e| {
         BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
     })?;
 
-    // Use the existing image processing function
-    remove_background_from_image(image, config, model_spec).await
+    // Use the existing image processing function with model_spec from config
+    remove_background_from_image(image, config).await
 }
 
 /// Remove background from a `DynamicImage` directly
@@ -237,8 +225,7 @@ pub async fn remove_background_from_bytes(
 /// # Arguments
 ///
 /// * `image` - A `DynamicImage` to process (from image crate)
-/// * `config` - Configuration for the removal operation
-/// * `model_spec` - Specification of which model to use
+/// * `config` - Configuration for the removal operation (includes model specification)
 ///
 /// # Returns
 ///
@@ -252,12 +239,14 @@ pub async fn remove_background_from_bytes(
 /// use image::DynamicImage;
 ///
 /// # async fn example(img: DynamicImage) -> anyhow::Result<()> {
-/// let config = RemovalConfig::default();
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
 /// };
-/// let result = remove_background_from_image(img, &config, &model_spec).await?;
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .build()?;
+/// let result = remove_background_from_image(img, &config).await?;
 /// result.save_png("output.png")?;
 /// # Ok(())
 /// # }
@@ -265,11 +254,10 @@ pub async fn remove_background_from_bytes(
 pub async fn remove_background_from_image(
     image: image::DynamicImage,
     config: &RemovalConfig,
-    model_spec: &ModelSpec,
 ) -> Result<RemovalResult> {
     // Convert RemovalConfig to ProcessorConfig for unified processor
     let processor_config = ProcessorConfigBuilder::new()
-        .model_spec(model_spec.clone())
+        .model_spec(config.model_spec.clone())
         .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
         .execution_provider(config.execution_provider)
         .output_format(config.output_format)
@@ -358,69 +346,7 @@ pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
         .map_err(|e| BgRemovalError::processing(format!("Failed to read from stream: {}", e)))?;
 
     // Use the bytes-based API with model_spec from config
-    remove_background_from_bytes(&buffer, config, &config.model_spec).await
-}
-
-/// Remove background with minimal setup and return PNG bytes
-///
-/// This is the simplest stream-based API - provide image bytes, get PNG bytes back.
-/// Uses default configuration and the first available cached model.
-///
-/// # Arguments
-/// * `image_bytes` - Raw image data as bytes
-///
-/// # Returns
-/// PNG-encoded bytes with transparent background
-///
-/// # Examples
-/// ```rust,no_run
-/// use imgly_bgremove::remove_background_simple_bytes;
-///
-/// # async fn example(upload_data: Vec<u8>) -> anyhow::Result<()> {
-/// // Ultra-simple: bytes in, PNG bytes out
-/// let png_bytes = remove_background_simple_bytes(&upload_data).await?;
-/// // Send PNG bytes back to client, save to file, etc.
-/// tokio::fs::write("result.png", png_bytes).await?;
-/// # Ok(())
-/// # }
-/// ```
-pub async fn remove_background_simple_bytes(image_bytes: &[u8]) -> Result<Vec<u8>> {
-    // Find first available cached model
-    let cache = ModelCache::new()?;
-    let cached_models = cache.scan_cached_models()?;
-
-    if cached_models.is_empty() {
-        return Err(BgRemovalError::invalid_config(
-            "No cached models found. Download a model first using ModelDownloader or the CLI."
-                .to_string(),
-        ));
-    }
-
-    let model_spec = ModelSpec {
-        source: ModelSource::Downloaded(
-            cached_models
-                .first()
-                .ok_or_else(|| {
-                    BgRemovalError::invalid_config("No cached models available".to_string())
-                })?
-                .model_id
-                .clone(),
-        ),
-        variant: None,
-    };
-
-    // Use the new API with model_spec in config
-    let config = RemovalConfig::builder()
-        .model_spec(model_spec)
-        .output_format(OutputFormat::Png)
-        .build()?;
-
-    // Use reader-based API internally
-    let cursor = std::io::Cursor::new(image_bytes);
-    let result = remove_background_from_reader(cursor, &config).await?;
-
-    // Return PNG bytes
-    result.to_bytes(OutputFormat::Png, 100)
+    remove_background_from_bytes(&buffer, config).await
 }
 
 #[cfg(test)]

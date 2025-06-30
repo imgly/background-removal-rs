@@ -221,15 +221,19 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource};
+    /// use tokio::fs::File;
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
     /// let model_spec = ModelSpec {
     ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
     ///     variant: None,
     /// };
-    /// let result = remove_background_with_model("input.jpg", &config, &model_spec).await?;
+    /// let config = RemovalConfig::builder()
+    ///     .model_spec(model_spec)
+    ///     .build()?;
+    /// let file = File::open("input.jpg").await?;
+    /// let result = remove_background_from_reader(file, &config).await?;
     /// result.save_png("output.png")?;
     /// # Ok(())
     /// # }
@@ -404,15 +408,19 @@ impl RemovalResult {
     ///
     /// ## Custom pixel processing
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource};
+    /// use tokio::fs::File;
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
     /// let model_spec = ModelSpec {
     ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
     ///     variant: None,
     /// };
-    /// let result = remove_background_with_model("input.jpg", &config, &model_spec).await?;
+    /// let config = RemovalConfig::builder()
+    ///     .model_spec(model_spec)
+    ///     .build()?;
+    /// let file = File::open("input.jpg").await?;
+    /// let result = remove_background_from_reader(file, &config).await?;
     ///
     /// let rgba_bytes = result.to_rgba_bytes();
     /// let (width, height) = result.dimensions();
@@ -852,17 +860,20 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource, OutputFormat};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource, OutputFormat};
+    /// use tokio::fs::File;
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::builder()
-    ///     .preserve_color_profiles(true)
-    ///     .build()?;
     /// let model_spec = ModelSpec {
     ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
     ///     variant: None,
     /// };
-    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
+    /// let config = RemovalConfig::builder()
+    ///     .model_spec(model_spec)
+    ///     .preserve_color_profiles(true)
+    ///     .build()?;
+    /// let file = File::open("photo.jpg").await?;
+    /// let result = remove_background_from_reader(file, &config).await?;
     ///
     /// // Save with color profile preservation
     /// result.save_with_color_profile("output.png", OutputFormat::Png, 0)?;
@@ -1010,7 +1021,8 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource};
+    /// use tokio::fs::File;
     ///
     /// # async fn example() -> anyhow::Result<()> {
     /// let config = RemovalConfig::builder()
@@ -1020,7 +1032,8 @@ impl RemovalResult {
     ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
     ///     variant: None,
     /// };
-    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
+    /// let file = File::open("photo.jpg").await?;
+    /// let result = remove_background_from_reader(file, &config).await?;
     ///
     /// if let Some(profile) = result.get_color_profile() {
     ///     println!("Original color space: {}", profile.color_space);
@@ -1042,15 +1055,19 @@ impl RemovalResult {
     ///
     /// # Examples
     /// ```rust,no_run
-    /// use imgly_bgremove::{RemovalConfig, remove_background_with_model, ModelSpec, ModelSource};
+    /// use imgly_bgremove::{RemovalConfig, remove_background_from_reader, ModelSpec, ModelSource};
+    /// use tokio::fs::File;
     ///
     /// # async fn example() -> anyhow::Result<()> {
-    /// let config = RemovalConfig::default();
     /// let model_spec = ModelSpec {
     ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
     ///     variant: None,
     /// };
-    /// let result = remove_background_with_model("photo.jpg", &config, &model_spec).await?;
+    /// let config = RemovalConfig::builder()
+    ///     .model_spec(model_spec)
+    ///     .build()?;
+    /// let file = File::open("photo.jpg").await?;
+    /// let result = remove_background_from_reader(file, &config).await?;
     ///
     /// if result.has_color_profile() {
     ///     // Use color-profile-aware saving

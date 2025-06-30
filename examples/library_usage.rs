@@ -6,10 +6,11 @@
 
 use anyhow::Result;
 use imgly_bgremove::{
-    remove_background_with_model, BackendType, BackgroundRemovalProcessor, ExecutionProvider,
+    remove_background_from_reader, BackendType, BackgroundRemovalProcessor, ExecutionProvider,
     ModelCache, ModelDownloader, ModelSource, ModelSpec, OutputFormat, ProcessorConfigBuilder,
     RemovalConfig,
 };
+use tokio::fs::File;
 use std::path::Path;
 
 #[tokio::main]
@@ -58,27 +59,29 @@ async fn main() -> Result<()> {
     // 4. Configure processing with different options
     println!("\n🎛️ Configuring background removal...");
 
-    // Example 1: High-quality PNG output
-    let config_png = RemovalConfig::builder()
-        .execution_provider(ExecutionProvider::Auto) // Auto-detect best provider
-        .output_format(OutputFormat::Png)
-        .preserve_color_profiles(true)
-        .build()?;
-
+    // Example 1: High-quality PNG output with unified config
     let model_spec = ModelSpec {
         source: ModelSource::Downloaded(model_id.clone()),
         variant: None, // Auto-select based on execution provider
     };
+    
+    let config_png = RemovalConfig::builder()
+        .model_spec(model_spec.clone())
+        .execution_provider(ExecutionProvider::Auto) // Auto-detect best provider
+        .output_format(OutputFormat::Png)
+        .preserve_color_profiles(true)
+        .build()?;
 
     // 5. Process an image (if input exists)
     let input_path = "input.jpg";
     if Path::new(input_path).exists() {
         println!("🖼️ Processing image: {input_path}");
 
-        // Method 1: Use the high-level API
-        let result = remove_background_with_model(input_path, &config_png, &model_spec).await?;
-        result.save_png("output_highlevel.png")?;
-        println!("✅ High-level API result saved to: output_highlevel.png");
+        // Method 1: Use the reader-based API
+        let file = File::open(input_path).await?;
+        let result = remove_background_from_reader(file, &config_png).await?;
+        result.save_png("output_reader.png")?;
+        println!("✅ Reader API result saved to: output_reader.png");
 
         // Method 2: Use the unified processor for more control
         let processor_config = ProcessorConfigBuilder::new()
