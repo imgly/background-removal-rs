@@ -6,9 +6,8 @@
 
 use anyhow::Result;
 use imgly_bgremove::{
-    remove_background_from_reader, RemovalSession, ExecutionProvider,
-    ModelCache, ModelDownloader, ModelSource, ModelSpec, OutputFormat,
-    RemovalConfig,
+    remove_background_from_reader, ExecutionProvider, ModelCache, ModelDownloader, ModelSource,
+    ModelSpec, OutputFormat, RemovalConfig, RemovalSession,
 };
 use std::path::Path;
 use tokio::fs::File;

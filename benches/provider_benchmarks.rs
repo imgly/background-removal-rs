@@ -1,9 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use imgly_bgremove::{
-    RemovalSession, RemovalConfig,
     config::{ExecutionProvider, OutputFormat},
     error::Result,
     models::{ModelSource, ModelSpec},
+    RemovalConfig, RemovalSession,
 };
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
@@ -75,10 +75,7 @@ fn setup_benchmark_configs() -> Vec<BenchmarkConfig> {
     configs
 }
 
-fn create_session(
-    config: &BenchmarkConfig,
-    model_path: PathBuf,
-) -> Result<RemovalSession> {
+fn create_session(config: &BenchmarkConfig, model_path: PathBuf) -> Result<RemovalSession> {
     let model_spec = ModelSpec {
         source: ModelSource::External(model_path),
         variant: Some("fp32".to_string()),
@@ -125,11 +122,7 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        black_box(
-                            session
-                                .remove_background_from_bytes(image_data)
-                                .unwrap()
-                        )
+                        black_box(session.remove_background_from_bytes(image_data).unwrap())
                     })
                 });
             },
@@ -142,11 +135,7 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        black_box(
-                            session
-                                .remove_background_from_bytes(image_data)
-                                .unwrap()
-                        )
+                        black_box(session.remove_background_from_bytes(image_data).unwrap())
                     })
                 });
             },
@@ -159,11 +148,7 @@ fn benchmark_single_image_processing(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        black_box(
-                            session
-                                .remove_background_from_bytes(image_data)
-                                .unwrap()
-                        )
+                        black_box(session.remove_background_from_bytes(image_data).unwrap())
                     })
                 });
             },
@@ -193,9 +178,9 @@ fn benchmark_batch_processing(c: &mut Criterion) {
             format!("{:?}", config.provider).to_lowercase()
         );
 
-        // Skip if backend creation fails
-        let mut processor = match create_processor(&config, model_path.clone()) {
-            Ok(p) => p,
+        // Skip if session creation fails (provider not available)
+        let mut session = match create_session(&config, model_path.clone()) {
+            Ok(s) => s,
             Err(_) => continue,
         };
 
@@ -206,14 +191,12 @@ fn benchmark_batch_processing(c: &mut Criterion) {
                 |b, &size| {
                     b.iter(|| {
                         rt.block_on(async {
-                            let temp_dir = tempfile::tempdir().unwrap();
-                            for i in 0..size {
-                                let input_path = temp_dir.path().join(format!("test_{i}.jpg"));
-                                std::fs::write(&input_path, TEST_IMAGE_SMALL).unwrap();
-                                processor
-                                    .process_file(black_box(&input_path))
-                                    .await
-                                    .unwrap();
+                            for _i in 0..size {
+                                black_box(
+                                    session
+                                        .remove_background_from_bytes(TEST_IMAGE_SMALL)
+                                        .unwrap(),
+                                );
                             }
                         });
                     });
@@ -263,21 +246,17 @@ fn benchmark_model_variants(c: &mut Criterion) {
             variant: Some((*variant).to_string()),
         };
 
-        let processor_config = ProcessorConfigBuilder::new()
+        let session_config = RemovalConfig::builder()
             .model_spec(model_spec)
-            .backend_type(BackendType::Onnx)
             .execution_provider(config.provider)
             .output_format(OutputFormat::Png)
             .build()
             .unwrap();
 
-        let backend_factory = Box::new(BenchmarkBackendFactory);
-
-        let mut processor =
-            match BackgroundRemovalProcessor::with_factory(processor_config, backend_factory) {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
+        let mut session = match RemovalSession::new(session_config) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
 
         group.bench_with_input(
             BenchmarkId::new("model_comparison", format!("{model_name}_{variant}")),
@@ -285,13 +264,7 @@ fn benchmark_model_variants(c: &mut Criterion) {
             |b, image_data| {
                 b.iter(|| {
                     rt.block_on(async {
-                        let temp_dir = tempfile::tempdir().unwrap();
-                        let input_path = temp_dir.path().join("test.jpg");
-                        std::fs::write(&input_path, image_data).unwrap();
-                        processor
-                            .process_file(black_box(&input_path))
-                            .await
-                            .unwrap()
+                        black_box(session.remove_background_from_bytes(image_data).unwrap())
                     })
                 });
             },

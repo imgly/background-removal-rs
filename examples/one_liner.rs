@@ -4,7 +4,9 @@
 //! Assumes you have already downloaded a model using the CLI.
 
 use anyhow::Result;
-use imgly_bgremove::{remove_background_from_reader, RemovalSession, ModelSource, ModelSpec, RemovalConfig};
+use imgly_bgremove::{
+    remove_background_from_reader, ModelSource, ModelSpec, RemovalConfig, RemovalSession,
+};
 use tokio::fs::File;
 
 #[tokio::main]
