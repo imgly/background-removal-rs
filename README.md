@@ -130,13 +130,18 @@ let config = RemovalConfig::builder().model_spec(model_spec).build()?;
 let file = File::open("input.jpg").await?;
 remove_background_from_reader(file, &config).await?.save_png("output.png")?;
 
-// For processing multiple images efficiently:
-// Initialize once, reuse for multiple images
-// let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+// For processing multiple images efficiently (model loaded once):
+// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
+// let processor_config = ProcessorConfigBuilder::new()
+//     .model_spec(model_spec)
+//     .backend_type(BackendType::Onnx)
+//     .build()?;
+// let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
 // for image_path in ["image1.jpg", "image2.jpg", "image3.jpg"] {
-//     let file = File::open(image_path).await?;
+//     let img = image::open(image_path)?;
+//     let result = processor.process_image(&img)?;
 //     let output_name = format!("output_{}", image_path.replace(".jpg", ".png"));
-//     remove_background_from_reader(file, &config).await?.save_png(&output_name)?;
+//     result.save_png(&output_name)?;
 // }
 ```
 
@@ -180,11 +185,20 @@ let file = File::open("input.jpg").await?;
 let result = remove_background_from_reader(file, &config).await?;
 result.save_png("output.png")?;
 
-// For batch processing: initialize model once, process multiple images
+// For batch processing: initialize model once, process multiple images efficiently
+// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
+// let processor_config = ProcessorConfigBuilder::new()
+//     .model_spec(model_spec)
+//     .backend_type(BackendType::Onnx)
+//     .execution_provider(ExecutionProvider::Auto)
+//     .jpeg_quality(95)
+//     .preserve_color_profiles(true)
+//     .build()?;
+// let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
 // let image_paths = ["photo1.jpg", "photo2.jpg", "photo3.jpg"];
 // for (i, image_path) in image_paths.iter().enumerate() {
-//     let file = File::open(image_path).await?;
-//     let result = remove_background_from_reader(file, &config).await?;
+//     let img = image::open(image_path)?;
+//     let result = processor.process_image(&img)?;
 //     result.save_png(&format!("processed_{}.png", i))?;
 //     println!("Processed: {} -> processed_{}.png", image_path, i);
 // }
