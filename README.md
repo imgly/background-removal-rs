@@ -80,6 +80,23 @@ async fn main() -> anyhow::Result<()> {
 
 For advanced usage, see the [documentation](https://docs.rs/imgly-bgremove).
 
+## API Choice: Single vs Multiple Images
+
+### Single Image Processing
+Use the high-level convenience functions:
+```rust
+remove_background_from_reader(file, &config).await?
+```
+
+### Multiple Image Processing  
+Use `RemovalSession` for efficiency:
+```rust
+let mut session = RemovalSession::new(config)?;
+session.remove_background_from_reader(file).await?  // Model stays loaded
+```
+
+**Performance Impact**: `RemovalSession` loads the model once and reuses it, while convenience functions reload the model on each call.
+
 ## Available Models
 
 - **ISNet**: General-purpose background removal (FP16/FP32)
@@ -131,15 +148,11 @@ let file = File::open("input.jpg").await?;
 remove_background_from_reader(file, &config).await?.save_png("output.png")?;
 
 // For processing multiple images efficiently (model loaded once):
-// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
-// let processor_config = ProcessorConfigBuilder::new()
-//     .model_spec(model_spec)
-//     .backend_type(BackendType::Onnx)
-//     .build()?;
-// let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
+// use imgly_bgremove::RemovalSession;
+// let mut session = RemovalSession::new(RemovalConfig::builder().model_spec(model_spec).build()?)?;
 // for image_path in ["image1.jpg", "image2.jpg", "image3.jpg"] {
-//     let img = image::open(image_path)?;
-//     let result = processor.process_image(&img)?;
+//     let file = File::open(image_path).await?;
+//     let result = session.remove_background_from_reader(file).await?;
 //     let output_name = format!("output_{}", image_path.replace(".jpg", ".png"));
 //     result.save_png(&output_name)?;
 // }
@@ -185,20 +198,20 @@ let file = File::open("input.jpg").await?;
 let result = remove_background_from_reader(file, &config).await?;
 result.save_png("output.png")?;
 
-// For batch processing: initialize model once, process multiple images efficiently
-// use imgly_bgremove::{BackgroundRemovalProcessor, ProcessorConfigBuilder, BackendType};
-// let processor_config = ProcessorConfigBuilder::new()
+// For batch processing: initialize model once, process multiple images efficiently  
+// use imgly_bgremove::RemovalSession;
+// let session_config = RemovalConfig::builder()
 //     .model_spec(model_spec)
-//     .backend_type(BackendType::Onnx)
 //     .execution_provider(ExecutionProvider::Auto)
+//     .output_format(OutputFormat::Png)
 //     .jpeg_quality(95)
 //     .preserve_color_profiles(true)
 //     .build()?;
-// let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
+// let mut session = RemovalSession::new(session_config)?;
 // let image_paths = ["photo1.jpg", "photo2.jpg", "photo3.jpg"];
 // for (i, image_path) in image_paths.iter().enumerate() {
-//     let img = image::open(image_path)?;
-//     let result = processor.process_image(&img)?;
+//     let file = File::open(image_path).await?;
+//     let result = session.remove_background_from_reader(file).await?;
 //     result.save_png(&format!("processed_{}.png", i))?;
 //     println!("Processed: {} -> processed_{}.png", image_path, i);
 // }

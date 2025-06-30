@@ -3,7 +3,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::unused_async)]
-
 #![doc = include_str!("../README.md")]
 
 pub mod backends;
@@ -254,6 +253,206 @@ pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
 
     // Use the bytes-based API with model_spec from config
     remove_background_from_bytes(&buffer, config).await
+}
+
+/// Session-based API for efficient model reuse across multiple images
+///
+/// This struct maintains a loaded model in memory and reuses it for multiple
+/// background removal operations. This is more efficient than the high-level
+/// convenience functions when processing multiple images, as it avoids the
+/// overhead of loading the model on each call.
+///
+/// # Examples
+///
+/// ## Processing multiple images efficiently
+/// ```rust,no_run
+/// use imgly_bgremove::{RemovalSession, RemovalConfig, ModelSpec, ModelSource};
+/// use tokio::fs::File;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+///
+/// // Create session (loads model once)
+/// let mut session = RemovalSession::new(config)?;
+///
+/// // Process multiple images with same loaded model
+/// for image_path in ["photo1.jpg", "photo2.jpg", "photo3.jpg"] {
+///     let file = File::open(image_path).await?;
+///     let result = session.remove_background_from_reader(file).await?;
+///     let output_name = format!("output_{}", image_path.replace(".jpg", ".png"));
+///     result.save_png(&output_name)?;
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub struct RemovalSession {
+    processor: BackgroundRemovalProcessor,
+}
+
+impl RemovalSession {
+    /// Create a new removal session with the specified configuration
+    ///
+    /// This loads the model into memory and prepares it for processing.
+    /// The model will stay loaded for the lifetime of this session.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration including model specification and processing options
+    ///
+    /// # Returns
+    ///
+    /// A `RemovalSession` ready for processing images
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Invalid configuration parameters
+    /// - Model loading failures
+    /// - Backend initialization errors
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use imgly_bgremove::{RemovalSession, RemovalConfig, ModelSpec, ModelSource};
+    ///
+    /// # fn example() -> anyhow::Result<()> {
+    /// let model_spec = ModelSpec {
+    ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+    ///     variant: None,
+    /// };
+    /// let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+    /// let session = RemovalSession::new(config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new(config: RemovalConfig) -> Result<Self> {
+        // Convert RemovalConfig to ProcessorConfig
+        let processor_config = ProcessorConfigBuilder::new()
+            .model_spec(config.model_spec)
+            .backend_type(BackendType::Onnx) // Use ONNX for realistic processing
+            .execution_provider(config.execution_provider)
+            .output_format(config.output_format)
+            .jpeg_quality(config.jpeg_quality)
+            .webp_quality(config.webp_quality)
+            .debug(config.debug)
+            .intra_threads(config.intra_threads)
+            .inter_threads(config.inter_threads)
+            .preserve_color_profiles(config.preserve_color_profiles)
+            .build()?;
+
+        let processor = BackgroundRemovalProcessor::new(processor_config)?;
+
+        Ok(Self { processor })
+    }
+
+    /// Remove background from image bytes
+    ///
+    /// Processes image data provided as bytes and returns the result.
+    /// The model stays loaded in memory for subsequent calls.
+    ///
+    /// # Arguments
+    ///
+    /// * `image_bytes` - Raw image data as bytes (JPEG, PNG, WebP, BMP, TIFF)
+    ///
+    /// # Returns
+    ///
+    /// A `RemovalResult` containing the processed image, mask, and metadata
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use imgly_bgremove::{RemovalSession, RemovalConfig, ModelSpec, ModelSource};
+    /// # fn example(session: &mut RemovalSession, image_data: Vec<u8>) -> anyhow::Result<()> {
+    /// let result = session.remove_background_from_bytes(&image_data)?;
+    /// result.save_png("output.png")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_background_from_bytes(&mut self, image_bytes: &[u8]) -> Result<RemovalResult> {
+        // Load image from bytes using the image crate
+        let image = image::load_from_memory(image_bytes).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
+        })?;
+
+        // Process using the session's processor
+        self.processor.process_image(&image)
+    }
+
+    /// Remove background from a pre-loaded DynamicImage
+    ///
+    /// Processes a `DynamicImage` directly without any file I/O.
+    /// The model stays loaded in memory for subsequent calls.
+    ///
+    /// # Arguments
+    ///
+    /// * `image` - A `DynamicImage` to process (from image crate)
+    ///
+    /// # Returns
+    ///
+    /// A `RemovalResult` containing the processed image, mask, and metadata
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use imgly_bgremove::{RemovalSession, RemovalConfig, ModelSpec, ModelSource};
+    /// # use image::DynamicImage;
+    /// # fn example(session: &mut RemovalSession, img: DynamicImage) -> anyhow::Result<()> {
+    /// let result = session.remove_background_from_image(&img)?;
+    /// result.save_png("output.png")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_background_from_image(
+        &mut self,
+        image: &image::DynamicImage,
+    ) -> Result<RemovalResult> {
+        self.processor.process_image(image)
+    }
+
+    /// Remove background from an async reader stream
+    ///
+    /// Reads image data from any async readable stream and processes it.
+    /// The model stays loaded in memory for subsequent calls.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Any type implementing `AsyncRead + Unpin`
+    ///
+    /// # Returns
+    ///
+    /// A `RemovalResult` containing the processed image, mask, and metadata
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use imgly_bgremove::{RemovalSession, RemovalConfig, ModelSpec, ModelSource};
+    /// # use tokio::fs::File;
+    /// # async fn example(session: &mut RemovalSession) -> anyhow::Result<()> {
+    /// let file = File::open("input.jpg").await?;
+    /// let result = session.remove_background_from_reader(file).await?;
+    /// result.save_png("output.png")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
+        &mut self,
+        mut reader: R,
+    ) -> Result<RemovalResult> {
+        // Read all data from the stream into memory
+        let mut buffer = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut buffer)
+            .await
+            .map_err(|e| {
+                BgRemovalError::processing(format!("Failed to read from stream: {}", e))
+            })?;
+
+        // Use the bytes-based API
+        self.remove_background_from_bytes(&buffer)
+    }
 }
 
 #[cfg(test)]
