@@ -40,7 +40,7 @@ struct CoordinateTransformation {
 pub enum BackendType {
     /// ONNX Runtime backend (supports GPU acceleration)
     Onnx,
-    /// Tract backend (pure Rust, WASM compatible)
+    /// Tract backend (pure Rust, no external dependencies)
     Tract,
 }
 
