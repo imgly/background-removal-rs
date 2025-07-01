@@ -1,6 +1,6 @@
 # imgly-bgremove
 
-[![CI](https://github.com/imgly/background-removal-rust/workflows/CI/badge.svg)](https://github.com/imgly/background-removal-rust/actions)
+[![CI](https://github.com/imgly/background-removal-rs/workflows/CI/badge.svg)](https://github.com/imgly/background-removal-rs/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 
 **A high-performance Rust library for AI-powered background removal**
@@ -96,6 +96,20 @@ session.remove_background_from_reader(file).await?  // Model stays loaded
 ```
 
 **Performance Impact**: `RemovalSession` loads the model once and reuses it, while convenience functions reload the model on each call.
+
+## Documentation
+
+View the full API documentation locally:
+
+```bash
+# Open documentation in your browser
+cargo doc --open
+
+# Or generate docs without opening
+cargo doc --no-deps
+```
+
+This will build and display the complete API documentation with examples, type information, and detailed usage guides.
 
 ## Available Models
 
@@ -282,8 +296,8 @@ at your option.
 ## Links
 
 - [Documentation](https://docs.rs/imgly-bgremove)
-- [Issues](https://github.com/imgly/background-removal-rust/issues)
-- [Releases](https://github.com/imgly/background-removal-rust/releases)
+- [Issues](https://github.com/imgly/background-removal-rs/issues)
+- [Releases](https://github.com/imgly/background-removal-rs/releases)
 
 ---
 
