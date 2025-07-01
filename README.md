@@ -2,8 +2,6 @@
 
 [![CI](https://github.com/imgly/background-removal-rust/workflows/CI/badge.svg)](https://github.com/imgly/background-removal-rust/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
-[![Version](https://img.shields.io/crates/v/imgly-bgremove.svg)](https://crates.io/crates/imgly-bgremove)
-[![Documentation](https://docs.rs/imgly-bgremove/badge.svg)](https://docs.rs/imgly-bgremove)
 
 **A high-performance Rust library for AI-powered background removal**
 
@@ -37,10 +35,7 @@ Remove backgrounds from images using state-of-the-art deep learning models with 
 Install the command-line tool:
 
 ```bash
-# From crates.io (recommended)
-cargo install imgly-bgremove
-
-# Or directly from GitHub (latest development version)
+# Install from Git repository
 cargo install --git https://github.com/imgly/background-removal-rs
 ```
 
@@ -55,10 +50,7 @@ imgly-bgremove input.jpg --output output.png
 Add to your Rust project:
 
 ```bash
-# From crates.io (recommended)
-cargo add imgly-bgremove
-
-# Or directly from GitHub (latest development version)
+# Install from Git repository
 cargo add --git https://github.com/imgly/background-removal-rs
 ```
 
@@ -290,7 +282,6 @@ at your option.
 ## Links
 
 - [Documentation](https://docs.rs/imgly-bgremove)
-- [Crates.io](https://crates.io/crates/imgly-bgremove)
 - [Issues](https://github.com/imgly/background-removal-rust/issues)
 - [Releases](https://github.com/imgly/background-removal-rust/releases)
 
