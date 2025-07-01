@@ -2,7 +2,7 @@
 //!
 //! This module provides different inference backends for the background removal library:
 //! - ONNX Runtime backend (high performance, GPU acceleration)
-//! - Tract backend (pure Rust, WebAssembly compatible)
+//! - Tract backend (pure Rust, no external dependencies)
 
 #[cfg(feature = "onnx")]
 pub mod onnx;

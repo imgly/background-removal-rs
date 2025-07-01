@@ -6,7 +6,6 @@
 //!
 //! Tract offers several advantages:
 //! - Pure Rust implementation (no C++ dependencies)
-//! - WebAssembly support
 //! - Lightweight and portable
 //! - Memory safe without FFI boundaries
 //! - Faster compilation times
@@ -129,48 +128,19 @@ impl TractBackend {
         // Create Tract model from ONNX data
         log::debug!("Creating Tract model from ONNX data...");
 
-        // Use different optimization strategies for WASM vs native due to different optimization behavior
-        #[cfg(target_arch = "wasm32")]
-        let model = {
-            log::debug!("WASM build: using typed model without aggressive optimization to avoid dimension conflicts");
-            onnx()
-                .model_for_read(&mut std::io::Cursor::new(model_data))
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}"))
-                })?
-                .into_typed()
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!(
-                        "Failed to create typed model: {e}"
-                    ))
-                })?
-                .into_runnable()
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!(
-                        "Failed to create runnable model: {e}"
-                    ))
-                })?
-        };
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let model = {
-            log::debug!("Native build: using full optimization");
-            onnx()
-                .model_for_read(&mut std::io::Cursor::new(model_data))
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}"))
-                })?
-                .into_optimized()
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!("Failed to optimize model: {e}"))
-                })?
-                .into_runnable()
-                .map_err(|e| {
-                    crate::error::BgRemovalError::model(format!(
-                        "Failed to create runnable model: {e}"
-                    ))
-                })?
-        };
+        let model = onnx()
+            .model_for_read(&mut std::io::Cursor::new(model_data))
+            .map_err(|e| {
+                crate::error::BgRemovalError::model(format!("Failed to load ONNX model: {e}"))
+            })?
+            .into_optimized()
+            .map_err(|e| {
+                crate::error::BgRemovalError::model(format!("Failed to optimize model: {e}"))
+            })?
+            .into_runnable()
+            .map_err(|e| {
+                crate::error::BgRemovalError::model(format!("Failed to create runnable model: {e}"))
+            })?;
 
         self.model = Some(model);
         self.initialized = true;

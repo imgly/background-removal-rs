@@ -31,7 +31,7 @@ tracing-json = ["tracing-subscriber/json"]
 tracing-files = ["dep:tracing-appender"]
 tracing-otel = ["dep:tracing-opentelemetry"]
 
-# WebP support (pure Rust, WASM-compatible via image crate)
+# WebP support (pure Rust via image crate)
 webp-support = ["image/webp"]
 
 # Model embedding features removed - use download functionality instead
@@ -55,8 +55,8 @@ log = "0.4"  # Keep for backward compatibility
 tracing = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 
-# WASM-compatible time
-instant = { version = "0.1", features = ["wasm-bindgen"] }
+# Cross-platform time
+instant = "0.1"
 
 # ONNX backend dependencies (feature-gated)
 ort = { version = "2.0.0-rc.10", features = ["coreml", "cuda"], optional = true }

@@ -272,7 +272,7 @@ fn show_provider_diagnostics() {
 
     println!("\n🔧 Available Backends:");
     println!("  • onnx: ONNX Runtime backend (default) - Full hardware acceleration support");
-    println!("  • tract: Pure Rust backend - No external dependencies, WebAssembly compatible");
+    println!("  • tract: Pure Rust backend - No external dependencies");
 
     // Get provider information from core utilities
     let all_providers = ExecutionProviderManager::list_all_providers();

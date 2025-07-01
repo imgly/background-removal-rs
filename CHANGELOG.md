@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **WebAssembly support**: Removed WASM-specific conditional compilation and dependencies from Tract backend
+
 ### Added
 - Consolidated imgly-bgremove library with unified API
 - **Comprehensive tracing integration**: Migrated from `env_logger` to `tracing` ecosystem for structured logging
