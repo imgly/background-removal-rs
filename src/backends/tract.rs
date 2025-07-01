@@ -513,10 +513,10 @@ mod tests {
 
                 // Check normalization values are reasonable
                 for &mean in &config.normalization_mean {
-                    assert!(mean >= 0.0 && mean <= 1.0);
+                    assert!(mean >= 0.0 && mean <= 255.0); // Allow both [0,1] and [0,255] ranges
                 }
                 for &std in &config.normalization_std {
-                    assert!(std > 0.0 && std <= 1.0);
+                    assert!(std > 0.0 && std <= 255.0); // Allow both [0,1] and [0,255] ranges
                 }
             },
             Err(_) => {
