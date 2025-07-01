@@ -177,7 +177,9 @@
       "Bash(./test_tracing)",
       "Bash(./test_backward_compatibility)",
       "Bash(./test_documentation)",
-      "Bash(./validate_tracing_integration)"
+      "Bash(./validate_tracing_integration)",
+      "Bash(./target/release/imgly-bgremove:*)",
+      "Bash(git tag:*)"
     ],
     "deny": []
   },
