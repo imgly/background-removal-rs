@@ -110,12 +110,92 @@ cargo doc --no-deps
 
 This will build and display the complete API documentation with examples, type information, and detailed usage guides.
 
-## Available Models
+## Models and HuggingFace Integration
 
-- **ISNet**: General-purpose background removal (FP16/FP32)
-- **BiRefNet**: Portrait-optimized models (FP16/FP32)  
-- **BiRefNet Lite**: Lightweight variant for faster processing
-- **Custom Models**: Any compatible ONNX background removal model
+### Using Pre-trained Models from HuggingFace
+
+The library automatically downloads and caches models from HuggingFace repositories. All models use the standard HuggingFace format with `config.json` and `preprocessor_config.json`.
+
+#### Default Model: ISNet General
+
+**ISNet** is the default general-purpose background removal model:
+
+```bash
+# Download and use ISNet (happens automatically on first use)
+imgly-bgremove input.jpg --output output.png
+
+# Or explicitly specify the ISNet model
+imgly-bgremove input.jpg --output output.png --model https://huggingface.co/imgly/isnet-general-onnx
+```
+
+#### BiRefNet Models
+
+**BiRefNet** offers portrait-optimized models for better human subject handling:
+
+```bash
+# Use BiRefNet standard model
+imgly-bgremove portrait.jpg --output result.png --model https://huggingface.co/onnx-community/BiRefNet-ONNX
+
+# Use BiRefNet Lite for faster processing
+imgly-bgremove portrait.jpg --output result.png --model https://huggingface.co/onnx-community/BiRefNet_lite-ONNX
+```
+
+#### Custom HuggingFace Models
+
+Any compatible ONNX background removal model on HuggingFace can be used:
+
+```bash
+# Use any HuggingFace model repository
+imgly-bgremove input.jpg --output output.png --model https://huggingface.co/username/your-model-name
+
+# Download model without processing (useful for pre-caching)
+imgly-bgremove --only-download --model https://huggingface.co/username/your-model-name
+```
+
+### Model Variants and Precision
+
+Models typically include multiple precision variants:
+
+- **FP16**: Half-precision, smaller size, faster on compatible hardware
+- **FP32**: Full-precision, larger size, better accuracy
+
+```bash
+# Explicitly choose model precision
+imgly-bgremove input.jpg --output output.png --model https://huggingface.co/imgly/isnet-general-onnx --variant fp16
+imgly-bgremove input.jpg --output output.png --model https://huggingface.co/imgly/isnet-general-onnx --variant fp32
+
+# Auto-selection (default) chooses best variant for your hardware:
+# - macOS: FP32 for CoreML optimization
+# - Linux/Windows: FP16 for better performance
+```
+
+### Model Cache Management
+
+Downloaded models are cached locally for fast reuse:
+
+```bash
+# List all cached models
+imgly-bgremove --list-models
+
+# Show cache directory location
+imgly-bgremove --show-cache-dir
+
+# Clear all cached models
+imgly-bgremove --clear-cache
+
+# Clear specific model from cache
+imgly-bgremove --clear-cache --model imgly--isnet-general-onnx
+
+# Use custom cache directory
+imgly-bgremove input.jpg --cache-dir /custom/cache/path
+```
+
+### Available Models
+
+- **ISNet General** (`https://huggingface.co/imgly/isnet-general-onnx`): Default general-purpose model
+- **BiRefNet** (`https://huggingface.co/onnx-community/BiRefNet-ONNX`): Portrait-optimized for human subjects  
+- **BiRefNet Lite** (`https://huggingface.co/onnx-community/BiRefNet_lite-ONNX`): Lightweight variant for faster processing
+- **Custom Models**: Any compatible HuggingFace ONNX background removal model
 
 ## Execution Providers
 
@@ -186,7 +266,9 @@ let downloader = ModelDownloader::new()?;
 // Example: ISNet general-purpose model
 let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
 // Example: BiRefNet portrait-optimized model
-// let model_url = "https://huggingface.co/imgly/birefnet-portrait-onnx";
+// let model_url = "https://huggingface.co/onnx-community/BiRefNet-ONNX";
+// Example: BiRefNet Lite for faster processing
+// let model_url = "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX";
 // Example: Any compatible ONNX background removal model
 // let model_url = "https://huggingface.co/your-org/your-model-onnx";
 
