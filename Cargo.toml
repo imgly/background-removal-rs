@@ -59,7 +59,7 @@ chrono = { version = "0.4", features = ["serde"] }
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 
 # ONNX backend dependencies (feature-gated)
-ort = { version = "2.0.0-rc.10", features = ["coreml"], optional = true }
+ort = { version = "2.0.0-rc.10", features = ["coreml", "cuda"], optional = true }
 
 # Tract backend dependencies (feature-gated)
 tract-onnx = { version = "0.21", optional = true }
