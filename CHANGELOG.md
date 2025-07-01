@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Simplified backend creation**: Replaced complex factory pattern with direct backend creation for improved performance and maintainability
+- **Code quality improvements**: Fixed all clippy warnings in lib.rs and removed suppressions
+- **API optimization**: `remove_background_from_image` now takes `&DynamicImage` instead of owned value for better performance
+- **Async function cleanup**: Converted unnecessary async functions to sync for improved performance
+
 ### Removed
+- **Backend factory abstraction**: Removed `BackendFactory` trait and `DefaultBackendFactory` implementation
+- **Clippy suppressions**: Removed all `#![allow(clippy::...)]` directives from lib.rs after fixing underlying issues
 - **WebAssembly support**: Removed WASM-specific conditional compilation and dependencies from Tract backend
 
 ### Added

@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
             .output_format(OutputFormat::Png)
             .build()?;
 
-        match remove_background_from_bytes(&sample_data, &config).await {
+        match remove_background_from_bytes(&sample_data, &config) {
             Ok(result) => {
                 let png_bytes = result.to_bytes(OutputFormat::Png, 100)?;
                 tokio::fs::write("stream_example_1.png", png_bytes).await?;
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
             .execution_provider(ExecutionProvider::Auto)
             .build()?;
 
-        match remove_background_from_bytes(&sample_data, &config).await {
+        match remove_background_from_bytes(&sample_data, &config) {
             Ok(result) => {
                 let webp_bytes = result.to_bytes(OutputFormat::WebP, 85)?;
                 tokio::fs::write("stream_example_2.webp", webp_bytes).await?;

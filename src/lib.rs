@@ -1,8 +1,4 @@
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::unused_async)]
+// All clippy issues have been addressed
 #![doc = include_str!("../README.md")]
 
 pub mod backends;
@@ -36,8 +32,7 @@ pub use error::{BgRemovalError, Result};
 pub use inference::InferenceBackend;
 pub use models::{ModelManager, ModelSource, ModelSpec};
 pub use processor::{
-    BackendFactory, BackendType, BackgroundRemovalProcessor, DefaultBackendFactory,
-    ProcessorConfig, ProcessorConfigBuilder,
+    BackendType, BackgroundRemovalProcessor, ProcessorConfig, ProcessorConfigBuilder,
 };
 pub use services::{
     ConsoleProgressReporter, ImageIOService, NoOpProgressReporter, OutputFormatHandler,
@@ -77,7 +72,7 @@ pub use tracing_config::{
 /// ```rust,no_run
 /// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
 ///
-/// # async fn example(upload_bytes: Vec<u8>) -> anyhow::Result<()> {
+/// # fn example(upload_bytes: Vec<u8>) -> anyhow::Result<()> {
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
@@ -85,7 +80,7 @@ pub use tracing_config::{
 /// let config = RemovalConfig::builder()
 ///     .model_spec(model_spec)
 ///     .build()?;
-/// let result = remove_background_from_bytes(&upload_bytes, &config).await?;
+/// let result = remove_background_from_bytes(&upload_bytes, &config)?;
 /// let output_bytes = result.to_bytes(config.output_format, 90)?;
 /// # Ok(())
 /// # }
@@ -104,23 +99,30 @@ pub use tracing_config::{
 /// let config = RemovalConfig::builder()
 ///     .model_spec(model_spec)
 ///     .build()?;
-/// let result = remove_background_from_bytes(&image_data, &config).await?;
+/// let result = remove_background_from_bytes(&image_data, &config)?;
 /// let png_bytes = result.to_bytes(imgly_bgremove::OutputFormat::Png, 100)?;
 /// # Ok(())
 /// # }
-/// # async fn download_image_from_api() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+/// # fn download_image_from_api() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
 /// ```
-pub async fn remove_background_from_bytes(
+///
+/// # Errors
+///
+/// Returns `BgRemovalError` for:
+/// - Image decoding failures
+/// - Model loading errors
+/// - Inference execution errors
+pub fn remove_background_from_bytes(
     image_bytes: &[u8],
     config: &RemovalConfig,
 ) -> Result<RemovalResult> {
     // Load image from bytes using the image crate
     let image = image::load_from_memory(image_bytes).map_err(|e| {
-        BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
+        BgRemovalError::processing(format!("Failed to decode image from bytes: {e}"))
     })?;
 
     // Use the existing image processing function with model_spec from config
-    remove_background_from_image(image, config).await
+    remove_background_from_image(&image, config)
 }
 
 /// Remove background from a `DynamicImage` directly
@@ -144,7 +146,7 @@ pub async fn remove_background_from_bytes(
 /// use imgly_bgremove::{RemovalConfig, remove_background_from_image, ModelSpec, ModelSource};
 /// use image::DynamicImage;
 ///
-/// # async fn example(img: DynamicImage) -> anyhow::Result<()> {
+/// # fn example(img: DynamicImage) -> anyhow::Result<()> {
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
@@ -152,13 +154,20 @@ pub async fn remove_background_from_bytes(
 /// let config = RemovalConfig::builder()
 ///     .model_spec(model_spec)
 ///     .build()?;
-/// let result = remove_background_from_image(img, &config).await?;
+/// let result = remove_background_from_image(img, &config)?;
 /// result.save_png("output.png")?;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn remove_background_from_image(
-    image: image::DynamicImage,
+///
+/// # Errors
+///
+/// Returns `BgRemovalError` for:
+/// - Model loading errors
+/// - Inference execution errors
+/// - Image processing failures
+pub fn remove_background_from_image(
+    image: &image::DynamicImage,
     config: &RemovalConfig,
 ) -> Result<RemovalResult> {
     // Convert RemovalConfig to ProcessorConfig for unified processor
@@ -175,10 +184,8 @@ pub async fn remove_background_from_image(
         .preserve_color_profiles(config.preserve_color_profiles)
         .build()?;
 
-    let backend_factory = Box::new(DefaultBackendFactory);
-    let mut unified_processor =
-        BackgroundRemovalProcessor::with_factory(processor_config, backend_factory)?;
-    unified_processor.process_image(&image)
+    let mut unified_processor = BackgroundRemovalProcessor::new(processor_config)?;
+    unified_processor.process_image(image)
 }
 
 /// Remove background from an async reader stream
@@ -240,6 +247,14 @@ pub async fn remove_background_from_image(
 /// # }
 /// # async fn download_image_bytes() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
 /// ```
+///
+/// # Errors
+///
+/// Returns `BgRemovalError` for:
+/// - Stream reading failures
+/// - Image decoding failures
+/// - Model loading errors
+/// - Inference execution errors
 pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
     mut reader: R,
     config: &RemovalConfig,
@@ -249,10 +264,10 @@ pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
     let mut buffer = Vec::new();
     tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut buffer)
         .await
-        .map_err(|e| BgRemovalError::processing(format!("Failed to read from stream: {}", e)))?;
+        .map_err(|e| BgRemovalError::processing(format!("Failed to read from stream: {e}")))?;
 
     // Use the bytes-based API with model_spec from config
-    remove_background_from_bytes(&buffer, config).await
+    remove_background_from_bytes(&buffer, config)
 }
 
 /// Session-based API for efficient model reuse across multiple images
@@ -372,17 +387,24 @@ impl RemovalSession {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Image decoding failures
+    /// - Processing errors
+    /// - Inference execution errors
     pub fn remove_background_from_bytes(&mut self, image_bytes: &[u8]) -> Result<RemovalResult> {
         // Load image from bytes using the image crate
         let image = image::load_from_memory(image_bytes).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to decode image from bytes: {}", e))
+            BgRemovalError::processing(format!("Failed to decode image from bytes: {e}"))
         })?;
 
         // Process using the session's processor
         self.processor.process_image(&image)
     }
 
-    /// Remove background from a pre-loaded DynamicImage
+    /// Remove background from a pre-loaded `DynamicImage`
     ///
     /// Processes a `DynamicImage` directly without any file I/O.
     /// The model stays loaded in memory for subsequent calls.
@@ -406,6 +428,12 @@ impl RemovalSession {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Processing errors
+    /// - Inference execution errors
     pub fn remove_background_from_image(
         &mut self,
         image: &image::DynamicImage,
@@ -438,6 +466,14 @@ impl RemovalSession {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `BgRemovalError` for:
+    /// - Stream reading failures
+    /// - Image decoding failures
+    /// - Processing errors
+    /// - Inference execution errors
     pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
         &mut self,
         mut reader: R,
@@ -446,9 +482,7 @@ impl RemovalSession {
         let mut buffer = Vec::new();
         tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut buffer)
             .await
-            .map_err(|e| {
-                BgRemovalError::processing(format!("Failed to read from stream: {}", e))
-            })?;
+            .map_err(|e| BgRemovalError::processing(format!("Failed to read from stream: {e}")))?;
 
         // Use the bytes-based API
         self.remove_background_from_bytes(&buffer)

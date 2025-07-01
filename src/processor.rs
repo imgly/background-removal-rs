@@ -44,54 +44,53 @@ pub enum BackendType {
     Tract,
 }
 
-/// Factory trait for creating inference backends
-pub trait BackendFactory: Send + Sync {
-    /// Create a backend instance of the specified type with the given model manager
-    ///
-    /// # Errors
-    ///
-    /// Returns `BgRemovalError` for:
-    /// - Unsupported backend types
-    /// - Backend initialization failures
-    /// - Model loading errors
-    fn create_backend(
-        &self,
-        backend_type: BackendType,
-        model_manager: ModelManager,
-    ) -> Result<Box<dyn InferenceBackend>>;
-
-    /// List available backend types
-    fn available_backends(&self) -> Vec<BackendType>;
+/// Create a backend instance of the specified type with the given model manager
+///
+/// # Errors
+///
+/// Returns `BgRemovalError` for:
+/// - Unsupported backend types
+/// - Backend initialization failures
+/// - Model loading errors
+fn create_backend(
+    backend_type: BackendType,
+    model_manager: ModelManager,
+) -> Result<Box<dyn InferenceBackend>> {
+    match backend_type {
+        #[cfg(feature = "onnx")]
+        BackendType::Onnx => {
+            use crate::backends::onnx::OnnxBackend;
+            let backend = OnnxBackend::with_model_manager(model_manager);
+            Ok(Box::new(backend))
+        },
+        #[cfg(not(feature = "onnx"))]
+        BackendType::Onnx => Err(BgRemovalError::invalid_config(
+            "ONNX backend not compiled. Enable 'onnx' feature to use ONNX backend.",
+        )),
+        #[cfg(feature = "tract")]
+        BackendType::Tract => {
+            use crate::backends::tract::TractBackend;
+            let backend = TractBackend::with_model_manager(model_manager);
+            Ok(Box::new(backend))
+        },
+        #[cfg(not(feature = "tract"))]
+        BackendType::Tract => Err(BgRemovalError::invalid_config(
+            "Tract backend not compiled. Enable 'tract' feature to use Tract backend.",
+        )),
+    }
 }
 
-/// Default backend factory implementation
-pub struct DefaultBackendFactory;
+/// List available backend types
+fn available_backends() -> Vec<BackendType> {
+    let mut backends = Vec::new();
 
-impl BackendFactory for DefaultBackendFactory {
-    fn create_backend(
-        &self,
-        backend_type: BackendType,
-        _model_manager: ModelManager,
-    ) -> Result<Box<dyn InferenceBackend>> {
-        match backend_type {
-            BackendType::Onnx => {
-                // This will be injected by the CLI crate which has access to bg-remove-onnx
-                Err(BgRemovalError::invalid_config(
-                    "ONNX backend not available in core. Must be injected by frontend.",
-                ))
-            },
-            BackendType::Tract => {
-                // This will be injected by the Web crate which has access to bg-remove-tract
-                Err(BgRemovalError::invalid_config(
-                    "Tract backend not available in core. Must be injected by frontend.",
-                ))
-            },
-        }
-    }
+    #[cfg(feature = "onnx")]
+    backends.push(BackendType::Onnx);
 
-    fn available_backends(&self) -> Vec<BackendType> {
-        vec![] // No backends available by default - must be injected
-    }
+    #[cfg(feature = "tract")]
+    backends.push(BackendType::Tract);
+
+    backends
 }
 
 /// Unified configuration for the background removal processor
@@ -286,7 +285,6 @@ impl Default for ProcessorConfigBuilder {
 /// Unified background removal processor that consolidates all business logic
 pub struct BackgroundRemovalProcessor {
     config: ProcessorConfig,
-    backend_factory: Box<dyn BackendFactory>,
     backend: Option<Box<dyn InferenceBackend>>,
     model_manager: Option<ModelManager>,
     initialized: bool,
@@ -294,31 +292,15 @@ pub struct BackgroundRemovalProcessor {
 }
 
 impl BackgroundRemovalProcessor {
-    /// Create a new processor with the default backend factory
+    /// Create a new processor with the specified configuration
     ///
     /// # Errors
     ///
     /// Returns `BgRemovalError` for:
     /// - Invalid processor configuration
-    /// - Backend factory initialization failures
     pub fn new(config: ProcessorConfig) -> Result<Self> {
-        Self::with_factory(config, Box::new(DefaultBackendFactory))
-    }
-
-    /// Create a new processor with a custom backend factory
-    ///
-    /// # Errors
-    ///
-    /// Returns `BgRemovalError` for:
-    /// - Invalid processor configuration
-    /// - Backend factory initialization failures
-    pub fn with_factory(
-        config: ProcessorConfig,
-        backend_factory: Box<dyn BackendFactory>,
-    ) -> Result<Self> {
         Ok(Self {
             config,
-            backend_factory,
             backend: None,
             model_manager: None,
             initialized: false,
@@ -351,9 +333,7 @@ impl BackgroundRemovalProcessor {
         )?;
 
         // Create backend
-        let mut backend = self
-            .backend_factory
-            .create_backend(self.config.backend_type.clone(), model_manager)?;
+        let mut backend = create_backend(self.config.backend_type.clone(), model_manager)?;
 
         // Initialize backend
         let removal_config = self.config.to_removal_config();
@@ -379,7 +359,7 @@ impl BackgroundRemovalProcessor {
     /// - File I/O errors when reading input
     /// - Image format parsing failures
     /// - Processing and inference errors
-    pub async fn process_file<P: AsRef<Path>>(&mut self, input_path: P) -> Result<RemovalResult> {
+    pub fn process_file<P: AsRef<Path>>(&mut self, input_path: P) -> Result<RemovalResult> {
         let input_path_ref = input_path.as_ref();
 
         // Report image loading progress
@@ -760,10 +740,10 @@ impl BackgroundRemovalProcessor {
         self.initialized
     }
 
-    /// Get available backends from the factory
+    /// Get available backends
     #[must_use]
     pub fn available_backends(&self) -> Vec<BackendType> {
-        self.backend_factory.available_backends()
+        available_backends()
     }
 
     /// Convert output tensor to segmentation mask with proper aspect ratio handling
@@ -900,7 +880,7 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Extract foreground segmentation mask only without applying background removal
-    pub async fn segment_foreground<P: AsRef<Path>>(
+    pub fn segment_foreground<P: AsRef<Path>>(
         &mut self,
         input_path: P,
     ) -> Result<SegmentationMask> {
@@ -930,7 +910,7 @@ impl BackgroundRemovalProcessor {
     }
 
     /// Apply a pre-computed segmentation mask to an image for background removal
-    pub async fn apply_mask<P: AsRef<Path>>(
+    pub fn apply_mask<P: AsRef<Path>>(
         &self,
         input_path: P,
         mask: &SegmentationMask,

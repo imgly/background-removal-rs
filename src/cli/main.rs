@@ -2,7 +2,7 @@
 //!
 //! Command-line interface for removing backgrounds from images using the unified processor.
 
-use super::backend_factory::CliBackendFactory;
+// use super::backend_factory::CliBackendFactory; // No longer needed with simplified backend creation
 use super::config::CliConfigBuilder;
 use crate::{processor::BackgroundRemovalProcessor, utils::ExecutionProviderManager};
 use anyhow::{Context, Result};
@@ -123,7 +123,7 @@ pub async fn main() -> Result<()> {
     }
 
     if cli.list_models {
-        return list_cached_models().await;
+        return list_cached_models();
     }
 
     if cli.only_download {
@@ -131,7 +131,7 @@ pub async fn main() -> Result<()> {
     }
 
     if cli.clear_cache {
-        return clear_cache_models(&cli).await;
+        return clear_cache_models(&cli);
     }
 
     if cli.show_cache_dir {
@@ -164,9 +164,8 @@ pub async fn main() -> Result<()> {
         .await
         .context("Failed to ensure model is available")?;
 
-    // Create unified processor with CLI backend factory
-    let backend_factory = Box::new(CliBackendFactory::new());
-    let mut processor = BackgroundRemovalProcessor::with_factory(config, backend_factory)
+    // Create unified processor with simplified backend creation
+    let mut processor = BackgroundRemovalProcessor::new(config)
         .context("Failed to create background removal processor")?;
 
     // Process inputs
@@ -307,7 +306,7 @@ fn show_provider_diagnostics() {
 }
 
 /// List cached models available for processing
-async fn list_cached_models() -> Result<()> {
+fn list_cached_models() -> Result<()> {
     use crate::cache::ModelCache;
 
     let cache = ModelCache::new().context("Failed to initialize model cache")?;
@@ -404,7 +403,7 @@ async fn download_model_only(cli: &Cli) -> Result<()> {
 }
 
 /// Clear cached models
-async fn clear_cache_models(cli: &Cli) -> Result<()> {
+fn clear_cache_models(cli: &Cli) -> Result<()> {
     use crate::cache::ModelCache;
 
     // Get cache instance (with custom directory if specified)
@@ -679,7 +678,6 @@ async fn process_stdin(
 
     let result = processor
         .process_file(&temp_file)
-        .await
         .with_context(|| {
             if detected_format.is_none() {
                 "Failed to remove background. The image format could not be detected from stdin data. Supported formats: PNG, JPEG, WebP, TIFF, BMP, GIF"
@@ -747,7 +745,6 @@ async fn process_single_file(
 ) -> Result<usize> {
     let mut result = processor
         .process_file(input_path)
-        .await
         .context("Failed to remove background")?;
 
     // Show detailed timing breakdown
