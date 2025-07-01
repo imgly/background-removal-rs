@@ -1,6 +1,5 @@
 # imgly-bgremove
 
-[![CI](https://github.com/imgly/background-removal-rs/workflows/CI/badge.svg)](https://github.com/imgly/background-removal-rs/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 
 **A high-performance Rust library for AI-powered background removal**
