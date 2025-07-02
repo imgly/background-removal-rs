@@ -1608,4 +1608,437 @@ mod tests {
         assert!(matches!(spec.source, ModelSource::Downloaded(_)));
         assert_eq!(spec.variant, Some("fp16".to_string()));
     }
+
+    #[test]
+    fn test_model_source_display_name() {
+        // Test Downloaded model display name
+        let downloaded = ModelSource::Downloaded("imgly--isnet-general-onnx".to_string());
+        assert_eq!(
+            downloaded.display_name(),
+            "cached:imgly--isnet-general-onnx"
+        );
+
+        // Test External model display name
+        let external = ModelSource::External(PathBuf::from("/path/to/model.onnx"));
+        assert_eq!(external.display_name(), "external:model.onnx");
+
+        // Test External model with no filename
+        let external_no_name = ModelSource::External(PathBuf::from("/"));
+        assert_eq!(external_no_name.display_name(), "external:");
+    }
+
+    #[test]
+    fn test_model_source_equality() {
+        let downloaded1 = ModelSource::Downloaded("model1".to_string());
+        let downloaded2 = ModelSource::Downloaded("model1".to_string());
+        let downloaded3 = ModelSource::Downloaded("model2".to_string());
+
+        assert_eq!(downloaded1, downloaded2);
+        assert_ne!(downloaded1, downloaded3);
+
+        let external1 = ModelSource::External(PathBuf::from("/path/model1"));
+        let external2 = ModelSource::External(PathBuf::from("/path/model1"));
+        let external3 = ModelSource::External(PathBuf::from("/path/model2"));
+
+        assert_eq!(external1, external2);
+        assert_ne!(external1, external3);
+        assert_ne!(downloaded1, external1);
+    }
+
+    #[test]
+    fn test_model_source_serialization() {
+        // Test Downloaded source serialization
+        let downloaded = ModelSource::Downloaded("test-model".to_string());
+        let serialized = serde_json::to_string(&downloaded).unwrap();
+        let deserialized: ModelSource = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(downloaded, deserialized);
+
+        // Test External source serialization
+        let external = ModelSource::External(PathBuf::from("/path/to/model"));
+        let serialized = serde_json::to_string(&external).unwrap();
+        let deserialized: ModelSource = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(external, deserialized);
+    }
+
+    #[test]
+    fn test_model_spec_default() {
+        let default_spec = ModelSpec::default();
+        assert!(matches!(default_spec.source, ModelSource::Downloaded(_)));
+        assert_eq!(default_spec.variant, None);
+    }
+
+    #[test]
+    fn test_model_spec_serialization() {
+        let spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+
+        let serialized = serde_json::to_string(&spec).unwrap();
+        let deserialized: ModelSpec = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(spec, deserialized);
+    }
+
+    #[test]
+    fn test_model_spec_equality() {
+        let spec1 = ModelSpec {
+            source: ModelSource::Downloaded("model1".to_string()),
+            variant: Some("fp16".to_string()),
+        };
+        let spec2 = ModelSpec {
+            source: ModelSource::Downloaded("model1".to_string()),
+            variant: Some("fp16".to_string()),
+        };
+        let spec3 = ModelSpec {
+            source: ModelSource::Downloaded("model1".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+
+        assert_eq!(spec1, spec2);
+        assert_ne!(spec1, spec3);
+    }
+
+    #[test]
+    fn test_model_info_creation() {
+        let info = ModelInfo {
+            name: "test-model".to_string(),
+            precision: "fp32".to_string(),
+            size_bytes: 1024 * 1024,
+            input_shape: (1, 3, 512, 512),
+            output_shape: (1, 1, 512, 512),
+        };
+
+        assert_eq!(info.name, "test-model");
+        assert_eq!(info.precision, "fp32");
+        assert_eq!(info.size_bytes, 1024 * 1024);
+        assert_eq!(info.input_shape, (1, 3, 512, 512));
+        assert_eq!(info.output_shape, (1, 1, 512, 512));
+    }
+
+    #[test]
+    fn test_model_info_cloning() {
+        let info = ModelInfo {
+            name: "test-model".to_string(),
+            precision: "fp16".to_string(),
+            size_bytes: 512 * 1024,
+            input_shape: (1, 3, 256, 256),
+            output_shape: (1, 1, 256, 256),
+        };
+
+        let cloned = info.clone();
+        assert_eq!(info.name, cloned.name);
+        assert_eq!(info.precision, cloned.precision);
+        assert_eq!(info.size_bytes, cloned.size_bytes);
+        assert_eq!(info.input_shape, cloned.input_shape);
+        assert_eq!(info.output_shape, cloned.output_shape);
+    }
+
+    #[test]
+    fn test_preprocessing_config_creation() {
+        let config = PreprocessingConfig {
+            target_size: [320, 320],
+            normalization_mean: [0.485, 0.456, 0.406],
+            normalization_std: [0.229, 0.224, 0.225],
+        };
+
+        assert_eq!(config.target_size, [320, 320]);
+        assert_eq!(config.normalization_mean, [0.485, 0.456, 0.406]);
+        assert_eq!(config.normalization_std, [0.229, 0.224, 0.225]);
+    }
+
+    #[test]
+    fn test_preprocessing_config_cloning() {
+        let config = PreprocessingConfig {
+            target_size: [256, 256],
+            normalization_mean: [0.5, 0.5, 0.5],
+            normalization_std: [0.5, 0.5, 0.5],
+        };
+
+        let cloned = config.clone();
+        assert_eq!(config.target_size, cloned.target_size);
+        assert_eq!(config.normalization_mean, cloned.normalization_mean);
+        assert_eq!(config.normalization_std, cloned.normalization_std);
+    }
+
+    #[test]
+    fn test_external_model_provider_nonexistent_path() {
+        let result = ExternalModelProvider::new("/nonexistent/path", None);
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_external_model_provider_file_instead_of_directory() {
+        // Create a temporary file
+        let temp_file = std::env::temp_dir().join("test_model_file.txt");
+        std::fs::write(&temp_file, "test content").unwrap();
+
+        let result = ExternalModelProvider::new(&temp_file, None);
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("must be a directory"));
+
+        // Cleanup
+        let _ = std::fs::remove_file(&temp_file);
+    }
+
+    #[test]
+    fn test_external_model_provider_empty_directory() {
+        // Create empty temporary directory
+        let temp_dir = std::env::temp_dir().join("test_empty_model_dir");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let result = ExternalModelProvider::new(&temp_dir, None);
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert!(
+            error.to_string().contains("model.json") || error.to_string().contains("config.json")
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_model_manager_with_invalid_downloaded_model() {
+        let spec = ModelSpec {
+            source: ModelSource::Downloaded("nonexistent-model".to_string()),
+            variant: None,
+        };
+
+        let result = ModelManager::from_spec(&spec);
+        // This should fail since the model doesn't exist in the cache
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_model_manager_with_invalid_external_model() {
+        let spec = ModelSpec {
+            source: ModelSource::External(PathBuf::from("/nonexistent/path")),
+            variant: None,
+        };
+
+        let result = ModelManager::from_spec(&spec);
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_model_spec_with_different_variants() {
+        let specs = vec![
+            ModelSpec {
+                source: ModelSource::Downloaded("test-model".to_string()),
+                variant: None,
+            },
+            ModelSpec {
+                source: ModelSource::Downloaded("test-model".to_string()),
+                variant: Some("fp16".to_string()),
+            },
+            ModelSpec {
+                source: ModelSource::Downloaded("test-model".to_string()),
+                variant: Some("fp32".to_string()),
+            },
+        ];
+
+        // All should be different due to variant differences
+        assert_ne!(specs[0], specs[1]);
+        assert_ne!(specs[1], specs[2]);
+        assert_ne!(specs[0], specs[2]);
+    }
+
+    #[test]
+    fn test_model_source_cloning() {
+        let downloaded = ModelSource::Downloaded("test-model".to_string());
+        let cloned = downloaded.clone();
+        assert_eq!(downloaded, cloned);
+
+        let external = ModelSource::External(PathBuf::from("/path/to/model"));
+        let cloned = external.clone();
+        assert_eq!(external, cloned);
+    }
+
+    #[test]
+    fn test_model_spec_cloning() {
+        let spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+
+        let cloned = spec.clone();
+        assert_eq!(spec, cloned);
+    }
+
+    #[test]
+    fn test_model_provider_trait_object_usage() {
+        // Test that we can use ModelProvider as a trait object
+        // This verifies the trait is object-safe
+
+        // Note: We can't easily test this without actual implementations
+        // but this test ensures the trait compiles correctly as a trait object
+        let _providers: Vec<Box<dyn ModelProvider>> = Vec::new();
+    }
+
+    #[test]
+    fn test_model_info_debug_formatting() {
+        let info = ModelInfo {
+            name: "test-model".to_string(),
+            precision: "fp32".to_string(),
+            size_bytes: 1024,
+            input_shape: (1, 3, 224, 224),
+            output_shape: (1, 1, 224, 224),
+        };
+
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("test-model"));
+        assert!(debug_str.contains("fp32"));
+        assert!(debug_str.contains("1024"));
+        assert!(debug_str.contains("224"));
+    }
+
+    #[test]
+    fn test_preprocessing_config_debug_formatting() {
+        let config = PreprocessingConfig {
+            target_size: [224, 224],
+            normalization_mean: [0.485, 0.456, 0.406],
+            normalization_std: [0.229, 0.224, 0.225],
+        };
+
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("224"));
+        assert!(debug_str.contains("0.485"));
+        assert!(debug_str.contains("0.229"));
+    }
+
+    #[test]
+    fn test_model_format_equality() {
+        let legacy1 = ModelFormat::Legacy;
+        let legacy2 = ModelFormat::Legacy;
+        let hf1 = ModelFormat::HuggingFace;
+        let hf2 = ModelFormat::HuggingFace;
+
+        assert_eq!(legacy1, legacy2);
+        assert_eq!(hf1, hf2);
+        assert_ne!(legacy1, hf1);
+    }
+
+    #[test]
+    fn test_model_format_cloning() {
+        let legacy = ModelFormat::Legacy;
+        let cloned = legacy.clone();
+        assert_eq!(legacy, cloned);
+
+        let hf = ModelFormat::HuggingFace;
+        let cloned = hf.clone();
+        assert_eq!(hf, cloned);
+    }
+
+    #[test]
+    fn test_model_format_debug_formatting() {
+        let legacy = ModelFormat::Legacy;
+        let hf = ModelFormat::HuggingFace;
+
+        let legacy_debug = format!("{:?}", legacy);
+        let hf_debug = format!("{:?}", hf);
+
+        assert!(legacy_debug.contains("Legacy"));
+        assert!(hf_debug.contains("HuggingFace"));
+    }
+
+    #[test]
+    fn test_complex_model_spec_scenarios() {
+        // Test various complex model specification scenarios
+
+        // Model with long ID
+        let long_id_spec = ModelSpec {
+            source: ModelSource::Downloaded(
+                "very-long-model-identifier-with-many-hyphens".to_string(),
+            ),
+            variant: Some("optimized-fp16-quantized".to_string()),
+        };
+        assert!(long_id_spec.source.display_name().len() > 30);
+
+        // Model with special characters in path
+        let special_path_spec = ModelSpec {
+            source: ModelSource::External(PathBuf::from("/path/with spaces/and-special_chars")),
+            variant: Some("v1.0.0".to_string()),
+        };
+        assert!(special_path_spec
+            .source
+            .display_name()
+            .contains("and-special_chars"));
+
+        // Model with empty variant
+        let empty_variant_spec = ModelSpec {
+            source: ModelSource::Downloaded("model".to_string()),
+            variant: Some("".to_string()),
+        };
+        assert_eq!(empty_variant_spec.variant, Some("".to_string()));
+    }
+
+    #[test]
+    fn test_model_info_edge_cases() {
+        // Test with very large model
+        let large_model = ModelInfo {
+            name: "large-model".to_string(),
+            precision: "fp32".to_string(),
+            size_bytes: usize::MAX / 2, // Very large but valid
+            input_shape: (1, 3, 2048, 2048),
+            output_shape: (1, 1, 2048, 2048),
+        };
+        assert!(large_model.size_bytes > 1_000_000_000);
+
+        // Test with minimal model
+        let minimal_model = ModelInfo {
+            name: "tiny".to_string(),
+            precision: "int8".to_string(),
+            size_bytes: 1024, // 1KB
+            input_shape: (1, 1, 64, 64),
+            output_shape: (1, 1, 64, 64),
+        };
+        assert_eq!(minimal_model.size_bytes, 1024);
+
+        // Test with unusual precision values
+        let unusual_precision = ModelInfo {
+            name: "experimental".to_string(),
+            precision: "mixed-precision-bf16-fp32".to_string(),
+            size_bytes: 10_000_000,
+            input_shape: (2, 4, 512, 512),  // Batch size 2, 4 channels
+            output_shape: (2, 2, 512, 512), // Dual output channels
+        };
+        assert_eq!(unusual_precision.input_shape.0, 2);
+        assert_eq!(unusual_precision.output_shape.1, 2);
+    }
+
+    #[test]
+    fn test_preprocessing_config_edge_cases() {
+        // Test with very large target size
+        let large_config = PreprocessingConfig {
+            target_size: [4096, 4096],
+            normalization_mean: [0.0, 0.0, 0.0],
+            normalization_std: [1.0, 1.0, 1.0],
+        };
+        assert_eq!(large_config.target_size, [4096, 4096]);
+
+        // Test with non-standard normalization values
+        let custom_norm = PreprocessingConfig {
+            target_size: [224, 224],
+            normalization_mean: [123.68, 116.779, 103.939], // ImageNet values in 0-255 range
+            normalization_std: [58.393, 57.12, 57.375],
+        };
+        assert!(custom_norm.normalization_mean[0] > 100.0);
+
+        // Test with unusual aspect ratio
+        let unusual_aspect = PreprocessingConfig {
+            target_size: [1024, 768], // 4:3 aspect ratio
+            normalization_mean: [0.5, 0.5, 0.5],
+            normalization_std: [0.25, 0.25, 0.25],
+        };
+        assert_ne!(unusual_aspect.target_size[0], unusual_aspect.target_size[1]);
+    }
 }

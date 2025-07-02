@@ -293,3 +293,235 @@ impl InferenceBackend for TractBackend {
         model_manager.get_info()
     }
 }
+
+#[cfg(all(test, feature = "tract"))]
+mod tests {
+    use super::*;
+    use crate::config::{ExecutionProvider, RemovalConfig};
+    use crate::models::{ModelManager, ModelSource, ModelSpec};
+
+    #[test]
+    fn test_tract_backend_creation() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let backend = TractBackend::with_model_manager(model_manager);
+
+        assert!(!backend.is_initialized());
+        assert_eq!(backend.input_shape(), (1, 3, 1024, 1024)); // Default fallback
+        assert_eq!(backend.output_shape(), (1, 1, 1024, 1024)); // Default fallback
+    }
+
+    #[test]
+    fn test_tract_backend_default_shapes() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let backend = TractBackend::with_model_manager(model_manager);
+
+        // Test default shapes when model is not initialized
+        let input_shape = backend.input_shape();
+        let output_shape = backend.output_shape();
+
+        assert_eq!(input_shape.0, 1); // Batch size
+        assert_eq!(input_shape.1, 3); // RGB channels
+        assert!(input_shape.2 > 0); // Height
+        assert!(input_shape.3 > 0); // Width
+
+        assert_eq!(output_shape.0, 1); // Batch size
+        assert_eq!(output_shape.1, 1); // Single channel mask
+        assert!(output_shape.2 > 0); // Height
+        assert!(output_shape.3 > 0); // Width
+    }
+
+    #[test]
+    fn test_tract_backend_uninitialized_operations() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let backend = TractBackend::with_model_manager(model_manager);
+
+        // Test operations on uninitialized backend
+        assert!(!backend.is_initialized());
+
+        // These should work without initialization
+        let _ = backend.input_shape();
+        let _ = backend.output_shape();
+
+        // Test that model info and preprocessing config fail gracefully
+        let model_info_result = backend.get_model_info();
+        let preprocessing_result = backend.get_preprocessing_config();
+
+        // These might fail or succeed depending on model manager state
+        // Just ensure they return consistent results
+        if model_info_result.is_ok() {
+            let info = model_info_result.unwrap();
+            assert!(!info.name.is_empty());
+            assert!(info.size_bytes > 0);
+        }
+
+        if preprocessing_result.is_ok() {
+            let config = preprocessing_result.unwrap();
+            assert!(config.target_size[0] > 0);
+            assert!(config.target_size[1] > 0);
+        }
+    }
+
+    #[test]
+    fn test_tract_backend_initialization_requirements() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("nonexistent-model".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+
+        // Test with invalid model manager
+        let model_manager_result = crate::models::ModelManager::from_spec(&model_spec);
+
+        if let Ok(model_manager) = model_manager_result {
+            let mut backend = TractBackend::with_model_manager(model_manager);
+            assert!(!backend.is_initialized());
+
+            // Try to initialize with a basic config
+            let config = RemovalConfig {
+                execution_provider: ExecutionProvider::Cpu,
+                output_format: crate::config::OutputFormat::Png,
+                jpeg_quality: 90,
+                webp_quality: 85,
+                debug: false,
+                intra_threads: 0,
+                inter_threads: 0,
+                preserve_color_profiles: false,
+                disable_cache: false,
+                model_spec: model_spec.clone(),
+                format_hint: None,
+            };
+
+            // This will likely fail due to missing model, but should not panic
+            let init_result = backend.initialize(&config);
+
+            // Just verify the backend handles the failure gracefully
+            if init_result.is_err() {
+                assert!(!backend.is_initialized());
+            }
+        }
+    }
+
+    #[test]
+    fn test_tract_backend_thread_configuration() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let mut backend = TractBackend::with_model_manager(model_manager);
+
+        // Test different thread configurations
+        let configs = vec![
+            (0, 0), // Auto threads
+            (1, 1), // Single threaded
+            (2, 4), // Mixed configuration
+            (4, 2), // Reversed configuration
+        ];
+
+        for (intra, inter) in configs {
+            let config = RemovalConfig {
+                execution_provider: ExecutionProvider::Cpu,
+                output_format: crate::config::OutputFormat::Png,
+                jpeg_quality: 90,
+                webp_quality: 85,
+                debug: false,
+                intra_threads: intra,
+                inter_threads: inter,
+                preserve_color_profiles: false,
+                disable_cache: false,
+                model_spec: model_spec.clone(),
+                format_hint: None,
+            };
+
+            // Attempt initialization (may fail due to missing model, but shouldn't panic)
+            let _ = backend.initialize(&config);
+        }
+    }
+
+    #[test]
+    fn test_tract_backend_pure_rust_characteristics() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let backend = TractBackend::with_model_manager(model_manager);
+
+        // Tract backend should be pure Rust - test basic properties
+        assert!(!backend.is_initialized());
+
+        // Should provide sensible defaults
+        let input_shape = backend.input_shape();
+        let output_shape = backend.output_shape();
+
+        // Input should be RGB (3 channels)
+        assert_eq!(input_shape.1, 3);
+        // Output should be single channel mask
+        assert_eq!(output_shape.1, 1);
+
+        // Dimensions should be reasonable
+        assert!(input_shape.2 >= 256 && input_shape.2 <= 2048);
+        assert!(input_shape.3 >= 256 && input_shape.3 <= 2048);
+        assert!(output_shape.2 >= 256 && output_shape.2 <= 2048);
+        assert!(output_shape.3 >= 256 && output_shape.3 <= 2048);
+    }
+
+    #[test]
+    fn test_tract_backend_model_management() {
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let backend = TractBackend::with_model_manager(model_manager);
+
+        // Test model information access
+        let model_info_result = backend.get_model_info();
+        let preprocessing_result = backend.get_preprocessing_config();
+
+        // Even if these fail due to missing models, they should fail gracefully
+        match model_info_result {
+            Ok(info) => {
+                assert!(!info.name.is_empty());
+                assert!(!info.precision.is_empty());
+                assert!(info.size_bytes > 0);
+                assert!(info.input_shape.0 > 0);
+                assert!(info.output_shape.0 > 0);
+            },
+            Err(_) => {
+                // Expected for test models that don't exist
+            },
+        }
+
+        match preprocessing_result {
+            Ok(config) => {
+                assert!(config.target_size[0] > 0);
+                assert!(config.target_size[1] > 0);
+                assert!(config.normalization_mean.len() == 3);
+                assert!(config.normalization_std.len() == 3);
+
+                // Check normalization values are reasonable
+                for &mean in &config.normalization_mean {
+                    assert!(mean >= 0.0 && mean <= 255.0); // Allow both [0,1] and [0,255] ranges
+                }
+                for &std in &config.normalization_std {
+                    assert!(std > 0.0 && std <= 255.0); // Allow both [0,1] and [0,255] ranges
+                }
+            },
+            Err(_) => {
+                // Expected for test models that don't exist
+            },
+        }
+    }
+}

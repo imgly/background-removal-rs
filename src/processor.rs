@@ -947,7 +947,541 @@ impl BackgroundRemovalProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{ModelSource, ModelSpec};
+    use crate::{
+        backends::test_utils::MockBackendFactory,
+        config::ExecutionProvider,
+        models::{ModelManager, ModelSource, ModelSpec},
+    };
+    use image::{ImageBuffer, Rgb};
+
+    // Helper function to create a test model spec
+    fn create_test_model_spec() -> ModelSpec {
+        ModelSpec {
+            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            variant: Some("fp32".to_string()),
+        }
+    }
+
+    // Helper function to create a test image
+    fn create_test_image(width: u32, height: u32) -> DynamicImage {
+        let img = ImageBuffer::from_fn(width, height, |x, y| {
+            let r = ((x as f32 / width as f32) * 255.0) as u8;
+            let g = ((y as f32 / height as f32) * 255.0) as u8;
+            let b = 128;
+            Rgb([r, g, b])
+        });
+        DynamicImage::ImageRgb8(img)
+    }
+
+    #[test]
+    fn test_backend_type_enum() {
+        let onnx = BackendType::Onnx;
+        let tract = BackendType::Tract;
+
+        assert_eq!(onnx, BackendType::Onnx);
+        assert_eq!(tract, BackendType::Tract);
+        assert_ne!(onnx, tract);
+
+        // Test cloning
+        let onnx_clone = onnx.clone();
+        assert_eq!(onnx, onnx_clone);
+    }
+
+    #[test]
+    fn test_default_backend_factory() {
+        let factory = DefaultBackendFactory;
+
+        // Test available backends (should be empty by default)
+        let backends = factory.available_backends();
+        assert!(backends.is_empty());
+
+        // Test creating ONNX backend (should fail)
+        let model_spec = create_test_model_spec();
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let result = factory.create_backend(BackendType::Onnx, model_manager);
+        assert!(result.is_err());
+
+        // Test creating Tract backend (should fail)
+        let model_spec = create_test_model_spec();
+        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
+        let result = factory.create_backend(BackendType::Tract, model_manager);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_processor_config_builder_validation() {
+        let model_spec = create_test_model_spec();
+
+        // Test valid configuration
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .jpeg_quality(80)
+            .webp_quality(85)
+            .build();
+        assert!(config.is_ok());
+
+        // Test quality clamping
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .jpeg_quality(150) // Over 100
+            .webp_quality(200) // Over 100
+            .build()
+            .unwrap();
+        assert_eq!(config.jpeg_quality, 100);
+        assert_eq!(config.webp_quality, 100);
+
+        // Test zero quality
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .jpeg_quality(0)
+            .webp_quality(0)
+            .build()
+            .unwrap();
+        assert_eq!(config.jpeg_quality, 0);
+        assert_eq!(config.webp_quality, 0);
+    }
+
+    #[test]
+    fn test_processor_config_builder_all_options() {
+        let model_spec = create_test_model_spec();
+
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .backend_type(BackendType::Tract)
+            .execution_provider(ExecutionProvider::Cpu)
+            .output_format(OutputFormat::WebP)
+            .jpeg_quality(90)
+            .webp_quality(80)
+            .debug(true)
+            .intra_threads(4)
+            .inter_threads(2)
+            .preserve_color_profiles(true)
+            .verbose_progress(true)
+            .disable_cache(true)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.model_spec.source, model_spec.source);
+        assert_eq!(config.backend_type, BackendType::Tract);
+        assert_eq!(config.execution_provider, ExecutionProvider::Cpu);
+        assert_eq!(config.output_format, OutputFormat::WebP);
+        assert_eq!(config.jpeg_quality, 90);
+        assert_eq!(config.webp_quality, 80);
+        assert!(config.debug);
+        assert_eq!(config.intra_threads, 4);
+        assert_eq!(config.inter_threads, 2);
+        assert!(config.preserve_color_profiles);
+        assert!(config.verbose_progress);
+        assert!(config.disable_cache);
+    }
+
+    #[test]
+    fn test_processor_config_default() {
+        let config = ProcessorConfig::default();
+
+        assert_eq!(config.backend_type, BackendType::Onnx);
+        assert_eq!(config.execution_provider, ExecutionProvider::Auto);
+        assert_eq!(config.output_format, OutputFormat::Png);
+        assert_eq!(config.jpeg_quality, 90);
+        assert_eq!(config.webp_quality, 85);
+        assert!(!config.debug);
+        assert_eq!(config.intra_threads, 0);
+        assert_eq!(config.inter_threads, 0);
+        assert!(config.preserve_color_profiles); // Default is true
+        assert!(!config.verbose_progress);
+        assert!(!config.disable_cache);
+    }
+
+    #[test]
+    fn test_processor_config_to_removal_config() {
+        let model_spec = create_test_model_spec();
+
+        let processor_config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .backend_type(BackendType::Tract)
+            .execution_provider(ExecutionProvider::Cpu)
+            .output_format(OutputFormat::Jpeg)
+            .jpeg_quality(85)
+            .debug(true)
+            .intra_threads(2)
+            .inter_threads(1)
+            .preserve_color_profiles(true)
+            .disable_cache(true)
+            .build()
+            .unwrap();
+
+        let removal_config = processor_config.to_removal_config();
+
+        assert_eq!(removal_config.execution_provider, ExecutionProvider::Cpu);
+        assert_eq!(removal_config.output_format, OutputFormat::Jpeg);
+        assert_eq!(removal_config.jpeg_quality, 85);
+        assert!(removal_config.debug);
+        assert_eq!(removal_config.intra_threads, 2);
+        assert_eq!(removal_config.inter_threads, 1);
+        assert!(removal_config.preserve_color_profiles);
+        assert!(removal_config.disable_cache);
+        assert_eq!(removal_config.model_spec.source, model_spec.source);
+        assert!(removal_config.format_hint.is_none());
+    }
+
+    #[test]
+    fn test_processor_creation_with_default_factory() {
+        let config = ProcessorConfig::default();
+        let processor = BackgroundRemovalProcessor::new(config);
+        assert!(processor.is_ok());
+
+        let processor = processor.unwrap();
+        assert!(!processor.is_initialized());
+        assert!(processor.available_backends().is_empty());
+    }
+
+    #[test]
+    fn test_processor_creation_with_mock_factory() {
+        let config = ProcessorConfig::default();
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory);
+        assert!(processor.is_ok());
+
+        let processor = processor.unwrap();
+        assert!(!processor.is_initialized());
+
+        let backends = processor.available_backends();
+        assert_eq!(backends.len(), 2);
+        assert!(backends.contains(&BackendType::Onnx));
+        assert!(backends.contains(&BackendType::Tract));
+    }
+
+    #[test]
+    fn test_processor_initialization_with_mock_factory() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        assert!(!processor.is_initialized());
+
+        let result = processor.initialize();
+        assert!(result.is_ok());
+        assert!(processor.is_initialized());
+
+        // Test double initialization (should be idempotent)
+        let result = processor.initialize();
+        assert!(result.is_ok());
+        assert!(processor.is_initialized());
+    }
+
+    #[test]
+    fn test_processor_initialization_failure() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+
+        // Use failing factory
+        let failing_factory = Box::new(MockBackendFactory::new_creation_failing());
+        let mut processor =
+            BackgroundRemovalProcessor::with_factory(config, failing_factory).unwrap();
+
+        let result = processor.initialize();
+        assert!(result.is_err());
+        assert!(!processor.is_initialized());
+    }
+
+    #[test]
+    fn test_processor_initialization_backend_init_failure() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+
+        // Use factory that creates failing backends
+        let failing_factory = Box::new(MockBackendFactory::new_failing());
+        let mut processor =
+            BackgroundRemovalProcessor::with_factory(config, failing_factory).unwrap();
+
+        let result = processor.initialize();
+        assert!(result.is_err());
+        assert!(!processor.is_initialized());
+    }
+
+    #[test]
+    fn test_processor_config_access() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .backend_type(BackendType::Tract)
+            .debug(true)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        let processor_config = processor.config();
+        assert_eq!(processor_config.model_spec.source, model_spec.source);
+        assert_eq!(processor_config.backend_type, BackendType::Tract);
+        assert!(processor_config.debug);
+    }
+
+    #[test]
+    fn test_processor_process_image_auto_initialization() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        // Verify processor is not initialized initially
+        assert!(!processor.is_initialized());
+
+        let test_image = create_test_image(320, 320);
+        let result = processor.process_image(&test_image);
+
+        // Should succeed due to auto-initialization
+        assert!(result.is_ok());
+
+        // Verify processor is now initialized
+        assert!(processor.is_initialized());
+
+        let removal_result = result.unwrap();
+        assert!(removal_result.image.width() > 0);
+        assert!(removal_result.image.height() > 0);
+    }
+
+    #[test]
+    fn test_processor_process_image_initialization_failure() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+        // Use a factory that fails to create backends
+        let mock_factory = Box::new(MockBackendFactory::new_creation_failing());
+        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        // Verify processor is not initialized initially
+        assert!(!processor.is_initialized());
+
+        let test_image = create_test_image(320, 320);
+        let result = processor.process_image(&test_image);
+
+        // Should fail due to factory failure during auto-initialization
+        assert!(result.is_err());
+
+        // Verify processor is still not initialized
+        assert!(!processor.is_initialized());
+
+        // Verify error is about backend creation failure
+        let error = result.unwrap_err();
+        assert!(
+            error.to_string().contains("backend creation")
+                || error.to_string().contains("Mock factory")
+        );
+    }
+
+    #[test]
+    fn test_processor_process_image_basic() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        // Initialize processor
+        processor.initialize().unwrap();
+
+        // Create test image
+        let test_image = create_test_image(320, 320);
+
+        // Process image
+        let result = processor.process_image(&test_image);
+        assert!(result.is_ok());
+
+        let removal_result = result.unwrap();
+        // Check that we have a processed image
+        assert!(removal_result.image.width() > 0);
+        assert!(removal_result.image.height() > 0);
+        // Check that we have a mask with proper dimensions
+        assert!(removal_result.mask.dimensions.0 > 0);
+        assert!(removal_result.mask.dimensions.1 > 0);
+        assert!(!removal_result.mask.data.is_empty());
+        // Check that we have valid processing metadata
+        assert!(!removal_result.metadata.model_name.is_empty());
+    }
+
+    #[test]
+    fn test_processor_process_bytes() {
+        let model_spec = create_test_model_spec();
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Tract)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+
+        // Initialize processor
+        processor.initialize().unwrap();
+
+        // Create test image and encode to bytes
+        let test_image = create_test_image(256, 256);
+        let mut bytes = Vec::new();
+        test_image
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+
+        // Process bytes
+        let result = processor.process_bytes(&bytes);
+        assert!(result.is_ok());
+
+        let removal_result = result.unwrap();
+        // Check that we have a processed image
+        assert!(removal_result.image.width() > 0);
+        assert!(removal_result.image.height() > 0);
+        // Check that we have a mask with proper dimensions
+        assert!(removal_result.mask.dimensions.0 > 0);
+        assert!(removal_result.mask.dimensions.1 > 0);
+        assert!(!removal_result.mask.data.is_empty());
+    }
+
+    #[test]
+    fn test_coordinate_transformation() {
+        let transform = CoordinateTransformation {
+            scale: 0.5,
+            offset_x: 10,
+            offset_y: 20,
+            mask_width: 100,
+            mask_height: 80,
+        };
+
+        // Test cloning
+        let transform_clone = transform.clone();
+        assert_eq!(transform_clone.scale, 0.5);
+        assert_eq!(transform_clone.offset_x, 10);
+        assert_eq!(transform_clone.offset_y, 20);
+        assert_eq!(transform_clone.mask_width, 100);
+        assert_eq!(transform_clone.mask_height, 80);
+    }
+
+    #[test]
+    fn test_processor_different_backend_types() {
+        let model_spec = create_test_model_spec();
+
+        // Test with ONNX backend
+        let onnx_config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .backend_type(BackendType::Onnx)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut onnx_processor =
+            BackgroundRemovalProcessor::with_factory(onnx_config, mock_factory).unwrap();
+        onnx_processor.initialize().unwrap();
+
+        // Test with Tract backend
+        let tract_config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .backend_type(BackendType::Tract)
+            .build()
+            .unwrap();
+
+        let mock_factory = Box::new(MockBackendFactory::new());
+        let mut tract_processor =
+            BackgroundRemovalProcessor::with_factory(tract_config, mock_factory).unwrap();
+        tract_processor.initialize().unwrap();
+
+        // Both should be initialized
+        assert!(onnx_processor.is_initialized());
+        assert!(tract_processor.is_initialized());
+
+        // Process same image with both
+        let test_image = create_test_image(256, 256);
+
+        let onnx_result = onnx_processor.process_image(&test_image);
+        let tract_result = tract_processor.process_image(&test_image);
+
+        assert!(onnx_result.is_ok());
+        assert!(tract_result.is_ok());
+    }
+
+    #[test]
+    fn test_processor_config_quality_edge_cases() {
+        let model_spec = create_test_model_spec();
+
+        // Test minimum quality values
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec.clone())
+            .jpeg_quality(1)
+            .webp_quality(1)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.jpeg_quality, 1);
+        assert_eq!(config.webp_quality, 1);
+
+        // Test maximum quality values
+        let config = ProcessorConfigBuilder::new()
+            .model_spec(model_spec)
+            .jpeg_quality(100)
+            .webp_quality(100)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.jpeg_quality, 100);
+        assert_eq!(config.webp_quality, 100);
+    }
+
+    #[test]
+    fn test_processor_thread_configuration() {
+        let model_spec = create_test_model_spec();
+
+        // Test various thread configurations
+        let configs = vec![
+            (0, 0),  // Auto threads
+            (1, 1),  // Single threaded
+            (4, 2),  // Multi-threaded
+            (16, 8), // High thread count
+        ];
+
+        for (intra, inter) in configs {
+            let config = ProcessorConfigBuilder::new()
+                .model_spec(model_spec.clone())
+                .intra_threads(intra)
+                .inter_threads(inter)
+                .build()
+                .unwrap();
+
+            assert_eq!(config.intra_threads, intra);
+            assert_eq!(config.inter_threads, inter);
+
+            // Test that we can create a processor with these settings
+            let mock_factory = Box::new(MockBackendFactory::new());
+            let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory);
+            assert!(processor.is_ok());
+        }
+    }
 
     #[test]
     fn test_processor_config_disable_cache() {
