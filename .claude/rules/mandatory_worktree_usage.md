@@ -32,6 +32,57 @@ git worktree add worktree/feat-DESCRIPTIVE_NAME -b feat/DESCRIPTIVE_NAME
 cd worktree/feat-DESCRIPTIVE_NAME
 ```
 
+## CRITICAL: Directory Persistence in Worktrees
+
+### After creating a worktree, you MUST:
+1. **Immediately `cd` into the worktree directory** and NEVER leave it during development
+2. **NEVER execute commands from outside the worktree** during feature development  
+3. **Verify current directory** with `pwd` before each significant command sequence
+4. **Use relative paths** within the worktree, not absolute paths to main
+5. **Stay in worktree** until feature is complete and ready for merge
+
+### Enforcement Commands
+```bash
+# MANDATORY after worktree creation
+cd worktree/feat-DESCRIPTIVE_NAME
+pwd && git branch --show-current  # Verify location and branch before proceeding
+```
+
+**Expected Output:**
+- Directory: `/path/to/repo/worktree/feat-DESCRIPTIVE_NAME`  
+- Branch: `feat/DESCRIPTIVE_NAME`
+
+### Violation Prevention
+- **Before ANY git/cargo/file command**: Run `pwd` to verify you're in the worktree
+- **If not in worktree directory**: STOP immediately and `cd` back to correct location
+- **Use `git status`** to verify you're on the feature branch
+- **NEVER use absolute paths** to main repository files - use relative paths within worktree
+
+### Command Pattern for Worktree Operations
+```bash
+# 1. Verify location (MANDATORY before command sequences)
+pwd && git branch --show-current
+
+# 2. If not in worktree, navigate there immediately
+cd worktree/feat-DESCRIPTIVE_NAME
+
+# 3. Verify again after navigation
+pwd && git branch --show-current
+
+# 4. Then execute your intended commands
+git status
+cargo check
+# ... other development commands
+```
+
+### Directory Violations
+**Serious Violation**: Executing development commands from main directory when a worktree exists because it:
+- **Bypasses feature isolation** - changes affect main instead of feature branch
+- **Creates confusion** about which branch changes are applied to
+- **Violates worktree safety** - defeats the purpose of isolated development
+- **Risks main branch contamination** - accidentally commits to wrong branch
+- **Breaks development workflow** - mixes feature and main development
+
 ### 2. Complete ALL Work in Feature Worktree
 - Make all commits in the feature worktree
 - Update changelog files within feature branch
