@@ -146,6 +146,7 @@
 /.claude/rules/cargo_test_after_completion.md : Cargo test requirement after task completion
 /.claude/rules/feature_finalization_testing.md : Comprehensive testing requirements for feature completion
 /.claude/rules/mandatory_doc_test_execution.md : Critical rule enforcing doc test execution in all testing workflows
+/.claude/rules/cache_disabled_testing.md : Mandatory rule requiring additional testing with all caches disabled to reveal hidden dependencies
 /.claude/rules/conversational_interaction.md : User interaction guidelines and standards
 /.claude/rules/thinking_and_tool_use.md : Tool usage reflection requirements
 /.claude/rules/prompt_for_tool_triggering-websearch.md : Web search tool triggering rules

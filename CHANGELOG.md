@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **RemovalSession API**: New `RemovalSession` struct for efficient model reuse across multiple background removal operations, improving batch processing performance
 - **CUDA support**: Enabled CUDA execution provider support in ONNX Runtime backend for GPU acceleration
 - **Enhanced worktree rules**: Added directory persistence requirements to mandatory worktree usage rule with explicit directory tracking and violation prevention
+- **Cache-disabled testing rule**: New mandatory testing requirement to run tests with all caches disabled, revealing hidden cache dependencies and ensuring robust functionality
 - Consolidated imgly-bgremove library with unified API
 - **Comprehensive tracing integration**: Migrated from `env_logger` to `tracing` ecosystem for structured logging
 - **Tracing configuration module**: Centralized subscriber setup with support for console, JSON, and file outputs
