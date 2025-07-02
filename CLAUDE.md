@@ -35,6 +35,7 @@ Whenever an external process is started in the background, remember it's PID and
 @.claude/rules/cargo_fmt_after_changes.md
 @.claude/rules/cargo_test_after_completion.md
 @.claude/rules/feature_finalization_testing.md
+@.claude/rules/mandatory_doc_test_execution.md
 
 ## User Interaction
 @.claude/rules/conversational_interaction.md
