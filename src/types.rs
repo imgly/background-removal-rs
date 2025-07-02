@@ -1236,7 +1236,7 @@ impl SegmentationMask {
     ///     .backend_type(BackendType::Onnx)
     ///     .build()?;
     /// let mut processor = BackgroundRemovalProcessor::new(config)?;
-    /// let result = processor.process_file("photo.jpg").await?;
+    /// let result = processor.process_file("photo.jpg")?;
     /// let mask = &result.mask;
     ///
     /// let stats = mask.statistics();
@@ -1263,7 +1263,7 @@ impl SegmentationMask {
     ///     .backend_type(BackendType::Onnx)
     ///     .build()?;
     /// let mut processor = BackgroundRemovalProcessor::new(config)?;
-    /// let result = processor.process_file("portrait.jpg").await?;
+    /// let result = processor.process_file("portrait.jpg")?;
     /// let mask = &result.mask;
     ///
     /// let stats = mask.statistics();

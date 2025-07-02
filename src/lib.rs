@@ -90,8 +90,8 @@ pub use tracing_config::{
 /// ```rust,no_run
 /// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
 ///
-/// # async fn example() -> anyhow::Result<()> {
-/// let image_data = download_image_from_api().await?;
+/// # fn example() -> anyhow::Result<()> {
+/// let image_data = download_image_from_api()?;
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
@@ -154,7 +154,7 @@ pub fn remove_background_from_bytes(
 /// let config = RemovalConfig::builder()
 ///     .model_spec(model_spec)
 ///     .build()?;
-/// let result = remove_background_from_image(img, &config)?;
+/// let result = remove_background_from_image(&img, &config)?;
 /// result.save_png("output.png")?;
 /// # Ok(())
 /// # }

@@ -429,44 +429,6 @@ impl Default for MockBackendFactory {
     }
 }
 
-impl crate::processor::BackendFactory for MockBackendFactory {
-    fn create_backend(
-        &self,
-        backend_type: crate::processor::BackendType,
-        _model_manager: crate::models::ModelManager,
-    ) -> Result<Box<dyn InferenceBackend>> {
-        if self.fail_backend_creation {
-            return Err(BgRemovalError::processing(
-                "Mock factory configured to fail backend creation",
-            ));
-        }
-
-        match backend_type {
-            crate::processor::BackendType::Onnx => {
-                if self.create_failing_backends {
-                    Ok(Box::new(MockOnnxBackend::new_failing_init()))
-                } else {
-                    Ok(Box::new(MockOnnxBackend::new()))
-                }
-            },
-            crate::processor::BackendType::Tract => {
-                if self.create_failing_backends {
-                    Ok(Box::new(MockTractBackend::new_failing_init()))
-                } else {
-                    Ok(Box::new(MockTractBackend::new()))
-                }
-            },
-        }
-    }
-
-    fn available_backends(&self) -> Vec<crate::processor::BackendType> {
-        vec![
-            crate::processor::BackendType::Onnx,
-            crate::processor::BackendType::Tract,
-        ]
-    }
-}
-
 /// Helper functions for creating test images and tensors
 pub mod test_helpers {
     use super::*;
@@ -527,7 +489,6 @@ mod tests {
     use super::*;
     use crate::config::{ExecutionProvider, OutputFormat};
     use crate::models::{ModelSource, ModelSpec};
-    use crate::processor::BackendFactory;
 
     #[test]
     fn test_mock_onnx_backend_creation() {
@@ -669,83 +630,6 @@ mod tests {
         // Clear history
         backend.clear_call_history();
         assert!(backend.get_call_history().is_empty());
-    }
-
-    #[test]
-    fn test_mock_backend_factory() {
-        let factory = MockBackendFactory::new();
-
-        // Test available backends
-        let backends = factory.available_backends();
-        assert_eq!(backends.len(), 2);
-        assert!(backends.contains(&crate::processor::BackendType::Onnx));
-        assert!(backends.contains(&crate::processor::BackendType::Tract));
-
-        // Test backend creation
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = crate::models::ModelManager::from_spec(&model_spec).unwrap();
-
-        let onnx_backend =
-            factory.create_backend(crate::processor::BackendType::Onnx, model_manager);
-        assert!(onnx_backend.is_ok());
-
-        // Create a second model manager for tract backend
-        let model_manager2 = crate::models::ModelManager::from_spec(&model_spec).unwrap();
-        let tract_backend =
-            factory.create_backend(crate::processor::BackendType::Tract, model_manager2);
-        assert!(tract_backend.is_ok());
-    }
-
-    #[test]
-    fn test_mock_backend_factory_failures() {
-        // Test failing factory
-        let failing_factory = MockBackendFactory::new_creation_failing();
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = crate::models::ModelManager::from_spec(&model_spec).unwrap();
-
-        let result =
-            failing_factory.create_backend(crate::processor::BackendType::Onnx, model_manager);
-        assert!(result.is_err());
-
-        // Test factory that creates failing backends
-        let factory_with_failing_backends = MockBackendFactory::new_failing();
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = crate::models::ModelManager::from_spec(&model_spec).unwrap();
-
-        let backend = factory_with_failing_backends
-            .create_backend(crate::processor::BackendType::Onnx, model_manager)
-            .unwrap();
-
-        // Backend should be created but will fail on initialization
-        let config = RemovalConfig {
-            execution_provider: ExecutionProvider::Cpu,
-            output_format: OutputFormat::Png,
-            jpeg_quality: 90,
-            webp_quality: 85,
-            debug: false,
-            intra_threads: 0,
-            inter_threads: 0,
-            preserve_color_profiles: false,
-            disable_cache: false,
-            model_spec: ModelSpec {
-                source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-                variant: Some("fp32".to_string()),
-            },
-            format_hint: None,
-        };
-
-        let mut backend_mut = backend;
-        let result = backend_mut.initialize(&config);
-        assert!(result.is_err());
     }
 
     #[test]

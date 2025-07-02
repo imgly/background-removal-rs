@@ -948,9 +948,8 @@ impl BackgroundRemovalProcessor {
 mod tests {
     use super::*;
     use crate::{
-        backends::test_utils::MockBackendFactory,
         config::ExecutionProvider,
-        models::{ModelManager, ModelSource, ModelSpec},
+        models::{ModelSource, ModelSpec},
     };
     use image::{ImageBuffer, Rgb};
 
@@ -988,24 +987,33 @@ mod tests {
     }
 
     #[test]
-    fn test_default_backend_factory() {
-        let factory = DefaultBackendFactory;
+    fn test_available_backends() {
+        let backends = available_backends();
 
-        // Test available backends (should be empty by default)
-        let backends = factory.available_backends();
-        assert!(backends.is_empty());
+        // Test that we get the backends available based on compiled features
+        #[cfg(all(feature = "onnx", feature = "tract"))]
+        {
+            assert_eq!(backends.len(), 2);
+            assert!(backends.contains(&BackendType::Onnx));
+            assert!(backends.contains(&BackendType::Tract));
+        }
 
-        // Test creating ONNX backend (should fail)
-        let model_spec = create_test_model_spec();
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let result = factory.create_backend(BackendType::Onnx, model_manager);
-        assert!(result.is_err());
+        #[cfg(all(feature = "onnx", not(feature = "tract")))]
+        {
+            assert_eq!(backends.len(), 1);
+            assert!(backends.contains(&BackendType::Onnx));
+        }
 
-        // Test creating Tract backend (should fail)
-        let model_spec = create_test_model_spec();
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let result = factory.create_backend(BackendType::Tract, model_manager);
-        assert!(result.is_err());
+        #[cfg(all(not(feature = "onnx"), feature = "tract"))]
+        {
+            assert_eq!(backends.len(), 1);
+            assert!(backends.contains(&BackendType::Tract));
+        }
+
+        #[cfg(all(not(feature = "onnx"), not(feature = "tract")))]
+        {
+            assert!(backends.is_empty());
+        }
     }
 
     #[test]
@@ -1125,43 +1133,40 @@ mod tests {
     }
 
     #[test]
-    fn test_processor_creation_with_default_factory() {
+    fn test_processor_creation() {
         let config = ProcessorConfig::default();
         let processor = BackgroundRemovalProcessor::new(config);
         assert!(processor.is_ok());
 
         let processor = processor.unwrap();
         assert!(!processor.is_initialized());
-        assert!(processor.available_backends().is_empty());
-    }
 
-    #[test]
-    fn test_processor_creation_with_mock_factory() {
-        let config = ProcessorConfig::default();
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory);
-        assert!(processor.is_ok());
-
-        let processor = processor.unwrap();
-        assert!(!processor.is_initialized());
-
+        // Check that available backends match compiled features
         let backends = processor.available_backends();
-        assert_eq!(backends.len(), 2);
-        assert!(backends.contains(&BackendType::Onnx));
-        assert!(backends.contains(&BackendType::Tract));
+        #[cfg(any(feature = "onnx", feature = "tract"))]
+        assert!(!backends.is_empty());
+
+        #[cfg(all(not(feature = "onnx"), not(feature = "tract")))]
+        assert!(backends.is_empty());
     }
 
     #[test]
-    fn test_processor_initialization_with_mock_factory() {
+    #[cfg(any(feature = "onnx", feature = "tract"))]
+    fn test_processor_initialization() {
         let model_spec = create_test_model_spec();
+        let backend_type = if cfg!(feature = "onnx") {
+            BackendType::Onnx
+        } else {
+            BackendType::Tract
+        };
+
         let config = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
-            .backend_type(BackendType::Onnx)
+            .backend_type(backend_type)
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         assert!(!processor.is_initialized());
 
@@ -1176,7 +1181,8 @@ mod tests {
     }
 
     #[test]
-    fn test_processor_initialization_failure() {
+    #[cfg(not(feature = "onnx"))]
+    fn test_processor_initialization_onnx_not_compiled() {
         let model_spec = create_test_model_spec();
         let config = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
@@ -1184,33 +1190,30 @@ mod tests {
             .build()
             .unwrap();
 
-        // Use failing factory
-        let failing_factory = Box::new(MockBackendFactory::new_creation_failing());
-        let mut processor =
-            BackgroundRemovalProcessor::with_factory(config, failing_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         let result = processor.initialize();
         assert!(result.is_err());
         assert!(!processor.is_initialized());
+        assert!(result.unwrap_err().to_string().contains("not compiled"));
     }
 
     #[test]
-    fn test_processor_initialization_backend_init_failure() {
+    #[cfg(not(feature = "tract"))]
+    fn test_processor_initialization_tract_not_compiled() {
         let model_spec = create_test_model_spec();
         let config = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
-            .backend_type(BackendType::Onnx)
+            .backend_type(BackendType::Tract)
             .build()
             .unwrap();
 
-        // Use factory that creates failing backends
-        let failing_factory = Box::new(MockBackendFactory::new_failing());
-        let mut processor =
-            BackgroundRemovalProcessor::with_factory(config, failing_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         let result = processor.initialize();
         assert!(result.is_err());
         assert!(!processor.is_initialized());
+        assert!(result.unwrap_err().to_string().contains("not compiled"));
     }
 
     #[test]
@@ -1223,8 +1226,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+        let processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         let processor_config = processor.config();
         assert_eq!(processor_config.model_spec.source, model_spec.source);
@@ -1233,15 +1235,21 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "onnx", feature = "tract"))]
     fn test_processor_process_image_auto_initialization() {
         let model_spec = create_test_model_spec();
+        let backend_type = if cfg!(feature = "onnx") {
+            BackendType::Onnx
+        } else {
+            BackendType::Tract
+        };
+
         let config = ProcessorConfigBuilder::new()
             .model_spec(model_spec)
-            .backend_type(BackendType::Onnx)
+            .backend_type(backend_type)
             .build()
             .unwrap();
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         // Verify processor is not initialized initially
         assert!(!processor.is_initialized());
@@ -1261,38 +1269,6 @@ mod tests {
     }
 
     #[test]
-    fn test_processor_process_image_initialization_failure() {
-        let model_spec = create_test_model_spec();
-        let config = ProcessorConfigBuilder::new()
-            .model_spec(model_spec)
-            .backend_type(BackendType::Onnx)
-            .build()
-            .unwrap();
-        // Use a factory that fails to create backends
-        let mock_factory = Box::new(MockBackendFactory::new_creation_failing());
-        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
-
-        // Verify processor is not initialized initially
-        assert!(!processor.is_initialized());
-
-        let test_image = create_test_image(320, 320);
-        let result = processor.process_image(&test_image);
-
-        // Should fail due to factory failure during auto-initialization
-        assert!(result.is_err());
-
-        // Verify processor is still not initialized
-        assert!(!processor.is_initialized());
-
-        // Verify error is about backend creation failure
-        let error = result.unwrap_err();
-        assert!(
-            error.to_string().contains("backend creation")
-                || error.to_string().contains("Mock factory")
-        );
-    }
-
-    #[test]
     fn test_processor_process_image_basic() {
         let model_spec = create_test_model_spec();
         let config = ProcessorConfigBuilder::new()
@@ -1301,8 +1277,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         // Initialize processor
         processor.initialize().unwrap();
@@ -1335,8 +1310,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut processor = BackgroundRemovalProcessor::with_factory(config, mock_factory).unwrap();
+        let mut processor = BackgroundRemovalProcessor::new(config).unwrap();
 
         // Initialize processor
         processor.initialize().unwrap();
@@ -1395,9 +1369,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut onnx_processor =
-            BackgroundRemovalProcessor::with_factory(onnx_config, mock_factory).unwrap();
+        let mut onnx_processor = BackgroundRemovalProcessor::new(onnx_config).unwrap();
         onnx_processor.initialize().unwrap();
 
         // Test with Tract backend
@@ -1407,9 +1379,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mock_factory = Box::new(MockBackendFactory::new());
-        let mut tract_processor =
-            BackgroundRemovalProcessor::with_factory(tract_config, mock_factory).unwrap();
+        let mut tract_processor = BackgroundRemovalProcessor::new(tract_config).unwrap();
         tract_processor.initialize().unwrap();
 
         // Both should be initialized
@@ -1477,8 +1447,7 @@ mod tests {
             assert_eq!(config.inter_threads, inter);
 
             // Test that we can create a processor with these settings
-            let mock_factory = Box::new(MockBackendFactory::new());
-            let processor = BackgroundRemovalProcessor::with_factory(config, mock_factory);
+            let processor = BackgroundRemovalProcessor::new(config);
             assert!(processor.is_ok());
         }
     }
