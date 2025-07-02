@@ -7,18 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **Simplified backend creation**: Replaced complex factory pattern with direct backend creation for improved performance and maintainability
-- **Code quality improvements**: Fixed all clippy warnings in lib.rs and removed suppressions
-- **API optimization**: `remove_background_from_image` now takes `&DynamicImage` instead of owned value for better performance
-- **Async function cleanup**: Converted unnecessary async functions to sync for improved performance
-
-### Removed
-- **Backend factory abstraction**: Removed `BackendFactory` trait and `DefaultBackendFactory` implementation
-- **Clippy suppressions**: Removed all `#![allow(clippy::...)]` directives from lib.rs after fixing underlying issues
-- **WebAssembly support**: Removed WASM-specific conditional compilation and dependencies from Tract backend
-
 ### Added
+- **RemovalSession API**: New `RemovalSession` struct for efficient model reuse across multiple background removal operations, improving batch processing performance
+- **CUDA support**: Enabled CUDA execution provider support in ONNX Runtime backend for GPU acceleration
 - Consolidated imgly-bgremove library with unified API
 - **Comprehensive tracing integration**: Migrated from `env_logger` to `tracing` ecosystem for structured logging
 - **Tracing configuration module**: Centralized subscriber setup with support for console, JSON, and file outputs
@@ -31,7 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified configuration**: Model specification is now included in `RemovalConfig` for simplified usage
 - **Format hint support**: Added optional format hint field to `RemovalConfig` for reader-based processing
 
-### Changed  
+### Changed
+- **Simplified backend creation**: Replaced complex factory pattern with direct backend creation for improved performance and maintainability
+- **Code quality improvements**: Fixed all clippy warnings in lib.rs and removed suppressions
+- **API optimization**: `remove_background_from_image` now takes `&DynamicImage` instead of owned value for better performance
+- **Async function cleanup**: Converted unnecessary async functions to sync for improved performance
+- **Examples and benchmarks**: Migrated all examples and benchmarks to use only public APIs for better user guidance
 - **BREAKING**: Simplified API to use `remove_background_from_reader(reader, config)` as primary function
 - **BREAKING**: `RemovalConfig` now includes `model_spec` field for unified configuration
 - **BREAKING**: `RemovalConfigBuilder` updated with `model_spec()` and `format_hint()` methods
@@ -41,12 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Model selection messages**: Converted from println! to tracing::info! (only shown with -vv flag)
 
 ### Removed
+- **Backend factory abstraction**: Removed `BackendFactory` trait and `DefaultBackendFactory` implementation
+- **Clippy suppressions**: Removed all `#![allow(clippy::...)]` directives from lib.rs after fixing underlying issues
+- **WebAssembly support**: Removed WASM-specific conditional compilation and dependencies from Tract backend
 - **BREAKING**: Removed `remove_background_with_model()` function - use `remove_background_from_reader()` instead
 - **BREAKING**: Removed `remove_background_with_backend()` function - functionality merged into unified API
 - **BREAKING**: Removed `remove_background_simple()` and `remove_background_simple_bytes()` functions - use `remove_background_from_reader()` or `remove_background_from_bytes()` instead
 - **BREAKING**: Removed `remove_background_with_model_bytes()` function - use `remove_background_from_reader()` with `Cursor::new()`
 
 ### Fixed
+- **Repository URL**: Updated repository URL in Cargo.toml to correct location
 - **Color profile preservation in stream-based processing**: Fixed issue where ICC color profiles were detected but not preserved when processing files through `process_file()` method
 - Resolved 150+ clippy warnings across the codebase for improved code quality
 - Fixed potential panic conditions with array indexing using safe .get() methods
