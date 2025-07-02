@@ -785,12 +785,8 @@ mod tests {
 
     #[test]
     fn test_onnx_backend_creation() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = OnnxBackend::with_model_manager(model_manager);
+        // Test backend creation without model manager (fallback behavior)
+        let backend = OnnxBackend::new();
 
         assert!(!backend.is_initialized());
         assert_eq!(backend.input_shape(), (1, 3, 1024, 1024)); // Default fallback
@@ -820,12 +816,8 @@ mod tests {
 
     #[test]
     fn test_onnx_backend_default_shapes() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = OnnxBackend::with_model_manager(model_manager);
+        // Test default shapes when backend has no model manager (fallback behavior)
+        let backend = OnnxBackend::new();
 
         // Test default shapes when model is not initialized
         let input_shape = backend.input_shape();
@@ -844,37 +836,25 @@ mod tests {
 
     #[test]
     fn test_onnx_backend_uninitialized_operations() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = OnnxBackend::with_model_manager(model_manager);
+        // Test operations on uninitialized backend without model manager
+        let backend = OnnxBackend::new();
 
         // Test operations on uninitialized backend
         assert!(!backend.is_initialized());
 
-        // These should work without initialization
-        let _ = backend.input_shape();
-        let _ = backend.output_shape();
+        // These should work without initialization (fallback behavior)
+        let input_shape = backend.input_shape();
+        let output_shape = backend.output_shape();
+        assert_eq!(input_shape, (1, 3, 1024, 1024)); // Default fallback
+        assert_eq!(output_shape, (1, 1, 1024, 1024)); // Default fallback
 
-        // Test that model info and preprocessing config fail gracefully
+        // Test that model info and preprocessing config fail gracefully when no model manager
         let model_info_result = backend.get_model_info();
         let preprocessing_result = backend.get_preprocessing_config();
 
-        // These might fail or succeed depending on model manager state
-        // Just ensure they return consistent results
-        if model_info_result.is_ok() {
-            let info = model_info_result.unwrap();
-            assert!(!info.name.is_empty());
-            assert!(info.size_bytes > 0);
-        }
-
-        if preprocessing_result.is_ok() {
-            let config = preprocessing_result.unwrap();
-            assert!(config.target_size[0] > 0);
-            assert!(config.target_size[1] > 0);
-        }
+        // These should fail gracefully when no model manager is present
+        assert!(model_info_result.is_err());
+        assert!(preprocessing_result.is_err());
     }
 
     #[test]
@@ -968,12 +948,14 @@ mod tests {
 
     #[test]
     fn test_onnx_backend_thread_configuration() {
+        // Test thread configuration without requiring cached model
+        let mut backend = OnnxBackend::new();
+
+        // Create a model spec for configuration validation
         let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            source: ModelSource::External("test-model".into()),
             variant: Some("fp32".to_string()),
         };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let mut backend = OnnxBackend::with_model_manager(model_manager);
 
         // Test different thread configurations
         let configs = vec![
@@ -1005,12 +987,13 @@ mod tests {
 
     #[test]
     fn test_onnx_backend_debug_mode() {
+        let mut backend = OnnxBackend::new();
+
+        // Test debug mode configuration - create a valid model spec for config validation
         let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            source: ModelSource::External("test-model".into()),
             variant: Some("fp32".to_string()),
         };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let mut backend = OnnxBackend::with_model_manager(model_manager);
 
         // Test debug mode configuration
         let config = crate::config::RemovalConfig {
@@ -1027,10 +1010,11 @@ mod tests {
             format_hint: None,
         };
 
-        // Attempt initialization with debug mode
-        let _ = backend.initialize(&config);
+        // Attempt initialization with debug mode - should fail gracefully without model manager
+        let init_result = backend.initialize(&config);
 
-        // Just verify the backend can handle debug configuration
-        assert!(!backend.is_initialized() || backend.is_initialized());
+        // Should fail because no model manager, but shouldn't panic
+        assert!(init_result.is_err());
+        assert!(!backend.is_initialized());
     }
 }

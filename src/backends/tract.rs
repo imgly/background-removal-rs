@@ -302,12 +302,8 @@ mod tests {
 
     #[test]
     fn test_tract_backend_creation() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = TractBackend::with_model_manager(model_manager);
+        // Test backend creation without model manager (fallback behavior)
+        let backend = TractBackend::new();
 
         assert!(!backend.is_initialized());
         assert_eq!(backend.input_shape(), (1, 3, 1024, 1024)); // Default fallback
@@ -316,12 +312,8 @@ mod tests {
 
     #[test]
     fn test_tract_backend_default_shapes() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = TractBackend::with_model_manager(model_manager);
+        // Test default shapes when backend has no model manager (fallback behavior)
+        let backend = TractBackend::new();
 
         // Test default shapes when model is not initialized
         let input_shape = backend.input_shape();
@@ -340,37 +332,25 @@ mod tests {
 
     #[test]
     fn test_tract_backend_uninitialized_operations() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = TractBackend::with_model_manager(model_manager);
+        // Test operations on uninitialized backend without model manager
+        let backend = TractBackend::new();
 
         // Test operations on uninitialized backend
         assert!(!backend.is_initialized());
 
-        // These should work without initialization
-        let _ = backend.input_shape();
-        let _ = backend.output_shape();
+        // These should work without initialization (fallback behavior)
+        let input_shape = backend.input_shape();
+        let output_shape = backend.output_shape();
+        assert_eq!(input_shape, (1, 3, 1024, 1024)); // Default fallback
+        assert_eq!(output_shape, (1, 1, 1024, 1024)); // Default fallback
 
-        // Test that model info and preprocessing config fail gracefully
+        // Test that model info and preprocessing config fail gracefully when no model manager
         let model_info_result = backend.get_model_info();
         let preprocessing_result = backend.get_preprocessing_config();
 
-        // These might fail or succeed depending on model manager state
-        // Just ensure they return consistent results
-        if model_info_result.is_ok() {
-            let info = model_info_result.unwrap();
-            assert!(!info.name.is_empty());
-            assert!(info.size_bytes > 0);
-        }
-
-        if preprocessing_result.is_ok() {
-            let config = preprocessing_result.unwrap();
-            assert!(config.target_size[0] > 0);
-            assert!(config.target_size[1] > 0);
-        }
+        // These should fail gracefully when no model manager is present
+        assert!(model_info_result.is_err());
+        assert!(preprocessing_result.is_err());
     }
 
     #[test]
@@ -381,7 +361,7 @@ mod tests {
         };
 
         // Test with invalid model manager
-        let model_manager_result = crate::models::ModelManager::from_spec(&model_spec);
+        let model_manager_result = ModelManager::from_spec(&model_spec);
 
         if let Ok(model_manager) = model_manager_result {
             let mut backend = TractBackend::with_model_manager(model_manager);
@@ -414,12 +394,14 @@ mod tests {
 
     #[test]
     fn test_tract_backend_thread_configuration() {
+        // Test thread configuration without requiring cached model
+        let mut backend = TractBackend::new();
+
+        // Create a model spec for configuration validation
         let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+            source: ModelSource::External("test-model".into()),
             variant: Some("fp32".to_string()),
         };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let mut backend = TractBackend::with_model_manager(model_manager);
 
         // Test different thread configurations
         let configs = vec![
@@ -451,12 +433,8 @@ mod tests {
 
     #[test]
     fn test_tract_backend_pure_rust_characteristics() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = TractBackend::with_model_manager(model_manager);
+        // Test pure Rust characteristics without model manager
+        let backend = TractBackend::new();
 
         // Tract backend should be pure Rust - test basic properties
         assert!(!backend.is_initialized());
@@ -479,12 +457,8 @@ mod tests {
 
     #[test]
     fn test_tract_backend_model_management() {
-        let model_spec = ModelSpec {
-            source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-            variant: Some("fp32".to_string()),
-        };
-        let model_manager = ModelManager::from_spec(&model_spec).unwrap();
-        let backend = TractBackend::with_model_manager(model_manager);
+        // Test model management behavior without cached model
+        let backend = TractBackend::new();
 
         // Test model information access
         let model_info_result = backend.get_model_info();
