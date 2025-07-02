@@ -363,7 +363,7 @@ imgly-bgremove input.jpg --output output.png -vv
 
 ## Contributing
 
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
