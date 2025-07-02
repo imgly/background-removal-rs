@@ -629,7 +629,7 @@ mod tests {
         let cache = ModelCache::with_custom_cache_dir(temp_dir.path()).unwrap();
 
         let model_id = "test-model";
-        
+
         // Model not cached initially
         assert!(!cache.is_model_cached(model_id));
 
@@ -642,7 +642,7 @@ mod tests {
         fs::write(model_path.join("config.json"), "{}").unwrap();
         fs::write(model_path.join("preprocessor_config.json"), "{}").unwrap();
         fs::create_dir_all(model_path.join("onnx")).unwrap();
-        
+
         // Now it should be considered cached
         assert!(cache.is_model_cached(model_id));
     }
@@ -693,7 +693,7 @@ mod tests {
         fs::create_dir_all(&model_path).unwrap();
         fs::write(model_path.join("config.json"), "{}").unwrap();
         fs::write(model_path.join("preprocessor_config.json"), "{}").unwrap();
-        
+
         let onnx_dir = model_path.join("onnx");
         fs::create_dir_all(&onnx_dir).unwrap();
         fs::write(onnx_dir.join("model.onnx"), "fake onnx data").unwrap();
@@ -701,7 +701,7 @@ mod tests {
 
         let models = cache.scan_cached_models().unwrap();
         assert_eq!(models.len(), 1);
-        
+
         let model_info = &models[0];
         assert_eq!(model_info.model_id, model_id);
         assert!(model_info.has_config);
@@ -738,14 +738,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let model_path = temp_dir.path().join("test-model");
         fs::create_dir_all(&model_path).unwrap();
-        
+
         // Create required files
         fs::write(model_path.join("config.json"), "{}").unwrap();
         fs::write(model_path.join("preprocessor_config.json"), "{}").unwrap();
-        
+
         let onnx_dir = model_path.join("onnx");
         fs::create_dir_all(&onnx_dir).unwrap();
-        
+
         // Create different ONNX variants
         fs::write(onnx_dir.join("model.onnx"), "fp32 data").unwrap();
         fs::write(onnx_dir.join("model_fp16.onnx"), "fp16 data").unwrap();
@@ -753,14 +753,16 @@ mod tests {
         fs::write(onnx_dir.join("model_optimized.onnx"), "optimized data").unwrap();
         fs::write(onnx_dir.join("not_onnx.txt"), "not an onnx file").unwrap();
 
-        let model_info = ModelCache::analyze_model_directory(&model_path).unwrap().unwrap();
-        
+        let model_info = ModelCache::analyze_model_directory(&model_path)
+            .unwrap()
+            .unwrap();
+
         // Should detect standard variants
         assert!(model_info.variants.contains(&"fp32".to_string()));
         assert!(model_info.variants.contains(&"fp16".to_string()));
         assert!(model_info.variants.contains(&"quantized".to_string()));
         assert!(model_info.variants.contains(&"optimized".to_string()));
-        
+
         // Should not include non-ONNX files
         assert_eq!(model_info.variants.len(), 4);
     }
@@ -774,7 +776,7 @@ mod tests {
         // Create files with known sizes
         fs::write(test_dir.join("file1.txt"), "12345").unwrap(); // 5 bytes
         fs::write(test_dir.join("file2.txt"), "abcdefghij").unwrap(); // 10 bytes
-        
+
         // Create subdirectory with more files
         let sub_dir = test_dir.join("subdir");
         fs::create_dir_all(&sub_dir).unwrap();
@@ -807,12 +809,12 @@ mod tests {
 
         // Cleanup invalid models
         let removed = cache.cleanup_invalid_models().unwrap();
-        
+
         // Should remove both invalid models
         assert_eq!(removed.len(), 2);
         assert!(removed.contains(&"invalid-model".to_string()));
         assert!(removed.contains(&"invalid-model2".to_string()));
-        
+
         // Valid model should still exist
         assert!(valid_model_path.exists());
         assert!(!invalid_model_path.exists());
@@ -835,21 +837,21 @@ mod tests {
     #[test]
     fn test_cache_with_environment_variable() {
         use std::env;
-        
+
         let temp_dir = TempDir::new().unwrap();
         let custom_cache_path = temp_dir.path().join("custom-env-cache");
-        
+
         // Set environment variable
         env::set_var("IMGLY_BGREMOVE_CACHE_DIR", &custom_cache_path);
-        
+
         // Create cache (should use environment variable)
         let cache = ModelCache::new().unwrap();
-        
+
         // Should use custom path from environment
         let expected_path = custom_cache_path.join("models");
         assert_eq!(cache.get_current_cache_dir(), &expected_path);
         assert!(expected_path.exists());
-        
+
         // Clean up environment variable
         env::remove_var("IMGLY_BGREMOVE_CACHE_DIR");
     }
@@ -861,9 +863,9 @@ mod tests {
 
         let model_id = "test-model-123";
         let model_path = cache.get_model_path(model_id);
-        
+
         assert_eq!(model_path, cache.get_current_cache_dir().join(model_id));
-        
+
         // Path should not exist initially
         assert!(!model_path.exists());
     }
@@ -871,7 +873,7 @@ mod tests {
     #[test]
     fn test_cached_model_info_structure() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let info = CachedModelInfo {
             model_id: "test-model".to_string(),
             path: temp_dir.path().join("test-model"),
@@ -880,17 +882,17 @@ mod tests {
             variants: vec!["fp32".to_string(), "fp16".to_string()],
             size_bytes: 1024,
         };
-        
+
         assert_eq!(info.model_id, "test-model");
         assert!(info.has_config);
         assert!(!info.has_preprocessor);
         assert_eq!(info.variants.len(), 2);
         assert_eq!(info.size_bytes, 1024);
-        
+
         // Test clone and debug
         let cloned = info.clone();
         assert_eq!(info.model_id, cloned.model_id);
-        
+
         let debug_str = format!("{:?}", info);
         assert!(debug_str.contains("test-model"));
     }
@@ -912,30 +914,33 @@ mod tests {
     fn test_format_size_comprehensive() {
         // Test zero bytes
         assert_eq!(format_size(0), "0 B");
-        
+
         // Test bytes
         assert_eq!(format_size(1), "1 B");
         assert_eq!(format_size(999), "999 B");
-        
+
         // Test kilobytes
         assert_eq!(format_size(1024), "1.0 KB");
         assert_eq!(format_size(1536), "1.5 KB");
         assert_eq!(format_size(2048), "2.0 KB");
-        
+
         // Test megabytes
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
         assert_eq!(format_size(1024 * 1536), "1.5 MB");
-        
+
         // Test gigabytes
         assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
         assert_eq!(format_size(1024_u64 * 1024 * 1536), "1.5 GB");
-        
+
         // Test terabytes
         assert_eq!(format_size(1024_u64 * 1024 * 1024 * 1024), "1.0 TB");
         assert_eq!(format_size(1024_u64 * 1024 * 1024 * 1536), "1.5 TB");
-        
+
         // Test very large values (beyond TB should stay in TB)
-        assert_eq!(format_size(1024_u64 * 1024 * 1024 * 1024 * 1024), "1024.0 TB");
+        assert_eq!(
+            format_size(1024_u64 * 1024 * 1024 * 1024 * 1024),
+            "1024.0 TB"
+        );
     }
 
     #[test]
@@ -955,7 +960,7 @@ mod tests {
 
         let models = cache.scan_cached_models().unwrap();
         assert_eq!(models.len(), 3);
-        
+
         // Should be sorted alphabetically
         assert_eq!(models[0].model_id, "alpha-model");
         assert_eq!(models[1].model_id, "beta-model");
@@ -990,11 +995,11 @@ mod tests {
 
         // Create nested directory structure
         fs::write(test_dir.join("root.txt"), "12345").unwrap(); // 5 bytes
-        
+
         let level1 = test_dir.join("level1");
         fs::create_dir_all(&level1).unwrap();
         fs::write(level1.join("file1.txt"), "abcde").unwrap(); // 5 bytes
-        
+
         let level2 = level1.join("level2");
         fs::create_dir_all(&level2).unwrap();
         fs::write(level2.join("file2.txt"), "xyz").unwrap(); // 3 bytes

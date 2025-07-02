@@ -429,4 +429,377 @@ mod tests {
             .unwrap();
         assert!(!config.disable_cache);
     }
+
+    #[test]
+    fn test_execution_provider_enum() {
+        // Test default implementation
+        assert_eq!(ExecutionProvider::default(), ExecutionProvider::Auto);
+
+        // Test display formatting
+        assert_eq!(format!("{}", ExecutionProvider::Auto), "auto");
+        assert_eq!(format!("{}", ExecutionProvider::Cpu), "cpu");
+        assert_eq!(format!("{}", ExecutionProvider::Cuda), "cuda");
+        assert_eq!(format!("{}", ExecutionProvider::CoreMl), "coreml");
+
+        // Test debug formatting
+        let debug_str = format!("{:?}", ExecutionProvider::Auto);
+        assert!(debug_str.contains("Auto"));
+
+        // Test equality and ordering
+        assert_eq!(ExecutionProvider::Auto, ExecutionProvider::Auto);
+        assert_ne!(ExecutionProvider::Auto, ExecutionProvider::Cpu);
+
+        // Test copy and clone
+        let provider1 = ExecutionProvider::Cuda;
+        let provider2 = provider1; // Copy
+        assert_eq!(provider1, provider2);
+
+        let provider3 = provider1.clone(); // Clone
+        assert_eq!(provider1, provider3);
+    }
+
+    #[test]
+    fn test_output_format_enum() {
+        // Test default implementation
+        assert_eq!(OutputFormat::default(), OutputFormat::Png);
+
+        // Test all variants
+        let formats = vec![
+            OutputFormat::Png,
+            OutputFormat::Jpeg,
+            OutputFormat::WebP,
+            OutputFormat::Tiff,
+            OutputFormat::Rgba8,
+        ];
+
+        for format in formats {
+            // Test debug formatting
+            let debug_str = format!("{:?}", format);
+            assert!(!debug_str.is_empty());
+
+            // Test equality
+            assert_eq!(format, format);
+
+            // Test copy/clone
+            let format_copy = format;
+            assert_eq!(format, format_copy);
+
+            let format_clone = format.clone();
+            assert_eq!(format, format_clone);
+        }
+    }
+
+    #[test]
+    fn test_removal_config_builder_thread_methods() {
+        // Test intra_threads method
+        let config = RemovalConfig::builder().intra_threads(4).build().unwrap();
+        assert_eq!(config.intra_threads, 4);
+
+        // Test inter_threads method
+        let config = RemovalConfig::builder().inter_threads(2).build().unwrap();
+        assert_eq!(config.inter_threads, 2);
+
+        // Test num_threads method with optimal ratios
+        let config = RemovalConfig::builder().num_threads(8).build().unwrap();
+        assert_eq!(config.intra_threads, 8);
+        assert_eq!(config.inter_threads, 4); // 8/2 = 4
+
+        // Test num_threads with odd number
+        let config = RemovalConfig::builder().num_threads(7).build().unwrap();
+        assert_eq!(config.intra_threads, 7);
+        assert_eq!(config.inter_threads, 3); // 7/2 = 3 (rounded down)
+
+        // Test num_threads with 1 (minimum inter_threads)
+        let config = RemovalConfig::builder().num_threads(1).build().unwrap();
+        assert_eq!(config.intra_threads, 1);
+        assert_eq!(config.inter_threads, 1); // max(1/2, 1) = 1
+
+        // Test num_threads with 0 (auto-detect)
+        let config = RemovalConfig::builder().num_threads(0).build().unwrap();
+        assert_eq!(config.intra_threads, 0);
+        assert_eq!(config.inter_threads, 0);
+    }
+
+    #[test]
+    fn test_removal_config_builder_quality_clamping() {
+        // Test JPEG quality clamping
+        let config = RemovalConfig::builder()
+            .jpeg_quality(150) // Should be clamped to 100
+            .build()
+            .unwrap();
+        assert_eq!(config.jpeg_quality, 100);
+
+        let config = RemovalConfig::builder()
+            .jpeg_quality(50) // Valid value
+            .build()
+            .unwrap();
+        assert_eq!(config.jpeg_quality, 50);
+
+        // Test WebP quality clamping
+        let config = RemovalConfig::builder()
+            .webp_quality(200) // Should be clamped to 100
+            .build()
+            .unwrap();
+        assert_eq!(config.webp_quality, 100);
+
+        let config = RemovalConfig::builder()
+            .webp_quality(75) // Valid value
+            .build()
+            .unwrap();
+        assert_eq!(config.webp_quality, 75);
+    }
+
+    #[test]
+    fn test_removal_config_format_hint() {
+        use image::ImageFormat;
+
+        // Test format hint setting
+        let config = RemovalConfig::builder()
+            .format_hint(Some(ImageFormat::Png))
+            .build()
+            .unwrap();
+        assert_eq!(config.format_hint, Some(ImageFormat::Png));
+
+        let config = RemovalConfig::builder()
+            .format_hint(Some(ImageFormat::Jpeg))
+            .build()
+            .unwrap();
+        assert_eq!(config.format_hint, Some(ImageFormat::Jpeg));
+
+        let config = RemovalConfig::builder().format_hint(None).build().unwrap();
+        assert_eq!(config.format_hint, None);
+
+        // Test default is None
+        let config = RemovalConfig::builder().build().unwrap();
+        assert_eq!(config.format_hint, None);
+    }
+
+    #[test]
+    fn test_removal_config_model_spec() {
+        use crate::models::{ModelSource, ModelSpec};
+
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: Some("fp16".to_string()),
+        };
+
+        let config = RemovalConfig::builder()
+            .model_spec(model_spec.clone())
+            .build()
+            .unwrap();
+
+        assert_eq!(config.model_spec, model_spec);
+    }
+
+    #[test]
+    fn test_removal_config_builder_chaining() {
+        use crate::models::{ModelSource, ModelSpec};
+
+        // Test method chaining
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: Some("fp32".to_string()),
+        };
+
+        let config = RemovalConfig::builder()
+            .execution_provider(ExecutionProvider::CoreMl)
+            .output_format(OutputFormat::WebP)
+            .jpeg_quality(85)
+            .webp_quality(95)
+            .debug(true)
+            .intra_threads(6)
+            .inter_threads(3)
+            .preserve_color_profiles(false)
+            .disable_cache(true)
+            .model_spec(model_spec.clone())
+            .build()
+            .unwrap();
+
+        assert_eq!(config.execution_provider, ExecutionProvider::CoreMl);
+        assert_eq!(config.output_format, OutputFormat::WebP);
+        assert_eq!(config.jpeg_quality, 85);
+        assert_eq!(config.webp_quality, 95);
+        assert!(config.debug);
+        assert_eq!(config.intra_threads, 6);
+        assert_eq!(config.inter_threads, 3);
+        assert!(!config.preserve_color_profiles);
+        assert!(config.disable_cache);
+        assert_eq!(config.model_spec, model_spec);
+    }
+
+    #[test]
+    fn test_removal_config_validation_comprehensive() {
+        // Test valid config passes validation
+        let config = RemovalConfig::default();
+        assert!(config.validate().is_ok());
+
+        // Test JPEG quality validation
+        let mut config = RemovalConfig::default();
+        config.jpeg_quality = 101;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("JPEG quality"));
+
+        // Test WebP quality validation
+        config.jpeg_quality = 90; // Reset to valid
+        config.webp_quality = 101;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("WebP quality"));
+
+        // Test edge cases (0 and 100)
+        config.webp_quality = 85; // Reset to valid
+        config.jpeg_quality = 0;
+        config.webp_quality = 0;
+        assert!(config.validate().is_ok());
+
+        config.jpeg_quality = 100;
+        config.webp_quality = 100;
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_removal_config_builder_validation_error() {
+        // Test that builder validation catches invalid values
+        // Note: Quality values are clamped in the builder, so they won't cause build() to fail
+        // But we can test other validation scenarios
+
+        let config = RemovalConfig::builder().build();
+        assert!(config.is_ok()); // Default config should be valid
+
+        // Test that the builder properly validates the final config
+        let builder = RemovalConfig::builder();
+        let config = builder.build().unwrap();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_removal_config_serde_attributes() {
+        use crate::models::{ModelSource, ModelSpec};
+
+        // Test that format_hint is properly skipped in serialization
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded("test-model".to_string()),
+            variant: None,
+        };
+
+        let config = RemovalConfig {
+            execution_provider: ExecutionProvider::Auto,
+            output_format: OutputFormat::Png,
+            jpeg_quality: 90,
+            webp_quality: 85,
+            debug: false,
+            intra_threads: 0,
+            inter_threads: 0,
+            preserve_color_profiles: true,
+            disable_cache: false,
+            model_spec,
+            format_hint: Some(ImageFormat::Png),
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&config).unwrap();
+
+        // Verify format_hint is not in the JSON (due to #[serde(skip)])
+        assert!(!json.contains("format_hint"));
+
+        // Verify other fields are present
+        assert!(json.contains("execution_provider"));
+        assert!(json.contains("output_format"));
+        assert!(json.contains("jpeg_quality"));
+
+        // Test deserialization
+        let deserialized: RemovalConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.execution_provider, config.execution_provider);
+        assert_eq!(deserialized.output_format, config.output_format);
+        assert_eq!(deserialized.jpeg_quality, config.jpeg_quality);
+        assert_eq!(deserialized.format_hint, None); // Should be None after deserialization
+    }
+
+    #[test]
+    fn test_removal_config_debug_formatting() {
+        let config = RemovalConfig::default();
+        let debug_str = format!("{:?}", config);
+
+        // Verify debug string contains key fields
+        assert!(debug_str.contains("RemovalConfig"));
+        assert!(debug_str.contains("execution_provider"));
+        assert!(debug_str.contains("output_format"));
+        assert!(debug_str.contains("jpeg_quality"));
+        assert!(debug_str.contains("webp_quality"));
+    }
+
+    #[test]
+    fn test_removal_config_clone() {
+        let config1 = RemovalConfig::default();
+        let config2 = config1.clone();
+
+        assert_eq!(config1, config2);
+        assert_eq!(config1.execution_provider, config2.execution_provider);
+        assert_eq!(config1.output_format, config2.output_format);
+        assert_eq!(config1.jpeg_quality, config2.jpeg_quality);
+        assert_eq!(config1.webp_quality, config2.webp_quality);
+    }
+
+    #[test]
+    fn test_removal_config_partial_eq() {
+        let config1 = RemovalConfig::default();
+        let mut config2 = RemovalConfig::default();
+
+        assert_eq!(config1, config2);
+
+        config2.jpeg_quality = 95;
+        assert_ne!(config1, config2);
+
+        config2.jpeg_quality = config1.jpeg_quality;
+        assert_eq!(config1, config2);
+
+        config2.debug = !config1.debug;
+        assert_ne!(config1, config2);
+    }
+
+    #[test]
+    fn test_removal_config_builder_default() {
+        let builder = RemovalConfigBuilder::default();
+        let config = builder.build().unwrap();
+
+        // Should match RemovalConfig::default()
+        let default_config = RemovalConfig::default();
+        assert_eq!(config, default_config);
+    }
+
+    #[test]
+    fn test_execution_provider_serde() {
+        // Test serialization/deserialization of ExecutionProvider
+        let providers = vec![
+            ExecutionProvider::Auto,
+            ExecutionProvider::Cpu,
+            ExecutionProvider::Cuda,
+            ExecutionProvider::CoreMl,
+        ];
+
+        for provider in providers {
+            let json = serde_json::to_string(&provider).unwrap();
+            let deserialized: ExecutionProvider = serde_json::from_str(&json).unwrap();
+            assert_eq!(provider, deserialized);
+        }
+    }
+
+    #[test]
+    fn test_output_format_serde() {
+        // Test serialization/deserialization of OutputFormat
+        let formats = vec![
+            OutputFormat::Png,
+            OutputFormat::Jpeg,
+            OutputFormat::WebP,
+            OutputFormat::Tiff,
+            OutputFormat::Rgba8,
+        ];
+
+        for format in formats {
+            let json = serde_json::to_string(&format).unwrap();
+            let deserialized: OutputFormat = serde_json::from_str(&json).unwrap();
+            assert_eq!(format, deserialized);
+        }
+    }
 }

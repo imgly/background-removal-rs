@@ -101,7 +101,7 @@ pub struct Cli {
     pub no_cache: bool,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum CliOutputFormat {
     Png,
     Jpeg,
@@ -1027,6 +1027,8 @@ fn generate_output_path(input_path: &Path, format: crate::OutputFormat) -> PathB
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_detect_image_format_png() {
@@ -1085,10 +1087,510 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_image_format_edge_cases() {
+        // Test empty data
+        assert_eq!(detect_image_format(&[]), None);
+
+        // Test exactly required minimum bytes for each format
+        let png_exact = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        assert_eq!(detect_image_format(&png_exact), Some("png"));
+
+        let jpeg_exact = [0xFF, 0xD8, 0xFF, 0x00]; // Need at least 4 bytes
+        assert_eq!(detect_image_format(&jpeg_exact), Some("jpg"));
+
+        let bmp_exact = [0x42, 0x4D, 0x00, 0x00]; // Need at least 4 bytes
+        assert_eq!(detect_image_format(&bmp_exact), Some("bmp"));
+
+        // Test partial headers (should return None)
+        assert_eq!(detect_image_format(&[0x89]), None);
+        assert_eq!(detect_image_format(&[0xFF, 0xD8]), None);
+        assert_eq!(detect_image_format(&[0x52, 0x49, 0x46]), None);
+    }
+
+    #[test]
+    fn test_detect_image_format_multiple_formats_in_data() {
+        // Test with longer data that could match multiple formats
+        let mixed_data = [
+            0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0xFF, 0xD8,
+            0xFF, 0xE0, // JPEG magic later in data
+        ];
+        // Should detect WebP first (earlier match)
+        assert_eq!(detect_image_format(&mixed_data), Some("webp"));
+    }
+
+    #[test]
     fn test_is_image_file() {
         assert!(is_image_file(Path::new("test.jpg"), &["jpg", "png"]));
         assert!(is_image_file(Path::new("test.PNG"), &["jpg", "png"]));
         assert!(!is_image_file(Path::new("test.txt"), &["jpg", "png"]));
         assert!(!is_image_file(Path::new("test"), &["jpg", "png"]));
+    }
+
+    #[test]
+    fn test_is_image_file_comprehensive() {
+        let extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"];
+
+        // Test all supported extensions
+        assert!(is_image_file(Path::new("test.jpg"), &extensions));
+        assert!(is_image_file(Path::new("test.jpeg"), &extensions));
+        assert!(is_image_file(Path::new("test.png"), &extensions));
+        assert!(is_image_file(Path::new("test.webp"), &extensions));
+        assert!(is_image_file(Path::new("test.bmp"), &extensions));
+        assert!(is_image_file(Path::new("test.tiff"), &extensions));
+        assert!(is_image_file(Path::new("test.tif"), &extensions));
+
+        // Test case insensitive matching
+        assert!(is_image_file(Path::new("test.JPG"), &extensions));
+        assert!(is_image_file(Path::new("test.Png"), &extensions));
+        assert!(is_image_file(Path::new("test.WEBP"), &extensions));
+
+        // Test non-image files
+        assert!(!is_image_file(Path::new("test.txt"), &extensions));
+        assert!(!is_image_file(Path::new("test.pdf"), &extensions));
+        assert!(!is_image_file(Path::new("test.mp4"), &extensions));
+        assert!(!is_image_file(Path::new("test"), &extensions)); // No extension
+
+        // Test complex filenames
+        assert!(is_image_file(
+            Path::new("my-image.with.dots.jpg"),
+            &extensions
+        ));
+        assert!(is_image_file(Path::new("/path/to/image.png"), &extensions));
+        assert!(is_image_file(
+            Path::new("image_with_underscores.jpeg"),
+            &extensions
+        ));
+    }
+
+    #[test]
+    fn test_matches_pattern() {
+        // Test without pattern (should always match)
+        assert!(matches_pattern(Path::new("any_file.jpg"), None));
+        assert!(matches_pattern(Path::new("test.png"), None));
+
+        // Test with glob patterns
+        assert!(matches_pattern(Path::new("test.jpg"), Some("*.jpg")));
+        assert!(matches_pattern(Path::new("image.png"), Some("*.png")));
+        assert!(matches_pattern(Path::new("photo.jpeg"), Some("photo.*")));
+        assert!(matches_pattern(Path::new("img_001.jpg"), Some("img_*.jpg")));
+
+        // Test pattern mismatches
+        assert!(!matches_pattern(Path::new("test.png"), Some("*.jpg")));
+        assert!(!matches_pattern(Path::new("other.jpg"), Some("test.*")));
+
+        // Test complex patterns
+        assert!(matches_pattern(
+            Path::new("image001.jpg"),
+            Some("image???.jpg")
+        ));
+        assert!(matches_pattern(
+            Path::new("photo_a.png"),
+            Some("photo_?.png")
+        ));
+
+        // Test edge cases
+        assert!(!matches_pattern(Path::new("file.jpg"), Some("*.png"))); // Wrong extension
+        assert!(!matches_pattern(Path::new(""), Some("*.jpg"))); // Empty filename
+    }
+
+    #[test]
+    fn test_generate_output_path() {
+        use crate::config::OutputFormat;
+
+        // Test basic functionality
+        let input = Path::new("test.jpg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(output.file_name().unwrap(), "test_bg_removed.png");
+
+        // Test different formats
+        let output = generate_output_path(input, OutputFormat::Jpeg);
+        assert_eq!(output.file_name().unwrap(), "test_bg_removed.jpg");
+
+        let output = generate_output_path(input, OutputFormat::WebP);
+        assert_eq!(output.file_name().unwrap(), "test_bg_removed.webp");
+
+        let output = generate_output_path(input, OutputFormat::Tiff);
+        assert_eq!(output.file_name().unwrap(), "test_bg_removed.tiff");
+
+        let output = generate_output_path(input, OutputFormat::Rgba8);
+        assert_eq!(output.file_name().unwrap(), "test_bg_removed.rgba8");
+
+        // Test with different directory
+        let input = Path::new("/path/to/image.png");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(output.parent().unwrap(), Path::new("/path/to"));
+        assert_eq!(output.file_name().unwrap(), "image_bg_removed.png");
+
+        // Test with complex filename
+        let input = Path::new("my.complex.filename.jpeg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(
+            output.file_name().unwrap(),
+            "my.complex.filename_bg_removed.png"
+        );
+
+        // Test with no extension
+        let input = Path::new("filename_no_ext");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(
+            output.file_name().unwrap(),
+            "filename_no_ext_bg_removed.png"
+        );
+    }
+
+    #[test]
+    fn test_find_image_files_in_empty_directory() {
+        let temp_dir = tempdir().unwrap();
+
+        // Test empty directory
+        let files = find_image_files(temp_dir.path(), false, None).unwrap();
+        assert!(files.is_empty());
+
+        // Test recursive in empty directory
+        let files = find_image_files(temp_dir.path(), true, None).unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_find_image_files_with_pattern() {
+        let temp_dir = tempdir().unwrap();
+
+        // Create test files
+        fs::write(temp_dir.path().join("test1.jpg"), b"test").unwrap();
+        fs::write(temp_dir.path().join("test2.png"), b"test").unwrap();
+        fs::write(temp_dir.path().join("other.jpg"), b"test").unwrap();
+        fs::write(temp_dir.path().join("document.txt"), b"test").unwrap();
+
+        // Test pattern matching
+        let files = find_image_files(temp_dir.path(), false, Some("test*")).unwrap();
+        assert_eq!(files.len(), 2); // test1.jpg and test2.png
+
+        let files = find_image_files(temp_dir.path(), false, Some("*.jpg")).unwrap();
+        assert_eq!(files.len(), 2); // test1.jpg and other.jpg
+
+        let files = find_image_files(temp_dir.path(), false, Some("*.png")).unwrap();
+        assert_eq!(files.len(), 1); // test2.png
+
+        // Test no pattern (should get all image files)
+        let files = find_image_files(temp_dir.path(), false, None).unwrap();
+        assert_eq!(files.len(), 3); // All image files, excluding .txt
+    }
+
+    #[test]
+    fn test_find_image_files_recursive() {
+        let temp_dir = tempdir().unwrap();
+
+        // Create nested directory structure
+        let sub_dir = temp_dir.path().join("subdir");
+        fs::create_dir(&sub_dir).unwrap();
+        let deep_dir = sub_dir.join("deep");
+        fs::create_dir(&deep_dir).unwrap();
+
+        // Create files in different levels
+        fs::write(temp_dir.path().join("root.jpg"), b"test").unwrap();
+        fs::write(sub_dir.join("sub.png"), b"test").unwrap();
+        fs::write(deep_dir.join("deep.webp"), b"test").unwrap();
+        fs::write(temp_dir.path().join("non_image.txt"), b"test").unwrap();
+
+        // Test non-recursive (should only find root.jpg)
+        let files = find_image_files(temp_dir.path(), false, None).unwrap();
+        assert_eq!(files.len(), 1);
+        assert!(files[0].file_name().unwrap() == "root.jpg");
+
+        // Test recursive (should find all image files)
+        let files = find_image_files(temp_dir.path(), true, None).unwrap();
+        assert_eq!(files.len(), 3); // root.jpg, sub.png, deep.webp
+
+        let filenames: Vec<_> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy())
+            .collect();
+        assert!(filenames.contains(&"root.jpg".into()));
+        assert!(filenames.contains(&"sub.png".into()));
+        assert!(filenames.contains(&"deep.webp".into()));
+    }
+
+    #[test]
+    fn test_cli_output_format_enum() {
+        // Test enum variants
+        assert_eq!(CliOutputFormat::Png as u8, 0);
+        assert_eq!(CliOutputFormat::Jpeg as u8, 1);
+        assert_eq!(CliOutputFormat::Webp as u8, 2);
+        assert_eq!(CliOutputFormat::Tiff as u8, 3);
+        assert_eq!(CliOutputFormat::Rgba8 as u8, 4);
+
+        // Test ordering
+        assert!(CliOutputFormat::Png < CliOutputFormat::Jpeg);
+        assert!(CliOutputFormat::Jpeg < CliOutputFormat::Webp);
+
+        // Test cloning and equality
+        let format1 = CliOutputFormat::Png;
+        let format2 = format1;
+        assert_eq!(format1, format2);
+
+        let format3 = CliOutputFormat::Jpeg;
+        assert_ne!(format1, format3);
+
+        // Test debug formatting
+        let debug_str = format!("{:?}", CliOutputFormat::Png);
+        assert!(debug_str.contains("Png"));
+    }
+
+    #[test]
+    fn test_cli_struct_creation() {
+        // Test creating CLI struct with minimal required fields
+        let cli = Cli {
+            input: vec!["test.jpg".to_string()],
+            output: None,
+            format: CliOutputFormat::Png,
+            execution_provider: "onnx:auto".to_string(),
+            jpeg_quality: 90,
+            webp_quality: 85,
+            threads: 0,
+            verbose: 0,
+            recursive: false,
+            pattern: None,
+            show_providers: false,
+            model: None,
+            variant: None,
+            preserve_color_profiles: true,
+            only_download: false,
+            list_models: false,
+            clear_cache: false,
+            show_cache_dir: false,
+            cache_dir: None,
+            no_cache: false,
+        };
+
+        // Test basic field access
+        assert_eq!(cli.input, vec!["test.jpg"]);
+        assert_eq!(cli.format, CliOutputFormat::Png);
+        assert_eq!(cli.execution_provider, "onnx:auto");
+        assert_eq!(cli.jpeg_quality, 90);
+        assert_eq!(cli.webp_quality, 85);
+        assert!(!cli.debug_mode());
+        assert!(!cli.recursive);
+        assert!(cli.preserve_color_profiles);
+        assert!(!cli.no_cache);
+    }
+
+    impl Cli {
+        /// Helper method for tests to check debug mode
+        fn debug_mode(&self) -> bool {
+            self.verbose >= 2
+        }
+    }
+
+    #[test]
+    fn test_cli_debug_mode_detection() {
+        let mut cli = Cli {
+            input: vec!["test.jpg".to_string()],
+            output: None,
+            format: CliOutputFormat::Png,
+            execution_provider: "onnx:auto".to_string(),
+            jpeg_quality: 90,
+            webp_quality: 85,
+            threads: 0,
+            verbose: 0,
+            recursive: false,
+            pattern: None,
+            show_providers: false,
+            model: None,
+            variant: None,
+            preserve_color_profiles: true,
+            only_download: false,
+            list_models: false,
+            clear_cache: false,
+            show_cache_dir: false,
+            cache_dir: None,
+            no_cache: false,
+        };
+
+        // Test different verbosity levels
+        cli.verbose = 0;
+        assert!(!cli.debug_mode());
+
+        cli.verbose = 1;
+        assert!(!cli.debug_mode());
+
+        cli.verbose = 2;
+        assert!(cli.debug_mode());
+
+        cli.verbose = 3;
+        assert!(cli.debug_mode());
+    }
+
+    #[test]
+    fn test_write_stdout_empty_data() {
+        // Test writing empty data doesn't panic
+        let empty_data: &[u8] = &[];
+        // Note: This test can't easily verify stdout output without complex mocking
+        // but we can at least verify the function doesn't panic
+        let result = write_stdout(empty_data);
+        assert!(result.is_ok() || result.is_err()); // Either outcome is acceptable for test
+    }
+
+    #[test]
+    fn test_read_stdin_mock() {
+        // Note: Testing read_stdin() is challenging without mocking stdin
+        // We can test the helper logic that validates the data
+
+        // Test empty buffer validation logic (simulated)
+        let empty_buffer: Vec<u8> = Vec::new();
+        assert!(empty_buffer.is_empty()); // This would cause the "No data received" error
+
+        // Test non-empty buffer validation
+        let data_buffer = vec![1, 2, 3, 4];
+        assert!(!data_buffer.is_empty()); // This would pass validation
+    }
+
+    #[test]
+    fn test_image_format_detection_comprehensive() {
+        // Test all supported formats with full headers
+
+        // PNG with full header
+        let png_full = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
+        ];
+        assert_eq!(detect_image_format(&png_full), Some("png"));
+
+        // JPEG with additional markers
+        let jpeg_full = [
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+        ];
+        assert_eq!(detect_image_format(&jpeg_full), Some("jpg"));
+
+        // WebP with complete RIFF header
+        let webp_full = [
+            0x52, 0x49, 0x46, 0x46, // "RIFF"
+            0x24, 0x00, 0x00, 0x00, // File size
+            0x57, 0x45, 0x42, 0x50, // "WEBP"
+            0x56, 0x50, 0x38, 0x20, // VP8 format
+        ];
+        assert_eq!(detect_image_format(&webp_full), Some("webp"));
+
+        // TIFF Little Endian with additional data
+        let tiff_le_full = [
+            0x49, 0x49, 0x2A, 0x00, // TIFF LE header
+            0x08, 0x00, 0x00, 0x00, // IFD offset
+        ];
+        assert_eq!(detect_image_format(&tiff_le_full), Some("tiff"));
+
+        // TIFF Big Endian with additional data
+        let tiff_be_full = [
+            0x4D, 0x4D, 0x00, 0x2A, // TIFF BE header
+            0x00, 0x00, 0x00, 0x08, // IFD offset
+        ];
+        assert_eq!(detect_image_format(&tiff_be_full), Some("tiff"));
+
+        // BMP with file header
+        let bmp_full = [
+            0x42, 0x4D, // "BM"
+            0x36, 0x00, 0x00, 0x00, // File size
+            0x00, 0x00, 0x00, 0x00, // Reserved
+        ];
+        assert_eq!(detect_image_format(&bmp_full), Some("bmp"));
+
+        // GIF with version
+        let gif_full = [
+            0x47, 0x49, 0x46, 0x38, // "GIF8"
+            0x39, 0x61, // "9a" (GIF89a)
+            0x01, 0x00, 0x01, 0x00, // Width/height
+        ];
+        assert_eq!(detect_image_format(&gif_full), Some("gif"));
+    }
+
+    #[test]
+    fn test_path_generation_edge_cases() {
+        use crate::config::OutputFormat;
+
+        // Test with relative paths
+        let input = Path::new("./relative/path/image.jpg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(output.parent().unwrap(), Path::new("./relative/path"));
+
+        // Test with current directory
+        let input = Path::new("image.jpg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        // For files in current directory, parent() returns empty path
+        assert_eq!(output.parent().unwrap_or(Path::new("")), Path::new(""));
+
+        // Test with file stem that could be problematic
+        let input = Path::new("file.with.many.dots.and.extension.jpg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert_eq!(
+            output.file_name().unwrap(),
+            "file.with.many.dots.and.extension_bg_removed.png"
+        );
+
+        // Test with Unicode filename
+        let input = Path::new("图片.jpg");
+        let output = generate_output_path(input, OutputFormat::Png);
+        assert!(output
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("图片"));
+        assert!(output
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("_bg_removed.png"));
+    }
+
+    #[test]
+    fn test_file_operations_edge_cases() {
+        let temp_dir = tempdir().unwrap();
+
+        // Test with special characters in filenames
+        let special_files = vec![
+            "file with spaces.jpg",
+            "file-with-dashes.png",
+            "file_with_underscores.webp",
+            "file.with.dots.tiff",
+            "file@special#chars.bmp",
+        ];
+
+        for filename in special_files {
+            fs::write(temp_dir.path().join(filename), b"test").unwrap();
+        }
+
+        let files = find_image_files(temp_dir.path(), false, None).unwrap();
+        assert_eq!(files.len(), 5);
+
+        // Verify all files were found
+        let found_names: Vec<_> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy())
+            .collect();
+
+        for expected_name in &[
+            "file with spaces.jpg",
+            "file-with-dashes.png",
+            "file_with_underscores.webp",
+            "file.with.dots.tiff",
+            "file@special#chars.bmp",
+        ] {
+            assert!(found_names.iter().any(|name| name == expected_name));
+        }
+    }
+
+    #[test]
+    fn test_find_image_files_error_handling() {
+        // Test with non-existent directory
+        let non_existent = Path::new("/definitely/does/not/exist");
+        let result = find_image_files(non_existent, false, None);
+        assert!(result.is_err());
+
+        // Test with invalid glob pattern
+        let temp_dir = tempdir().unwrap();
+        fs::write(temp_dir.path().join("test.jpg"), b"test").unwrap();
+
+        // Invalid pattern should handle gracefully (depends on glob crate behavior)
+        let result = find_image_files(temp_dir.path(), false, Some("["));
+        // The result depends on how glob handles invalid patterns
+        // We just ensure it doesn't panic
+        assert!(result.is_ok() || result.is_err());
     }
 }

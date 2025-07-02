@@ -560,7 +560,11 @@ mod tests {
         ];
 
         for url in invalid_urls {
-            assert!(validate_model_url(url).is_err(), "URL should be invalid: {}", url);
+            assert!(
+                validate_model_url(url).is_err(),
+                "URL should be invalid: {}",
+                url
+            );
         }
     }
 
@@ -579,8 +583,9 @@ mod tests {
         assert_eq!(repo, "repo?tab=files"); // Query parameters are preserved as part of repo name
 
         // Test complex repository names
-        let (user, repo) = parse_huggingface_url("https://huggingface.co/microsoft/DialoGPT-medium")
-            .expect("Should parse complex repo name");
+        let (user, repo) =
+            parse_huggingface_url("https://huggingface.co/microsoft/DialoGPT-medium")
+                .expect("Should parse complex repo name");
         assert_eq!(user, "microsoft");
         assert_eq!(repo, "DialoGPT-medium");
 
@@ -596,8 +601,14 @@ mod tests {
         let error_cases = vec![
             ("", "cannot be empty"),
             ("https://github.com/user/repo", "Unsupported URL format"),
-            ("https://huggingface.co/", "Invalid HuggingFace repository URL"),
-            ("https://huggingface.co/single", "Invalid HuggingFace repository URL"),
+            (
+                "https://huggingface.co/",
+                "Invalid HuggingFace repository URL",
+            ),
+            (
+                "https://huggingface.co/single",
+                "Invalid HuggingFace repository URL",
+            ),
             ("not-a-url", "Unsupported URL format"),
         ];
 
@@ -617,17 +628,17 @@ mod tests {
     fn test_create_temp_download_dir() {
         let model_id = "test-model";
         let temp_dir = ModelDownloader::create_temp_download_dir(model_id);
-        
+
         assert!(temp_dir.is_ok());
         let dir_path = temp_dir.unwrap();
-        
+
         // Verify the directory was created
         assert!(dir_path.exists());
         assert!(dir_path.is_dir());
-        
+
         // Verify the directory name contains the model ID
         assert!(dir_path.to_string_lossy().contains(model_id));
-        
+
         // Cleanup
         let _ = fs::remove_dir_all(&dir_path);
     }
@@ -635,21 +646,21 @@ mod tests {
     #[test]
     fn test_create_temp_download_dir_cleanup_existing() {
         let model_id = "test-model-cleanup";
-        
+
         // Create first temp directory
         let temp_dir1 = ModelDownloader::create_temp_download_dir(model_id).unwrap();
         assert!(temp_dir1.exists());
-        
+
         // Create a file in the directory to ensure it gets cleaned up
         let test_file = temp_dir1.join("test.txt");
         fs::write(&test_file, "test content").unwrap();
         assert!(test_file.exists());
-        
+
         // Create second temp directory with same model ID (should cleanup first)
         let temp_dir2 = ModelDownloader::create_temp_download_dir(model_id).unwrap();
         assert!(temp_dir2.exists());
         assert!(!test_file.exists()); // Previous directory should be cleaned up
-        
+
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir2);
     }
@@ -658,7 +669,7 @@ mod tests {
     fn test_downloader_cache_access() {
         let downloader = ModelDownloader::new().expect("Should create downloader");
         let _cache = downloader.cache();
-        
+
         // Verify we can access cache methods
         let default_model_id = ModelCache::url_to_model_id("https://huggingface.co/test/model");
         assert_eq!(default_model_id, "test--model");
@@ -675,10 +686,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test.txt");
         fs::write(&test_file, "test content").unwrap();
-        
+
         let downloader = ModelDownloader::new().unwrap();
         let result = downloader.verify_file_integrity(&test_file, None);
-        
+
         assert!(result.is_ok());
         assert!(result.unwrap()); // Should return true when no hash provided
     }
@@ -689,15 +700,15 @@ mod tests {
         let test_file = temp_dir.path().join("test.txt");
         let content = "test content";
         fs::write(&test_file, content).unwrap();
-        
+
         // Calculate SHA256 hash manually
         let mut hasher = Sha256::new();
         hasher.update(content.as_bytes());
         let expected_hash = format!("{:x}", hasher.finalize());
-        
+
         let downloader = ModelDownloader::new().unwrap();
         let result = downloader.verify_file_integrity(&test_file, Some(&expected_hash));
-        
+
         assert!(result.is_ok());
         assert!(result.unwrap()); // Should return true for correct hash
     }
@@ -707,12 +718,12 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test.txt");
         fs::write(&test_file, "test content").unwrap();
-        
+
         let wrong_hash = "0000000000000000000000000000000000000000000000000000000000000000";
-        
+
         let downloader = ModelDownloader::new().unwrap();
         let result = downloader.verify_file_integrity(&test_file, Some(wrong_hash));
-        
+
         assert!(result.is_ok());
         assert!(!result.unwrap()); // Should return false for incorrect hash
     }
@@ -721,18 +732,21 @@ mod tests {
     fn test_verify_file_integrity_nonexistent_file() {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent_file = temp_dir.path().join("nonexistent.txt");
-        
+
         let downloader = ModelDownloader::new().unwrap();
         let result = downloader.verify_file_integrity(&nonexistent_file, Some("hash"));
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("read file for verification"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("read file for verification"));
     }
 
     #[test]
     fn test_progress_indicator_no_op() {
         let progress = ProgressIndicator::NoOp;
-        
+
         // All methods should complete without panicking
         progress.set_message("test message".to_string());
         progress.set_length(100);
@@ -744,10 +758,10 @@ mod tests {
     #[test]
     fn test_progress_indicator_with_indicatif() {
         use indicatif::ProgressBar;
-        
+
         let pb = ProgressBar::new(100);
         let progress = ProgressIndicator::Indicatif(pb);
-        
+
         // Test that methods work with indicatif backend
         progress.set_message("test message".to_string());
         progress.set_length(100);
@@ -763,12 +777,12 @@ mod tests {
             total: Some(2048),
             completed: false,
         };
-        
+
         assert_eq!(progress.file_name, "test.onnx");
         assert_eq!(progress.downloaded, 1024);
         assert_eq!(progress.total, Some(2048));
         assert!(!progress.completed);
-        
+
         // Test debug formatting
         let debug_str = format!("{:?}", progress);
         assert!(debug_str.contains("test.onnx"));
@@ -783,7 +797,7 @@ mod tests {
             total: None,
             completed: true,
         };
-        
+
         let cloned = progress.clone();
         assert_eq!(progress.file_name, cloned.file_name);
         assert_eq!(progress.downloaded, cloned.downloaded);
