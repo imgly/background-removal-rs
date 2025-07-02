@@ -55,7 +55,7 @@ cargo add --git https://github.com/imgly/background-removal-rs
 
 Use in your code:
 
-```rust
+```rust,no_run
 use imgly_bgremove::{remove_background_from_reader, RemovalConfig, ModelSpec, ModelSource};
 use tokio::fs::File;
 
@@ -83,15 +83,29 @@ For advanced usage, see the [documentation](https://docs.rs/imgly-bgremove).
 
 ### Single Image Processing
 Use the high-level convenience functions:
-```rust
-remove_background_from_reader(file, &config).await?
+```rust,no_run
+# async fn example() -> anyhow::Result<()> {
+# use imgly_bgremove::{remove_background_from_reader, RemovalConfig};
+# use tokio::fs::File;
+# let file = File::open("input.jpg").await?;
+# let config = RemovalConfig::default();
+remove_background_from_reader(file, &config).await?;
+# Ok(())
+# }
 ```
 
 ### Multiple Image Processing  
 Use `RemovalSession` for efficiency:
-```rust
+```rust,no_run
+# async fn example() -> anyhow::Result<()> {
+# use imgly_bgremove::{RemovalSession, RemovalConfig};
+# use tokio::fs::File;
+# let config = RemovalConfig::default();
+# let file = File::open("input.jpg").await?;
 let mut session = RemovalSession::new(config)?;
-session.remove_background_from_reader(file).await?  // Model stays loaded
+session.remove_background_from_reader(file).await?;  // Model stays loaded
+# Ok(())
+# }
 ```
 
 **Performance Impact**: `RemovalSession` loads the model once and reuses it, while convenience functions reload the model on each call.
@@ -227,18 +241,21 @@ imgly-bgremove input.jpg --output output.png --model birefnet --variant fp16
 
 ### Basic Usage
 
-```rust
+```rust,no_run
 use imgly_bgremove::{remove_background_from_reader, RemovalConfig, ModelSpec, ModelSource};
 use tokio::fs::File;
 
-// Simple background removal with cached model
-let model_spec = ModelSpec {
-    source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
-    variant: None,
-};
-let config = RemovalConfig::builder().model_spec(model_spec).build()?;
-let file = File::open("input.jpg").await?;
-remove_background_from_reader(file, &config).await?.save_png("output.png")?;
+async fn example() -> anyhow::Result<()> {
+    // Simple background removal with cached model
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+        variant: None,
+    };
+    let config = RemovalConfig::builder().model_spec(model_spec).build()?;
+    let file = File::open("input.jpg").await?;
+    remove_background_from_reader(file, &config).await?.save_png("output.png")?;
+    Ok(())
+}
 
 // For processing multiple images efficiently (model loaded once):
 // use imgly_bgremove::RemovalSession;
@@ -253,68 +270,71 @@ remove_background_from_reader(file, &config).await?.save_png("output.png")?;
 
 ### Advanced Configuration
 
-```rust
+```rust,no_run
 use imgly_bgremove::{
     ModelDownloader, ModelSpec, ModelSource, remove_background_from_reader,
     RemovalConfig, ExecutionProvider, OutputFormat
 };
 use tokio::fs::File;
 
-// Download and cache a model from HuggingFace
-let downloader = ModelDownloader::new()?;
+async fn example() -> anyhow::Result<()> {
+    // Download and cache a model from HuggingFace
+    let downloader = ModelDownloader::new()?;
 
-// Example: ISNet general-purpose model
-let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
-// Example: BiRefNet portrait-optimized model
-// let model_url = "https://huggingface.co/onnx-community/BiRefNet-ONNX";
-// Example: BiRefNet Lite for faster processing
-// let model_url = "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX";
-// Example: Any compatible ONNX background removal model
-// let model_url = "https://huggingface.co/your-org/your-model-onnx";
+    // Example: ISNet general-purpose model
+    let model_url = "https://huggingface.co/imgly/isnet-general-onnx";
+    // Example: BiRefNet portrait-optimized model
+    // let model_url = "https://huggingface.co/onnx-community/BiRefNet-ONNX";
+    // Example: BiRefNet Lite for faster processing
+    // let model_url = "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX";
+    // Example: Any compatible ONNX background removal model
+    // let model_url = "https://huggingface.co/your-org/your-model-onnx";
 
-let model_id = downloader.download_model(model_url, true).await?;
+    let model_id = downloader.download_model(model_url, true).await?;
 
-// Configure processing with downloaded model
-let model_spec = ModelSpec {
-    source: ModelSource::Downloaded(model_id),
-    variant: None, // Auto-select best variant
-};
+    // Configure processing with downloaded model
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded(model_id),
+        variant: None, // Auto-select best variant
+    };
 
-let config = RemovalConfig::builder()
-    .model_spec(model_spec)
-    .execution_provider(ExecutionProvider::Auto)
-    .output_format(OutputFormat::Png)
-    .jpeg_quality(95)
-    .preserve_color_profiles(true)
-    .build()?;
+    let config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .execution_provider(ExecutionProvider::Auto)
+        .output_format(OutputFormat::Png)
+        .jpeg_quality(95)
+        .preserve_color_profiles(true)
+        .build()?;
 
-// Process image with the unified API
-let file = File::open("input.jpg").await?;
-let result = remove_background_from_reader(file, &config).await?;
-result.save_png("output.png")?;
+    // Process image with the unified API
+    let file = File::open("input.jpg").await?;
+    let result = remove_background_from_reader(file, &config).await?;
+    result.save_png("output.png")?;
 
-// For batch processing: initialize model once, process multiple images efficiently  
-// use imgly_bgremove::RemovalSession;
-// let session_config = RemovalConfig::builder()
-//     .model_spec(model_spec)
-//     .execution_provider(ExecutionProvider::Auto)
-//     .output_format(OutputFormat::Png)
-//     .jpeg_quality(95)
-//     .preserve_color_profiles(true)
-//     .build()?;
-// let mut session = RemovalSession::new(session_config)?;
-// let image_paths = ["photo1.jpg", "photo2.jpg", "photo3.jpg"];
-// for (i, image_path) in image_paths.iter().enumerate() {
-//     let file = File::open(image_path).await?;
-//     let result = session.remove_background_from_reader(file).await?;
-//     result.save_png(&format!("processed_{}.png", i))?;
-//     println!("Processed: {} -> processed_{}.png", image_path, i);
-// }
+    // For batch processing: initialize model once, process multiple images efficiently  
+    // use imgly_bgremove::RemovalSession;
+    // let session_config = RemovalConfig::builder()
+    //     .model_spec(model_spec)
+    //     .execution_provider(ExecutionProvider::Auto)
+    //     .output_format(OutputFormat::Png)
+    //     .jpeg_quality(95)
+    //     .preserve_color_profiles(true)
+    //     .build()?;
+    // let mut session = RemovalSession::new(session_config)?;
+    // let image_paths = ["photo1.jpg", "photo2.jpg", "photo3.jpg"];
+    // for (i, image_path) in image_paths.iter().enumerate() {
+    //     let file = File::open(image_path).await?;
+    //     let result = session.remove_background_from_reader(file).await?;
+    //     result.save_png(&format!("processed_{}.png", i))?;
+    //     println!("Processed: {} -> processed_{}.png", image_path, i);
+    // }
+    Ok(())
+}
 ```
 
 ## CLI Reference
 
-```
+```text
 imgly-bgremove [OPTIONS] [INPUT]...
 
 ARGUMENTS:

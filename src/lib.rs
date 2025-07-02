@@ -60,7 +60,6 @@ pub use tracing_config::{
 ///
 /// * `image_bytes` - Raw image data as bytes (JPEG, PNG, WebP, BMP, TIFF)
 /// * `config` - Configuration for the removal operation
-/// * `model_spec` - Specification of which model to use
 ///
 /// # Returns
 ///
@@ -91,7 +90,7 @@ pub use tracing_config::{
 /// use imgly_bgremove::{RemovalConfig, remove_background_from_bytes, ModelSpec, ModelSource};
 ///
 /// # fn example() -> anyhow::Result<()> {
-/// let image_data = download_image_from_api()?;
+/// # let image_data = vec![0u8; 1024]; // Mock image data
 /// let model_spec = ModelSpec {
 ///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
 ///     variant: None,
@@ -103,7 +102,6 @@ pub use tracing_config::{
 /// let png_bytes = result.to_bytes(imgly_bgremove::OutputFormat::Png, 100)?;
 /// # Ok(())
 /// # }
-/// # fn download_image_from_api() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
 /// ```
 ///
 /// # Errors
@@ -231,8 +229,7 @@ pub fn remove_background_from_image(
 /// use std::io::Cursor;
 ///
 /// # async fn example() -> anyhow::Result<()> {
-/// // Download image bytes from network
-/// let image_bytes = download_image_bytes().await?;
+/// # let image_bytes = vec![0u8; 1024]; // Mock image data
 /// let reader = Cursor::new(image_bytes);
 ///
 /// let model_spec = ModelSpec {
@@ -245,7 +242,6 @@ pub fn remove_background_from_image(
 /// let result = remove_background_from_reader(reader, &config).await?;
 /// # Ok(())
 /// # }
-/// # async fn download_image_bytes() -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
 /// ```
 ///
 /// # Errors
