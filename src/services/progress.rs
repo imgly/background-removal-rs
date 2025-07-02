@@ -289,7 +289,30 @@ impl ProgressTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use instant::Instant;
     use std::sync::{Arc, Mutex};
+
+    // Mock progress reporter for testing
+    #[derive(Debug)]
+    struct MockProgressReporter {
+        updates: Arc<Mutex<Vec<ProgressUpdate>>>,
+        completions: Arc<Mutex<Vec<ProcessingTimings>>>,
+        errors: Arc<Mutex<Vec<(ProcessingStage, String)>>>,
+    }
+
+    impl ProgressReporter for MockProgressReporter {
+        fn report_progress(&self, update: ProgressUpdate) {
+            self.updates.lock().unwrap().push(update);
+        }
+
+        fn report_completion(&self, timings: ProcessingTimings) {
+            self.completions.lock().unwrap().push(timings);
+        }
+
+        fn report_error(&self, stage: ProcessingStage, error: &str) {
+            self.errors.lock().unwrap().push((stage, error.to_string()));
+        }
+    }
 
     /// Test progress reporter that captures reports for verification
     #[derive(Default)]
@@ -450,5 +473,417 @@ mod tests {
         let console_tracker = ProgressTracker::console(true);
         assert!(console_tracker.current_stage().is_none());
         assert!(console_tracker.elapsed_ms() < 100);
+    }
+
+    #[test]
+    fn test_processing_stage_all_variants() {
+        let stages = vec![
+            ProcessingStage::Initialization,
+            ProcessingStage::ImageLoading,
+            ProcessingStage::ColorProfileExtraction,
+            ProcessingStage::Preprocessing,
+            ProcessingStage::Inference,
+            ProcessingStage::MaskGeneration,
+            ProcessingStage::BackgroundRemoval,
+            ProcessingStage::FormatConversion,
+            ProcessingStage::FileSaving,
+            ProcessingStage::Completed,
+        ];
+
+        for stage in stages {
+            // Test description
+            let description = stage.description();
+            assert!(
+                !description.is_empty(),
+                "Description should not be empty for {:?}",
+                stage
+            );
+
+            // Test progress percentage
+            let progress = stage.progress_percentage();
+            assert!(progress <= 100, "Progress should be 0-100 for {:?}", stage);
+
+            // Test cloning
+            let cloned = stage.clone();
+            assert_eq!(stage, cloned);
+
+            // Test debug formatting
+            let debug_str = format!("{:?}", stage);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_processing_stage_progress_ordering() {
+        // Verify that progress percentages are in ascending order
+        let stages_with_progress = vec![
+            (ProcessingStage::Initialization, 5),
+            (ProcessingStage::ImageLoading, 10),
+            (ProcessingStage::ColorProfileExtraction, 15),
+            (ProcessingStage::Preprocessing, 25),
+            (ProcessingStage::Inference, 70),
+            (ProcessingStage::MaskGeneration, 85),
+            (ProcessingStage::BackgroundRemoval, 95),
+            (ProcessingStage::FormatConversion, 98),
+            (ProcessingStage::FileSaving, 99),
+            (ProcessingStage::Completed, 100),
+        ];
+
+        for (i, (stage, expected_progress)) in stages_with_progress.iter().enumerate() {
+            assert_eq!(stage.progress_percentage(), *expected_progress);
+
+            // Verify ascending order
+            if i > 0 {
+                let prev_progress = stages_with_progress[i - 1].1;
+                assert!(
+                    expected_progress > &prev_progress,
+                    "Progress should be ascending: {:?} ({}) should be > previous ({})",
+                    stage,
+                    expected_progress,
+                    prev_progress
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_progress_update_creation_variants() {
+        let stage = ProcessingStage::Inference;
+
+        // Test simple creation
+        let update1 = ProgressUpdate::new(stage.clone(), Instant::now());
+        assert_eq!(update1.stage, stage);
+        assert_eq!(update1.description, stage.description());
+        assert!(update1.eta_ms.is_none());
+
+        // Test with custom description
+        let custom_desc = "Custom inference description";
+        let update2 = ProgressUpdate::with_description(
+            stage.clone(),
+            custom_desc.to_string(),
+            Instant::now(),
+        );
+        assert_eq!(update2.stage, stage);
+        assert_eq!(update2.description, custom_desc);
+        assert!(update2.eta_ms.is_none());
+
+        // Test with ETA
+        let eta_ms = 5000;
+        let update3 = ProgressUpdate::new(stage.clone(), Instant::now()).with_eta(eta_ms);
+        assert_eq!(update3.stage, stage);
+        assert_eq!(update3.description, stage.description());
+        assert_eq!(update3.eta_ms, Some(eta_ms));
+    }
+
+    #[test]
+    fn test_progress_update_equality() {
+        let stage = ProcessingStage::Preprocessing;
+
+        let update1 = ProgressUpdate::new(stage.clone(), Instant::now());
+        let update2 = ProgressUpdate::new(stage.clone(), Instant::now());
+        let update3 = ProgressUpdate::with_description(
+            stage.clone(),
+            "Different".to_string(),
+            Instant::now(),
+        );
+
+        assert_eq!(update1.stage, update2.stage);
+        assert_ne!(update1.description, update3.description);
+    }
+
+    #[test]
+    fn test_progress_update_debug_formatting() {
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now()).with_eta(2500);
+        let debug_str = format!("{:?}", update);
+
+        assert!(debug_str.contains("Inference"));
+        assert!(debug_str.contains("2500"));
+    }
+
+    #[test]
+    fn test_no_op_progress_reporter_comprehensive() {
+        let reporter = NoOpProgressReporter;
+
+        // All methods should complete without side effects
+        reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::Initialization,
+            Instant::now(),
+        ));
+        reporter.report_completion(ProcessingTimings::default());
+        reporter.report_error(ProcessingStage::Inference, "Test error");
+
+        // Test with various stages
+        for stage in &[
+            ProcessingStage::ImageLoading,
+            ProcessingStage::Preprocessing,
+            ProcessingStage::Inference,
+            ProcessingStage::Completed,
+        ] {
+            reporter.report_progress(ProgressUpdate::new(stage.clone(), Instant::now()));
+        }
+    }
+
+    #[test]
+    fn test_console_progress_reporter_creation() {
+        let verbose_reporter = ConsoleProgressReporter::new(true);
+        let non_verbose_reporter = ConsoleProgressReporter::new(false);
+
+        // Should create without panicking
+        // We can't easily test the actual output since it goes to logs
+        // but we can verify the reporters handle various inputs
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now());
+        verbose_reporter.report_progress(update.clone());
+        non_verbose_reporter.report_progress(update);
+
+        let timings = ProcessingTimings::default();
+        verbose_reporter.report_completion(timings.clone());
+        non_verbose_reporter.report_completion(timings);
+
+        verbose_reporter.report_error(ProcessingStage::FileSaving, "Test error");
+        non_verbose_reporter.report_error(ProcessingStage::FileSaving, "Test error");
+    }
+
+    #[test]
+    fn test_progress_tracker_stage_tracking() {
+        let mut tracker = ProgressTracker::no_op();
+
+        // Initially no current stage
+        assert!(tracker.current_stage().is_none());
+
+        // Report various stages
+        let stages = vec![
+            ProcessingStage::Initialization,
+            ProcessingStage::ImageLoading,
+            ProcessingStage::Inference,
+            ProcessingStage::Completed,
+        ];
+
+        for stage in stages {
+            tracker.report_stage(stage.clone());
+            assert_eq!(tracker.current_stage(), Some(&stage));
+        }
+    }
+
+    #[test]
+    fn test_progress_tracker_timing() {
+        use std::thread;
+        use std::time::Duration;
+
+        let mut tracker = ProgressTracker::no_op();
+
+        // Initial elapsed time should be small
+        let initial_elapsed = tracker.elapsed_ms();
+        assert!(initial_elapsed < 100);
+
+        // Sleep briefly to ensure time passes
+        thread::sleep(Duration::from_millis(10));
+
+        // Elapsed time should have increased
+        let later_elapsed = tracker.elapsed_ms();
+        assert!(later_elapsed > initial_elapsed);
+
+        // Report stage and check timing still works
+        tracker.report_stage(ProcessingStage::Inference);
+        let after_stage_elapsed = tracker.elapsed_ms();
+        assert!(after_stage_elapsed >= later_elapsed);
+    }
+
+    #[test]
+    fn test_progress_tracker_completion_reporting() {
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let completions = Arc::new(Mutex::new(Vec::new()));
+        let errors = Arc::new(Mutex::new(Vec::new()));
+
+        let mock_reporter = MockProgressReporter {
+            updates: progress_updates.clone(),
+            completions: completions.clone(),
+            errors: errors.clone(),
+        };
+
+        let tracker = ProgressTracker::new(Box::new(mock_reporter));
+
+        // Create timings with specific values
+        let mut timings = ProcessingTimings::default();
+        timings.total_ms = 1500;
+        timings.inference_ms = 800;
+        timings.preprocessing_ms = 200;
+
+        tracker.report_completion(timings.clone());
+
+        let completion_list = completions.lock().unwrap();
+        assert_eq!(completion_list.len(), 1);
+        assert_eq!(completion_list[0].total_ms, 1500);
+        assert_eq!(completion_list[0].inference_ms, 800);
+        assert_eq!(completion_list[0].preprocessing_ms, 200);
+    }
+
+    #[test]
+    fn test_progress_tracker_error_reporting_with_context() {
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let completions = Arc::new(Mutex::new(Vec::new()));
+        let errors = Arc::new(Mutex::new(Vec::new()));
+
+        let mock_reporter = MockProgressReporter {
+            updates: progress_updates,
+            completions,
+            errors: errors.clone(),
+        };
+
+        let mut tracker = ProgressTracker::new(Box::new(mock_reporter));
+
+        // Set current stage
+        tracker.report_stage(ProcessingStage::BackgroundRemoval);
+
+        // Report error
+        let error_message = "Failed to process image due to invalid format";
+        tracker.report_error(error_message);
+
+        let error_list = errors.lock().unwrap();
+        assert_eq!(error_list.len(), 1);
+        assert_eq!(error_list[0].0, ProcessingStage::BackgroundRemoval);
+        assert_eq!(error_list[0].1, error_message);
+    }
+
+    #[test]
+    fn test_progress_tracker_multiple_stage_transitions() {
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let completions = Arc::new(Mutex::new(Vec::new()));
+        let errors = Arc::new(Mutex::new(Vec::new()));
+
+        let mock_reporter = MockProgressReporter {
+            updates: progress_updates.clone(),
+            completions,
+            errors,
+        };
+
+        let mut tracker = ProgressTracker::new(Box::new(mock_reporter));
+
+        // Simulate complete workflow
+        let workflow_stages = vec![
+            ProcessingStage::Initialization,
+            ProcessingStage::ImageLoading,
+            ProcessingStage::ColorProfileExtraction,
+            ProcessingStage::Preprocessing,
+            ProcessingStage::Inference,
+            ProcessingStage::MaskGeneration,
+            ProcessingStage::BackgroundRemoval,
+            ProcessingStage::FormatConversion,
+            ProcessingStage::FileSaving,
+            ProcessingStage::Completed,
+        ];
+
+        for stage in &workflow_stages {
+            tracker.report_stage(stage.clone());
+        }
+
+        let updates = progress_updates.lock().unwrap();
+        assert_eq!(updates.len(), workflow_stages.len());
+
+        // Verify stages are reported in correct order
+        for (i, expected_stage) in workflow_stages.iter().enumerate() {
+            assert_eq!(updates[i].stage, *expected_stage);
+        }
+
+        // Verify progress percentages are ascending
+        for i in 1..updates.len() {
+            let prev_progress = updates[i - 1].stage.progress_percentage();
+            let curr_progress = updates[i].stage.progress_percentage();
+            assert!(
+                curr_progress >= prev_progress,
+                "Progress should be ascending: {} >= {}",
+                curr_progress,
+                prev_progress
+            );
+        }
+    }
+
+    #[test]
+    fn test_progress_tracker_custom_descriptions() {
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let completions = Arc::new(Mutex::new(Vec::new()));
+        let errors = Arc::new(Mutex::new(Vec::new()));
+
+        let mock_reporter = MockProgressReporter {
+            updates: progress_updates.clone(),
+            completions,
+            errors,
+        };
+
+        let mut tracker = ProgressTracker::new(Box::new(mock_reporter));
+
+        // Test various custom descriptions
+        let custom_stages = vec![
+            (
+                ProcessingStage::Initialization,
+                "Loading ONNX model with GPU acceleration",
+            ),
+            (
+                ProcessingStage::Preprocessing,
+                "Resizing image to 1024x1024 and normalizing",
+            ),
+            (
+                ProcessingStage::Inference,
+                "Running AI model inference on Apple Silicon",
+            ),
+            (
+                ProcessingStage::BackgroundRemoval,
+                "Applying segmentation mask with edge smoothing",
+            ),
+        ];
+
+        for (stage, description) in &custom_stages {
+            tracker.report_stage_with_description(stage.clone(), description.to_string());
+        }
+
+        let updates = progress_updates.lock().unwrap();
+        assert_eq!(updates.len(), custom_stages.len());
+
+        for (i, (expected_stage, expected_description)) in custom_stages.iter().enumerate() {
+            assert_eq!(updates[i].stage, *expected_stage);
+            assert_eq!(updates[i].description, *expected_description);
+        }
+    }
+
+    #[test]
+    fn test_processing_timings_default_values() {
+        let timings = ProcessingTimings::default();
+
+        assert_eq!(timings.total_ms, 0);
+        assert_eq!(timings.image_decode_ms, 0);
+        assert_eq!(timings.preprocessing_ms, 0);
+        assert_eq!(timings.inference_ms, 0);
+        assert_eq!(timings.postprocessing_ms, 0);
+    }
+
+    #[test]
+    fn test_processing_timings_debug_formatting() {
+        let mut timings = ProcessingTimings::default();
+        timings.total_ms = 1500;
+        timings.inference_ms = 800;
+        timings.preprocessing_ms = 200;
+
+        let debug_str = format!("{:?}", timings);
+        assert!(debug_str.contains("1500"));
+        assert!(debug_str.contains("800"));
+        assert!(debug_str.contains("200"));
+    }
+
+    #[test]
+    fn test_trait_object_safety() {
+        // Verify that ProgressReporter can be used as a trait object
+        let reporters: Vec<Box<dyn ProgressReporter>> = vec![
+            Box::new(NoOpProgressReporter),
+            Box::new(ConsoleProgressReporter::new(true)),
+            Box::new(ConsoleProgressReporter::new(false)),
+        ];
+
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now());
+        let timings = ProcessingTimings::default();
+
+        for reporter in reporters {
+            reporter.report_progress(update.clone());
+            reporter.report_completion(timings.clone());
+            reporter.report_error(ProcessingStage::FileSaving, "Test error");
+        }
     }
 }

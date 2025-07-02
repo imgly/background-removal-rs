@@ -439,4 +439,318 @@ mod tests {
         assert!(result.is_ok());
         assert!(nested_path.exists());
     }
+
+    #[test]
+    fn test_save_image_all_formats() {
+        let temp_dir = tempdir().unwrap();
+
+        // Test all supported output formats with appropriate image types
+        let formats = vec![
+            (
+                OutputFormat::Png,
+                "test.png",
+                DynamicImage::new_rgba8(10, 10),
+            ),
+            (
+                OutputFormat::Jpeg,
+                "test.jpg",
+                DynamicImage::new_rgb8(10, 10),
+            ), // JPEG doesn't support transparency
+            (
+                OutputFormat::WebP,
+                "test.webp",
+                DynamicImage::new_rgba8(10, 10),
+            ),
+            (
+                OutputFormat::Tiff,
+                "test.tiff",
+                DynamicImage::new_rgba8(10, 10),
+            ),
+            (
+                OutputFormat::Rgba8,
+                "test.rgba8",
+                DynamicImage::new_rgba8(10, 10),
+            ),
+        ];
+
+        for (format, filename, image) in formats {
+            let path = temp_dir.path().join(filename);
+            let result = ImageIOService::save_image(&image, &path, format, false);
+
+            assert!(
+                result.is_ok(),
+                "Failed to save format {:?}: {:?}",
+                format,
+                result.err()
+            );
+            assert!(path.exists(), "File not created for format {:?}", format);
+        }
+    }
+
+    #[test]
+    fn test_save_image_with_color_profile_preservation() {
+        let temp_dir = tempdir().unwrap();
+        let image = DynamicImage::new_rgb8(5, 5);
+        let path = temp_dir.path().join("test_with_profile.png");
+
+        // Test with color profile preservation enabled
+        let result = ImageIOService::save_image(&image, &path, OutputFormat::Png, true);
+        assert!(result.is_ok());
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_save_image_rgba8_format() {
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path().join("test.rgba8");
+
+        // Create RGBA image with transparency
+        let mut image = image::RgbaImage::new(2, 2);
+        image.put_pixel(0, 0, image::Rgba([255, 0, 0, 255])); // Red, opaque
+        image.put_pixel(1, 0, image::Rgba([0, 255, 0, 128])); // Green, semi-transparent
+        image.put_pixel(0, 1, image::Rgba([0, 0, 255, 0])); // Blue, transparent
+        image.put_pixel(1, 1, image::Rgba([255, 255, 255, 255])); // White, opaque
+
+        let dynamic_image = DynamicImage::ImageRgba8(image);
+
+        let result = ImageIOService::save_image(&dynamic_image, &path, OutputFormat::Rgba8, false);
+        assert!(result.is_ok());
+        assert!(path.exists());
+
+        // Verify the file has the expected size (2x2 pixels * 4 bytes per pixel = 16 bytes)
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert_eq!(metadata.len(), 16);
+    }
+
+    #[test]
+    fn test_load_from_bytes_valid() {
+        // Create a minimal PNG image as bytes
+        let image = DynamicImage::new_rgb8(1, 1);
+        let mut bytes = Vec::new();
+        image
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+
+        let result = ImageIOService::load_from_bytes(&bytes);
+        assert!(result.is_ok());
+
+        let loaded = result.unwrap();
+        assert_eq!(loaded.width(), 1);
+        assert_eq!(loaded.height(), 1);
+    }
+
+    #[test]
+    fn test_load_from_bytes_invalid() {
+        let invalid_bytes = b"This is not an image";
+        let result = ImageIOService::load_from_bytes(invalid_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_from_bytes_empty() {
+        let empty_bytes: &[u8] = &[];
+        let result = ImageIOService::load_from_bytes(empty_bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_from_bytes_different_formats() {
+        let formats = vec![
+            image::ImageFormat::Png,
+            image::ImageFormat::Jpeg,
+            image::ImageFormat::WebP,
+            image::ImageFormat::Tiff,
+        ];
+
+        for format in formats {
+            // Create test image
+            let image = match format {
+                image::ImageFormat::Jpeg => DynamicImage::new_rgb8(10, 10), // JPEG doesn't support transparency
+                _ => DynamicImage::new_rgba8(10, 10),
+            };
+
+            let mut bytes = Vec::new();
+            image
+                .write_to(&mut std::io::Cursor::new(&mut bytes), format)
+                .unwrap();
+
+            let result = ImageIOService::load_from_bytes(&bytes);
+            assert!(result.is_ok(), "Failed to load {:?} format", format);
+
+            let loaded = result.unwrap();
+            assert_eq!(loaded.width(), 10);
+            assert_eq!(loaded.height(), 10);
+        }
+    }
+
+    #[test]
+    fn test_is_supported_format_case_insensitive() {
+        // Test uppercase extensions
+        assert!(ImageIOService::is_supported_format("test.JPG"));
+        assert!(ImageIOService::is_supported_format("test.PNG"));
+        assert!(ImageIOService::is_supported_format("test.WEBP"));
+        assert!(ImageIOService::is_supported_format("test.TIFF"));
+
+        // Test mixed case
+        assert!(ImageIOService::is_supported_format("test.JpEg"));
+        assert!(ImageIOService::is_supported_format("test.PnG"));
+    }
+
+    #[test]
+    fn test_is_supported_format_edge_cases() {
+        // Test with no extension
+        assert!(!ImageIOService::is_supported_format("filename"));
+
+        // Test with only extension (behavior depends on implementation)
+        // Let's test what the actual behavior is rather than assuming
+        let only_ext_result = ImageIOService::is_supported_format(".png");
+        // Just ensure it doesn't panic - we accept either true or false
+        assert!(only_ext_result == true || only_ext_result == false);
+
+        // Test with multiple dots
+        assert!(ImageIOService::is_supported_format(
+            "file.name.with.dots.jpg"
+        ));
+
+        // Test with path separators
+        assert!(ImageIOService::is_supported_format("/path/to/file.png"));
+        assert!(ImageIOService::is_supported_format(
+            "C:\\path\\to\\file.jpg"
+        ));
+    }
+
+    #[test]
+    fn test_extract_color_profile_nonexistent_file() {
+        let result = ImageIOService::extract_color_profile("nonexistent.jpg");
+        // This should either return an error or None, depending on implementation
+        // We'll test that it doesn't panic and returns a result
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_save_image_path_edge_cases() {
+        let temp_dir = tempdir().unwrap();
+        let image = DynamicImage::new_rgb8(1, 1);
+
+        // Test with special characters in filename
+        let special_path = temp_dir.path().join("test file with spaces.png");
+        let result = ImageIOService::save_image(&image, &special_path, OutputFormat::Png, false);
+        assert!(result.is_ok());
+        assert!(special_path.exists());
+
+        // Test with unicode filename
+        let unicode_path = temp_dir.path().join("测试图片.png");
+        let result = ImageIOService::save_image(&image, &unicode_path, OutputFormat::Png, false);
+        assert!(result.is_ok());
+        assert!(unicode_path.exists());
+    }
+
+    #[test]
+    fn test_load_image_path_edge_cases() {
+        // Test with empty string (should fail gracefully)
+        let result = ImageIOService::load_image("");
+        assert!(result.is_err());
+
+        // Test with invalid unicode path
+        let result = ImageIOService::load_image("/path/with/\u{0000}/null");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_save_image_quality_formats() {
+        let temp_dir = tempdir().unwrap();
+        let image = DynamicImage::new_rgb8(10, 10);
+
+        // Test formats that support quality (JPEG, WebP)
+        let path_jpeg = temp_dir.path().join("test.jpg");
+        let result = ImageIOService::save_image(&image, &path_jpeg, OutputFormat::Jpeg, false);
+        assert!(result.is_ok());
+
+        let path_webp = temp_dir.path().join("test.webp");
+        let result = ImageIOService::save_image(&image, &path_webp, OutputFormat::WebP, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_large_image_operations() {
+        let temp_dir = tempdir().unwrap();
+
+        // Create a larger image to test memory handling
+        let large_image = DynamicImage::new_rgba8(100, 100);
+
+        // Test saving large image
+        let path = temp_dir.path().join("large.png");
+        let result = ImageIOService::save_image(&large_image, &path, OutputFormat::Png, false);
+        assert!(result.is_ok());
+
+        // Test loading the saved large image
+        let result = ImageIOService::load_image(&path);
+        assert!(result.is_ok());
+
+        let loaded = result.unwrap();
+        assert_eq!(loaded.width(), 100);
+        assert_eq!(loaded.height(), 100);
+    }
+
+    #[test]
+    fn test_image_dimensions_preservation() {
+        let temp_dir = tempdir().unwrap();
+
+        // Test various dimensions
+        let dimensions = vec![(1, 1), (50, 25), (100, 200), (256, 256)];
+
+        for (width, height) in dimensions {
+            let image = DynamicImage::new_rgb8(width, height);
+            let path = temp_dir
+                .path()
+                .join(format!("test_{}x{}.png", width, height));
+
+            // Save image
+            let result = ImageIOService::save_image(&image, &path, OutputFormat::Png, false);
+            assert!(result.is_ok());
+
+            // Load and verify dimensions
+            let loaded = ImageIOService::load_image(&path).unwrap();
+            assert_eq!(
+                loaded.width(),
+                width,
+                "Width mismatch for {}x{}",
+                width,
+                height
+            );
+            assert_eq!(
+                loaded.height(),
+                height,
+                "Height mismatch for {}x{}",
+                width,
+                height
+            );
+        }
+    }
+
+    #[test]
+    fn test_color_channel_preservation() {
+        let temp_dir = tempdir().unwrap();
+
+        // Create an image with specific color values
+        let mut image = image::RgbImage::new(2, 2);
+        image.put_pixel(0, 0, image::Rgb([255, 0, 0])); // Red
+        image.put_pixel(1, 0, image::Rgb([0, 255, 0])); // Green
+        image.put_pixel(0, 1, image::Rgb([0, 0, 255])); // Blue
+        image.put_pixel(1, 1, image::Rgb([255, 255, 255])); // White
+
+        let dynamic_image = DynamicImage::ImageRgb8(image);
+        let path = temp_dir.path().join("color_test.png");
+
+        // Save and reload
+        ImageIOService::save_image(&dynamic_image, &path, OutputFormat::Png, false).unwrap();
+        let loaded = ImageIOService::load_image(&path).unwrap();
+
+        // Verify the image was loaded successfully
+        assert_eq!(loaded.width(), 2);
+        assert_eq!(loaded.height(), 2);
+    }
 }

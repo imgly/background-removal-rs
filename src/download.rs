@@ -499,6 +499,8 @@ pub fn parse_huggingface_url(url: &str) -> Result<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_validate_model_url() {
@@ -534,4 +536,283 @@ mod tests {
     async fn test_downloader_creation() {
         let _downloader = ModelDownloader::new().expect("Should create downloader successfully");
     }
+
+    #[test]
+    fn test_validate_model_url_comprehensive() {
+        // Test empty URL
+        let result = validate_model_url("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+
+        // Test valid HuggingFace URLs with different formats
+        assert!(validate_model_url("https://huggingface.co/user/repo").is_ok());
+        assert!(validate_model_url("https://huggingface.co/organization/model-name").is_ok());
+        assert!(validate_model_url("https://huggingface.co/user123/repo_name").is_ok());
+
+        // Test invalid URLs
+        let invalid_urls = vec![
+            "http://huggingface.co/user/repo", // HTTP instead of HTTPS
+            "https://github.com/user/repo",    // Wrong domain
+            "https://huggingface.co/",         // Missing repo info
+            "https://huggingface.co/onlyuser", // Missing repository name
+            "ftp://huggingface.co/user/repo",  // Wrong protocol
+            "https://subdomain.huggingface.co/user/repo", // Wrong subdomain
+        ];
+
+        for url in invalid_urls {
+            assert!(validate_model_url(url).is_err(), "URL should be invalid: {}", url);
+        }
+    }
+
+    #[test]
+    fn test_parse_huggingface_url_edge_cases() {
+        // Test URLs with additional path components
+        let (user, repo) = parse_huggingface_url("https://huggingface.co/user/repo/tree/main")
+            .expect("Should parse URL with additional path");
+        assert_eq!(user, "user");
+        assert_eq!(repo, "repo");
+
+        // Test URLs with query parameters
+        let (user, repo) = parse_huggingface_url("https://huggingface.co/user/repo?tab=files")
+            .expect("Should parse URL with query params");
+        assert_eq!(user, "user");
+        assert_eq!(repo, "repo?tab=files"); // Query parameters are preserved as part of repo name
+
+        // Test complex repository names
+        let (user, repo) = parse_huggingface_url("https://huggingface.co/microsoft/DialoGPT-medium")
+            .expect("Should parse complex repo name");
+        assert_eq!(user, "microsoft");
+        assert_eq!(repo, "DialoGPT-medium");
+
+        // Test edge case: minimal valid URL
+        let (user, repo) = parse_huggingface_url("https://huggingface.co/a/b")
+            .expect("Should parse minimal valid URL");
+        assert_eq!(user, "a");
+        assert_eq!(repo, "b");
+    }
+
+    #[test]
+    fn test_parse_huggingface_url_error_cases() {
+        let error_cases = vec![
+            ("", "cannot be empty"),
+            ("https://github.com/user/repo", "Unsupported URL format"),
+            ("https://huggingface.co/", "Invalid HuggingFace repository URL"),
+            ("https://huggingface.co/single", "Invalid HuggingFace repository URL"),
+            ("not-a-url", "Unsupported URL format"),
+        ];
+
+        for (url, expected_error) in error_cases {
+            let result = parse_huggingface_url(url);
+            assert!(result.is_err(), "Should fail for URL: {}", url);
+            assert!(
+                result.unwrap_err().to_string().contains(expected_error),
+                "Error message should contain '{}' for URL: {}",
+                expected_error,
+                url
+            );
+        }
+    }
+
+    #[test]
+    fn test_create_temp_download_dir() {
+        let model_id = "test-model";
+        let temp_dir = ModelDownloader::create_temp_download_dir(model_id);
+        
+        assert!(temp_dir.is_ok());
+        let dir_path = temp_dir.unwrap();
+        
+        // Verify the directory was created
+        assert!(dir_path.exists());
+        assert!(dir_path.is_dir());
+        
+        // Verify the directory name contains the model ID
+        assert!(dir_path.to_string_lossy().contains(model_id));
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&dir_path);
+    }
+
+    #[test]
+    fn test_create_temp_download_dir_cleanup_existing() {
+        let model_id = "test-model-cleanup";
+        
+        // Create first temp directory
+        let temp_dir1 = ModelDownloader::create_temp_download_dir(model_id).unwrap();
+        assert!(temp_dir1.exists());
+        
+        // Create a file in the directory to ensure it gets cleaned up
+        let test_file = temp_dir1.join("test.txt");
+        fs::write(&test_file, "test content").unwrap();
+        assert!(test_file.exists());
+        
+        // Create second temp directory with same model ID (should cleanup first)
+        let temp_dir2 = ModelDownloader::create_temp_download_dir(model_id).unwrap();
+        assert!(temp_dir2.exists());
+        assert!(!test_file.exists()); // Previous directory should be cleaned up
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir2);
+    }
+
+    #[test]
+    fn test_downloader_cache_access() {
+        let downloader = ModelDownloader::new().expect("Should create downloader");
+        let _cache = downloader.cache();
+        
+        // Verify we can access cache methods
+        let default_model_id = ModelCache::url_to_model_id("https://huggingface.co/test/model");
+        assert_eq!(default_model_id, "test--model");
+    }
+
+    #[test]
+    fn test_downloader_default() {
+        let downloader = ModelDownloader::default();
+        assert!(downloader.cache().get_current_cache_dir().exists());
+    }
+
+    #[test]
+    fn test_verify_file_integrity_no_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.txt");
+        fs::write(&test_file, "test content").unwrap();
+        
+        let downloader = ModelDownloader::new().unwrap();
+        let result = downloader.verify_file_integrity(&test_file, None);
+        
+        assert!(result.is_ok());
+        assert!(result.unwrap()); // Should return true when no hash provided
+    }
+
+    #[test]
+    fn test_verify_file_integrity_with_correct_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.txt");
+        let content = "test content";
+        fs::write(&test_file, content).unwrap();
+        
+        // Calculate SHA256 hash manually
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let expected_hash = format!("{:x}", hasher.finalize());
+        
+        let downloader = ModelDownloader::new().unwrap();
+        let result = downloader.verify_file_integrity(&test_file, Some(&expected_hash));
+        
+        assert!(result.is_ok());
+        assert!(result.unwrap()); // Should return true for correct hash
+    }
+
+    #[test]
+    fn test_verify_file_integrity_with_incorrect_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.txt");
+        fs::write(&test_file, "test content").unwrap();
+        
+        let wrong_hash = "0000000000000000000000000000000000000000000000000000000000000000";
+        
+        let downloader = ModelDownloader::new().unwrap();
+        let result = downloader.verify_file_integrity(&test_file, Some(wrong_hash));
+        
+        assert!(result.is_ok());
+        assert!(!result.unwrap()); // Should return false for incorrect hash
+    }
+
+    #[test]
+    fn test_verify_file_integrity_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent_file = temp_dir.path().join("nonexistent.txt");
+        
+        let downloader = ModelDownloader::new().unwrap();
+        let result = downloader.verify_file_integrity(&nonexistent_file, Some("hash"));
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("read file for verification"));
+    }
+
+    #[test]
+    fn test_progress_indicator_no_op() {
+        let progress = ProgressIndicator::NoOp;
+        
+        // All methods should complete without panicking
+        progress.set_message("test message".to_string());
+        progress.set_length(100);
+        progress.set_position(50);
+        progress.finish_with_message("finished".to_string());
+    }
+
+    #[cfg(feature = "cli")]
+    #[test]
+    fn test_progress_indicator_with_indicatif() {
+        use indicatif::ProgressBar;
+        
+        let pb = ProgressBar::new(100);
+        let progress = ProgressIndicator::Indicatif(pb);
+        
+        // Test that methods work with indicatif backend
+        progress.set_message("test message".to_string());
+        progress.set_length(100);
+        progress.set_position(50);
+        progress.finish_with_message("finished".to_string());
+    }
+
+    #[test]
+    fn test_download_progress_structure() {
+        let progress = DownloadProgress {
+            file_name: "test.onnx".to_string(),
+            downloaded: 1024,
+            total: Some(2048),
+            completed: false,
+        };
+        
+        assert_eq!(progress.file_name, "test.onnx");
+        assert_eq!(progress.downloaded, 1024);
+        assert_eq!(progress.total, Some(2048));
+        assert!(!progress.completed);
+        
+        // Test debug formatting
+        let debug_str = format!("{:?}", progress);
+        assert!(debug_str.contains("test.onnx"));
+        assert!(debug_str.contains("1024"));
+    }
+
+    #[test]
+    fn test_download_progress_clone() {
+        let progress = DownloadProgress {
+            file_name: "model.onnx".to_string(),
+            downloaded: 512,
+            total: None,
+            completed: true,
+        };
+        
+        let cloned = progress.clone();
+        assert_eq!(progress.file_name, cloned.file_name);
+        assert_eq!(progress.downloaded, cloned.downloaded);
+        assert_eq!(progress.total, cloned.total);
+        assert_eq!(progress.completed, cloned.completed);
+    }
+
+    #[test]
+    fn test_model_downloader_debug() {
+        let downloader = ModelDownloader::new().unwrap();
+        let debug_str = format!("{:?}", downloader);
+        assert!(debug_str.contains("ModelDownloader"));
+    }
+
+    #[test]
+    fn test_required_files_constant() {
+        assert_eq!(REQUIRED_FILES.len(), 2);
+        assert!(REQUIRED_FILES.contains(&"config.json"));
+        assert!(REQUIRED_FILES.contains(&"preprocessor_config.json"));
+    }
+
+    #[test]
+    fn test_onnx_files_constant() {
+        assert_eq!(ONNX_FILES.len(), 2);
+        assert!(ONNX_FILES.contains(&("onnx/model.onnx", "fp32")));
+        assert!(ONNX_FILES.contains(&("onnx/model_fp16.onnx", "fp16")));
+    }
+
+    // Mock-based integration tests would require setting up HTTP mocking
+    // which is beyond the scope of unit tests. The actual download functionality
+    // is better tested through integration tests with real or stubbed HTTP servers.
 }

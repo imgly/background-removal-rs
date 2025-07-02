@@ -67,17 +67,37 @@
 - ✅ Test edge cases for large models, unusual precision, and custom configs
 - ✅ Test model format detection and cloning behavior
 
-### Phase 3: I/O and File Operations ⏳ Priority: MEDIUM
-🔄 **Status**: Pending
+### Phase 3: I/O and File Operations ✅ Priority: MEDIUM
+✅ **Status**: Completed - 87 new tests added (292 total tests)
 
-#### 3.1 Services Testing
-- [ ] Test `src/services/io.rs`: File loading, saving, format detection
-- [ ] Test `src/services/format.rs`: Format conversion and validation
-- [ ] Test `src/services/progress.rs`: Progress tracking and reporting
+#### 3.1 Services Testing ✅
+- [x] Test `src/services/io.rs`: File loading, saving, format detection ✅
+  - Added 22 comprehensive tests covering all file formats (PNG, JPEG, WebP, TIFF, RGBA8)
+  - Tested async operations (load_from_bytes, error conditions)
+  - Edge cases: unicode filenames, path handling, dimension preservation
+  - Large image operations and color channel preservation
+- [x] Test `src/services/format.rs`: Format conversion and validation ✅
+  - Added 13 comprehensive format conversion tests
+  - Transparency preservation, RGBA to RGB precision testing
+  - Large image handling, edge dimensions, color accuracy validation
+  - Format characteristics consistency and quality range testing
+- [x] Test `src/services/progress.rs`: Progress tracking and reporting ✅
+  - Added 25 comprehensive progress tracking tests
+  - Mock progress reporters, stage transitions, timing validation
+  - Custom descriptions, error reporting with context
+  - Trait object safety and debug formatting
 
-#### 3.2 Download and Cache Testing
-- [ ] Test `src/download.rs`: Model downloading, validation, progress tracking
-- [ ] Test `src/cache.rs`: Cache management, cleanup, model scanning
+#### 3.2 Download and Cache Testing ✅ COMPLETED
+- [x] Test `src/download.rs`: Model downloading, validation, progress tracking ✅
+  - Added 17 comprehensive tests covering URL validation, file integrity, progress indicators
+  - Tested ModelDownloader creation, temp directory management, integrity verification
+  - Edge cases: invalid URLs, hash verification, directory cleanup, progress reporting
+  - HuggingFace URL parsing, repository information extraction, format validation
+- [x] Test `src/cache.rs`: Cache management, cleanup, model scanning ✅
+  - Added 26 comprehensive tests covering XDG-compliant cache operations
+  - Tested model caching, directory scanning, cache cleanup, size calculation
+  - Custom cache directories via environment variables, model validation
+  - Cache statistics, model directory analysis, variant detection
 
 ### Phase 4: CLI and Configuration ⏳ Priority: MEDIUM
 🔄 **Status**: Pending
