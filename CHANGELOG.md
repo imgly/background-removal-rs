@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-07-05
+
 ### Added
 - **RemovalSession API**: New `RemovalSession` struct for efficient model reuse across multiple background removal operations, improving batch processing performance
 - **CUDA support**: Enabled CUDA execution provider support in ONNX Runtime backend for GPU acceleration
