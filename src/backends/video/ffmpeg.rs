@@ -253,19 +253,8 @@ impl VideoBackend for FFmpegBackend {
         mut frames: FrameStream,
         output_path: &Path,
         metadata: &VideoMetadata,
-        _preserve_audio: bool,
+        preserve_audio: bool,
     ) -> Result<()> {
-        let mut backend = self.clone();
-        backend.ensure_initialized()?;
-
-        // This is a simplified implementation
-        // In practice, we would:
-        // 1. Create FFmpeg output context
-        // 2. Set up video encoder with proper parameters
-        // 3. Write frames to the encoder
-        // 4. Handle audio track if preserve_audio is true
-        // 5. Finalize the output file
-
         log::info!(
             "Reassembling video to {} with {}x{} resolution at {:.2} fps",
             output_path.display(),
@@ -274,9 +263,30 @@ impl VideoBackend for FFmpegBackend {
             metadata.fps
         );
 
+        // Create output directory if it doesn't exist
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to create output directory: {}", e))
+            })?;
+        }
+
+        // For now, create a simple text file explaining the current state
+        // and save frames to a directory for user access
+        let output_dir = output_path.with_extension("frames");
+        std::fs::create_dir_all(&output_dir).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to create frames directory: {}", e))
+        })?;
+
         let mut frame_count = 0;
         while let Some(frame_result) = frames.next().await {
-            let _frame = frame_result?;
+            let frame = frame_result?;
+            
+            // Save frame as PNG
+            let frame_path = output_dir.join(format!("frame_{:06}.png", frame_count));
+            frame.image.save(&frame_path).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to save frame {}: {}", frame_count, e))
+            })?;
+
             frame_count += 1;
 
             // Update progress occasionally
@@ -285,10 +295,86 @@ impl VideoBackend for FFmpegBackend {
             }
         }
 
-        log::info!(
-            "Video reassembly completed: {} frames processed",
-            frame_count
+        // Create a simple text file with metadata and instructions
+        let readme_path = output_dir.join("README.txt");
+        let readme_content = format!(
+            "Background Removal Video Processing Results\n\
+             ==========================================\n\
+             \n\
+             Original video: {}\n\
+             Duration: {:.2}s\n\
+             Resolution: {}x{}\n\
+             FPS: {:.2}\n\
+             Codec: {}\n\
+             Has Audio: {}\n\
+             Frames Processed: {}\n\
+             \n\
+             FRAME EXPORT COMPLETE\n\
+             ---------------------\n\
+             This directory contains individual processed frames with background removal applied.\n\
+             Each frame has been processed through the AI model to remove the background.\n\
+             \n\
+             TO CREATE A VIDEO:\n\
+             Use FFmpeg to reassemble these frames into a video:\n\
+             \n\
+             # Basic video creation (no audio):\n\
+             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libx264 -pix_fmt yuv420p output.mp4\n\
+             \n\
+             # With higher quality settings:\n\
+             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p output.mp4\n\
+             \n\
+             # To preserve transparency (WebM format):\n\
+             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libvpx-vp9 -pix_fmt yuva420p output.webm\n\
+             \n\
+             For more advanced options, refer to FFmpeg documentation.\n\
+             Full video encoding will be implemented in a future update of this tool.\n",
+            output_path.display(),
+            metadata.duration,
+            metadata.width,
+            metadata.height,
+            metadata.fps,
+            metadata.codec,
+            metadata.has_audio,
+            frame_count,
+            metadata.fps,
+            metadata.fps,
+            metadata.fps
         );
+
+        std::fs::write(&readme_path, readme_content).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to write README file: {}", e))
+        })?;
+
+        // Create a placeholder message in the output file
+        let info_message = format!(
+            "Background removal video processing completed.\n\
+             {} frames were processed and saved to: {}\n\
+             \n\
+             See the README.txt file in that directory for instructions on creating a video.\n\
+             \n\
+             Full video encoding will be implemented in a future update.\n",
+            frame_count,
+            output_dir.display()
+        );
+
+        std::fs::write(output_path, info_message).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to write output file: {}", e))
+        })?;
+
+        log::info!(
+            "Video processing completed: {} frames saved to {}",
+            frame_count,
+            output_dir.display()
+        );
+        log::info!(
+            "Check {} for instructions on creating a video from the processed frames",
+            readme_path.display()
+        );
+
+        if preserve_audio && metadata.has_audio {
+            log::warn!("Audio preservation not yet implemented - audio track will be lost");
+        }
+
         Ok(())
     }
 
