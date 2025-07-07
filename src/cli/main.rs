@@ -1691,6 +1691,14 @@ mod tests {
             show_cache_dir: false,
             cache_dir: None,
             no_cache: false,
+            #[cfg(feature = "video-support")]
+            video_batch_size: 8,
+            #[cfg(feature = "video-support")]
+            preserve_audio: true,
+            #[cfg(feature = "video-support")]
+            video_codec: "h264".to_string(),
+            #[cfg(feature = "video-support")]
+            video_quality: None,
         };
 
         // Test basic field access
@@ -1735,6 +1743,14 @@ mod tests {
             show_cache_dir: false,
             cache_dir: None,
             no_cache: false,
+            #[cfg(feature = "video-support")]
+            video_batch_size: 8,
+            #[cfg(feature = "video-support")]
+            preserve_audio: true,
+            #[cfg(feature = "video-support")]
+            video_codec: "h264".to_string(),
+            #[cfg(feature = "video-support")]
+            video_quality: None,
         };
 
         // Test different verbosity levels

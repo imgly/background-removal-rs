@@ -870,6 +870,8 @@ mod tests {
             disable_cache: false,
             model_spec,
             format_hint: Some(ImageFormat::Png),
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         // Serialize to JSON

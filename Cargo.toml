@@ -24,7 +24,7 @@ onnx = ["dep:ort"]
 tract = ["dep:tract-onnx", "dep:tract-core"]
 
 # Video processing support
-video-support = ["dep:ffmpeg-next"]
+video-support = ["dep:ffmpeg-next", "dep:tokio-stream"]
 
 # CLI functionality (UI-specific features only)
 cli = ["dep:clap", "dep:indicatif", "dep:tracing-subscriber", "dep:uuid", "dep:glob", "dep:walkdir"]
@@ -84,6 +84,7 @@ tracing-opentelemetry = { version = "0.22", optional = true }
 
 # Video processing dependencies (feature-gated)
 ffmpeg-next = { version = "7.1", optional = true }
+tokio-stream = { version = "0.1", optional = true }
 
 # Model download and caching dependencies (always available)
 reqwest = { version = "0.11", features = ["rustls-tls", "stream"] }

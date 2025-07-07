@@ -524,6 +524,8 @@ mod tests {
                 variant: Some("fp32".to_string()),
             },
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         assert!(!backend.is_initialized());
@@ -555,6 +557,8 @@ mod tests {
                 variant: Some("fp32".to_string()),
             },
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         // Initialize backend
@@ -594,6 +598,8 @@ mod tests {
                 variant: Some("fp32".to_string()),
             },
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         let result = failing_backend.initialize(&config);
@@ -652,6 +658,8 @@ mod tests {
                 variant: Some("fp32".to_string()),
             },
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         // Initialize both backends

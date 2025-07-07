@@ -13,7 +13,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[cfg(feature = "video-support")]
-use futures::{stream, StreamExt};
+use futures::StreamExt;
 
 #[cfg(feature = "video-support")]
 use std::{path::Path, time::Duration};
@@ -23,6 +23,9 @@ use ffmpeg_next as ffmpeg;
 
 #[cfg(feature = "video-support")]
 use image::RgbaImage;
+
+#[cfg(feature = "video-support")]
+use tokio_stream::wrappers::ReceiverStream;
 
 /// FFmpeg video backend implementation
 #[cfg(feature = "video-support")]
@@ -50,7 +53,6 @@ impl FFmpegBackend {
     }
 
     /// Convert FFmpeg frame to VideoFrame
-    #[allow(dead_code)]
     fn convert_frame(
         frame: &ffmpeg::util::frame::video::Video,
         frame_number: u64,
@@ -135,22 +137,114 @@ impl Default for FFmpegBackend {
 #[async_trait]
 impl VideoBackend for FFmpegBackend {
     async fn extract_frames(&self, input_path: &Path) -> Result<FrameStream> {
-        let mut backend = self.clone();
-        backend.ensure_initialized()?;
+        // Initialize FFmpeg globally if needed
+        if !self.initialized {
+            ffmpeg::init().map_err(|e| {
+                BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
+            })?;
+        }
 
-        let path = input_path.to_path_buf();
+        // Open input file
+        let mut input = ffmpeg::format::input(input_path).map_err(|e| {
+            BgRemovalError::processing(format!(
+                "Failed to open video file {}: {}",
+                input_path.display(),
+                e
+            ))
+        })?;
 
-        // Create async stream of frames
-        let frame_stream = stream::unfold((path, 0u64), move |(path, frame_count)| async move {
-            // This is a simplified implementation - in practice, we'd need to
-            // handle the FFmpeg context properly across async boundaries
-            match Self::extract_single_frame(&path, frame_count).await {
-                Ok(Some(frame)) => Some((Ok(frame), (path, frame_count + 1))),
-                Ok(None) => None, // End of video
-                Err(e) => Some((Err(e), (path, frame_count + 1))),
+        // Find video stream
+        let video_stream_index = input
+            .streams()
+            .best(ffmpeg::media::Type::Video)
+            .ok_or_else(|| BgRemovalError::processing("No video stream found in file".to_string()))?
+            .index();
+
+        // Get video stream info
+        let video_stream = input.stream(video_stream_index).unwrap();
+        let time_base = video_stream.time_base();
+
+        // Create decoder
+        let context_decoder =
+            ffmpeg::codec::context::Context::from_parameters(video_stream.parameters()).map_err(
+                |e| BgRemovalError::processing(format!("Failed to create codec context: {}", e)),
+            )?;
+
+        let mut decoder = context_decoder.decoder().video().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to create video decoder: {}", e))
+        })?;
+
+        // Create channel for frame transfer
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+
+        // Spawn blocking task for FFmpeg operations
+        tokio::task::spawn_blocking(move || {
+            let mut frame_number = 0u64;
+            let mut packet_count = 0;
+
+            // Process packets
+            for (stream, packet) in input.packets() {
+                if stream.index() == video_stream_index {
+                    packet_count += 1;
+
+                    // Send packet to decoder
+                    if let Err(e) = decoder.send_packet(&packet) {
+                        log::error!("Failed to send packet to decoder: {}", e);
+                        continue;
+                    }
+
+                    // Receive decoded frames
+                    let mut decoded = ffmpeg::util::frame::video::Video::empty();
+                    while decoder.receive_frame(&mut decoded).is_ok() {
+                        // Convert frame to VideoFrame
+                        match FFmpegBackend::convert_frame(&decoded, frame_number, time_base) {
+                            Ok(video_frame) => {
+                                if tx.blocking_send(Ok(video_frame)).is_err() {
+                                    // Receiver dropped, stop processing
+                                    return;
+                                }
+                                frame_number += 1;
+                            },
+                            Err(e) => {
+                                log::error!("Failed to convert frame {}: {}", frame_number, e);
+                                if tx.blocking_send(Err(e)).is_err() {
+                                    return;
+                                }
+                            },
+                        }
+                    }
+                }
             }
+
+            // Send remaining frames
+            decoder.send_eof().ok();
+            let mut decoded = ffmpeg::util::frame::video::Video::empty();
+            while decoder.receive_frame(&mut decoded).is_ok() {
+                match FFmpegBackend::convert_frame(&decoded, frame_number, time_base) {
+                    Ok(video_frame) => {
+                        if tx.blocking_send(Ok(video_frame)).is_err() {
+                            return;
+                        }
+                        frame_number += 1;
+                    },
+                    Err(e) => {
+                        log::error!("Failed to convert frame {}: {}", frame_number, e);
+                        if tx.blocking_send(Err(e)).is_err() {
+                            return;
+                        }
+                    },
+                }
+            }
+
+            log::info!(
+                "Extracted {} frames from {} packets",
+                frame_number,
+                packet_count
+            );
         });
 
+        // Convert receiver to stream
+        let frame_stream = ReceiverStream::new(rx);
         Ok(Box::pin(frame_stream))
     }
 
@@ -231,7 +325,7 @@ impl VideoBackend for FFmpegBackend {
         let height = decoder.height();
         let fps = f64::from(video_stream.avg_frame_rate());
         let duration = video_stream.duration() as f64 * f64::from(video_stream.time_base());
-        let format = Self::detect_video_format(input_path)?;
+        let format = FFmpegBackend::detect_video_format(input_path)?;
         let codec = decoder.id().name().to_string();
 
         // Check for audio stream
@@ -266,23 +360,6 @@ impl Clone for FFmpegBackend {
         Self {
             initialized: false, // Force re-initialization for each clone
         }
-    }
-}
-
-#[cfg(feature = "video-support")]
-impl FFmpegBackend {
-    /// Extract a single frame (helper function for stream implementation)
-    async fn extract_single_frame(_path: &Path, _frame_number: u64) -> Result<Option<VideoFrame>> {
-        // This is a placeholder implementation
-        // In practice, this would involve:
-        // 1. Opening the video file
-        // 2. Seeking to the correct frame
-        // 3. Decoding the frame
-        // 4. Converting to VideoFrame
-        // 5. Returning the frame or None if end of video
-
-        // For now, return None to indicate end of stream
-        Ok(None)
     }
 }
 

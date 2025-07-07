@@ -934,6 +934,8 @@ mod tests {
                 disable_cache: false,
                 model_spec: model_spec.clone(),
                 format_hint: None,
+                #[cfg(feature = "video-support")]
+                video_config: None,
             };
 
             // This will likely fail due to missing model, but should not panic
@@ -978,6 +980,8 @@ mod tests {
                 disable_cache: false,
                 model_spec: model_spec.clone(),
                 format_hint: None,
+                #[cfg(feature = "video-support")]
+                video_config: None,
             };
 
             // Attempt initialization (may fail due to missing model, but shouldn't panic)
@@ -1008,6 +1012,8 @@ mod tests {
             disable_cache: false,
             model_spec: model_spec.clone(),
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         };
 
         // Attempt initialization with debug mode - should fail gracefully without model manager

@@ -235,7 +235,7 @@ impl Iterator for FrameBatchIterator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::Rgba;
+    use image::{GenericImageView, Rgba};
 
     #[test]
     fn test_video_frame_creation() {

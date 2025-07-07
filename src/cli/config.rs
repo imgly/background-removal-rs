@@ -521,6 +521,14 @@ mod tests {
             show_cache_dir: false,
             cache_dir: Some("/custom/cache".to_string()),
             no_cache: true,
+            #[cfg(feature = "video-support")]
+            video_batch_size: 8,
+            #[cfg(feature = "video-support")]
+            preserve_audio: true,
+            #[cfg(feature = "video-support")]
+            video_codec: "h264".to_string(),
+            #[cfg(feature = "video-support")]
+            video_quality: None,
         };
 
         let config = CliConfigBuilder::from_cli(&cli).unwrap();
