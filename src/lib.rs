@@ -27,6 +27,11 @@ pub use backends::*;
 pub use cache::{format_size, CachedModelInfo, ModelCache};
 pub use color_profile::{ProfileEmbedder, ProfileExtractor};
 pub use config::{ExecutionProvider, OutputFormat, RemovalConfig};
+
+#[cfg(feature = "video-support")]
+pub use backends::video::{FrameProcessingStats, VideoFrame};
+#[cfg(feature = "video-support")]
+pub use config::VideoProcessingConfig;
 pub use download::{parse_huggingface_url, validate_model_url, DownloadProgress, ModelDownloader};
 pub use error::{BgRemovalError, Result};
 pub use inference::InferenceBackend;
@@ -40,6 +45,9 @@ pub use services::{
 };
 pub use session_cache::{format_cache_size, SessionCache, SessionCacheEntry, SessionCacheStats};
 pub use types::{ColorProfile, ColorSpace, RemovalResult, SegmentationMask};
+
+#[cfg(feature = "video-support")]
+pub use types::VideoRemovalResult;
 pub use utils::{
     ConfigValidator, ExecutionProviderManager, ImagePreprocessor, ModelSpecParser, ModelValidator,
     NumericValidator, PathValidator, PreprocessingOptions, ProviderInfo, TensorValidator,
@@ -264,6 +272,243 @@ pub async fn remove_background_from_reader<R: AsyncRead + Unpin>(
 
     // Use the bytes-based API with model_spec from config
     remove_background_from_bytes(&buffer, config)
+}
+
+/// Remove background from a video file (when video support is enabled)
+///
+/// This function processes a video file frame by frame, removing the background
+/// from each frame and reassembling the result into a new video file.
+///
+/// # Arguments
+///
+/// * `input_path` - Path to the input video file
+/// * `config` - Configuration for the removal operation
+///
+/// # Returns
+///
+/// A `VideoRemovalResult` containing the processed video data and metadata
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # #[cfg(feature = "video-support")]
+/// # {
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_video_file, ModelSpec, ModelSource, VideoProcessingConfig};
+/// use std::path::Path;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .video_config(VideoProcessingConfig::default())
+///     .build()?;
+///
+/// let result = remove_background_from_video_file("input.mp4", &config).await?;
+/// result.save("output.mp4")?;
+/// # Ok(())
+/// # }
+/// # }
+/// ```
+#[cfg(feature = "video-support")]
+pub async fn remove_background_from_video_file<P: AsRef<std::path::Path>>(
+    input_path: P,
+    config: &RemovalConfig,
+) -> Result<VideoRemovalResult> {
+    use crate::backends::video::{FFmpegBackend, VideoBackend};
+    use crate::processor::BackgroundRemovalProcessor;
+    use crate::types::ProcessingMetadata;
+    use futures::StreamExt;
+
+    let backend = FFmpegBackend::new()?;
+    let metadata = backend.get_metadata(input_path.as_ref()).await?;
+
+    // Extract frames
+    let mut frame_stream = backend.extract_frames(input_path.as_ref()).await?;
+    let mut processed_frames = Vec::new();
+    let mut frame_stats = FrameProcessingStats::new();
+
+    // Create processor for background removal
+    let default_video_config = VideoProcessingConfig::default();
+    let video_config = config
+        .video_config
+        .as_ref()
+        .unwrap_or(&default_video_config);
+    let processor_config = ProcessorConfigBuilder::new()
+        .model_spec(config.model_spec.clone())
+        .execution_provider(config.execution_provider)
+        .build()?;
+    let mut processor = BackgroundRemovalProcessor::new(processor_config)?;
+
+    // Process frames
+    let _start_time = instant::Instant::now();
+    while let Some(frame_result) = frame_stream.next().await {
+        let frame = frame_result?;
+        let frame_start = instant::Instant::now();
+
+        match processor.process_image(&frame.to_dynamic_image()) {
+            Ok(result) => {
+                // Convert result back to video frame
+                let processed_frame = VideoFrame::from_dynamic_image(
+                    result.image,
+                    frame.frame_number,
+                    frame.timestamp,
+                );
+                processed_frames.push(processed_frame);
+                frame_stats.add_frame_time(frame_start.elapsed());
+            },
+            Err(_) => {
+                frame_stats.mark_frame_failed();
+            },
+        }
+    }
+
+    // Reassemble video
+    let temp_output = tempfile::NamedTempFile::new().map_err(|e| {
+        BgRemovalError::processing(format!("Failed to create temporary file: {}", e))
+    })?;
+
+    let frame_stream = futures::stream::iter(processed_frames.into_iter().map(Ok));
+    backend
+        .reassemble_video(
+            Box::pin(frame_stream),
+            temp_output.path(),
+            &metadata,
+            video_config.preserve_audio,
+        )
+        .await?;
+
+    // Read the processed video data
+    let video_data = std::fs::read(temp_output.path()).map_err(|e| {
+        BgRemovalError::processing(format!("Failed to read processed video: {}", e))
+    })?;
+
+    let processing_metadata = ProcessingMetadata::new("video".to_string());
+
+    Ok(VideoRemovalResult::new(
+        video_data,
+        metadata,
+        frame_stats,
+        processing_metadata,
+        None, // Color profile extraction from video not yet implemented
+    ))
+}
+
+/// Remove background from video data provided as bytes (when video support is enabled)
+///
+/// This function processes video data from memory, making it suitable for
+/// web servers, streaming applications, and scenarios where files aren't available.
+///
+/// # Arguments
+///
+/// * `video_bytes` - Raw video data as bytes
+/// * `config` - Configuration for the removal operation
+///
+/// # Returns
+///
+/// A `VideoRemovalResult` containing the processed video data and metadata
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # #[cfg(feature = "video-support")]
+/// # {
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_video_bytes, ModelSpec, ModelSource, VideoProcessingConfig};
+///
+/// # async fn example(video_data: Vec<u8>) -> anyhow::Result<()> {
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .video_config(VideoProcessingConfig::default())
+///     .build()?;
+///
+/// let result = remove_background_from_video_bytes(&video_data, &config).await?;
+/// let output_data = result.to_bytes();
+/// # Ok(())
+/// # }
+/// # }
+/// ```
+#[cfg(feature = "video-support")]
+pub async fn remove_background_from_video_bytes(
+    video_bytes: &[u8],
+    config: &RemovalConfig,
+) -> Result<VideoRemovalResult> {
+    // Write bytes to temporary file and process
+    let temp_input = tempfile::NamedTempFile::new().map_err(|e| {
+        BgRemovalError::processing(format!("Failed to create temporary input file: {}", e))
+    })?;
+
+    std::fs::write(temp_input.path(), video_bytes).map_err(|e| {
+        BgRemovalError::processing(format!(
+            "Failed to write video data to temporary file: {}",
+            e
+        ))
+    })?;
+
+    remove_background_from_video_file(temp_input.path(), config).await
+}
+
+/// Remove background from a video provided via an async reader (when video support is enabled)
+///
+/// This function reads video data from any async reader and processes it,
+/// making it suitable for streaming from files, network connections, or
+/// any other async source.
+///
+/// # Arguments
+///
+/// * `reader` - Any type implementing `AsyncRead + Unpin`
+/// * `config` - Configuration for the removal operation
+///
+/// # Returns
+///
+/// A `VideoRemovalResult` containing the processed video data and metadata
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # #[cfg(feature = "video-support")]
+/// # {
+/// use imgly_bgremove::{RemovalConfig, remove_background_from_video_reader, ModelSpec, ModelSource, VideoProcessingConfig};
+/// use tokio::fs::File;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let model_spec = ModelSpec {
+///     source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+///     variant: None,
+/// };
+/// let config = RemovalConfig::builder()
+///     .model_spec(model_spec)
+///     .video_config(VideoProcessingConfig::default())
+///     .build()?;
+///
+/// let file = File::open("input.mp4").await?;
+/// let result = remove_background_from_video_reader(file, &config).await?;
+/// result.save("output.mp4")?;
+/// # Ok(())
+/// # }
+/// # }
+/// ```
+#[cfg(feature = "video-support")]
+pub async fn remove_background_from_video_reader<R: AsyncRead + Unpin>(
+    mut reader: R,
+    config: &RemovalConfig,
+) -> Result<VideoRemovalResult> {
+    use tokio::io::AsyncReadExt;
+
+    // Read all video data into memory
+    let mut buffer = Vec::new();
+    reader
+        .read_to_end(&mut buffer)
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Failed to read video data: {}", e)))?;
+
+    // Use the bytes-based API
+    remove_background_from_video_bytes(&buffer, config).await
 }
 
 /// Session-based API for efficient model reuse across multiple images

@@ -145,6 +145,8 @@ impl ProcessorConfig {
             disable_cache: self.disable_cache,
             model_spec: self.model_spec.clone(),
             format_hint: None,
+            #[cfg(feature = "video-support")]
+            video_config: None,
         }
     }
 }

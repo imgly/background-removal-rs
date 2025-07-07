@@ -1696,7 +1696,7 @@ mod tests {
         use crate::config::OutputFormat;
 
         let output_dir = Path::new("/output");
-        
+
         // Test basic functionality
         let input = Path::new("test.jpg");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);

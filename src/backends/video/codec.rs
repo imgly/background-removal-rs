@@ -7,7 +7,7 @@ use crate::error::{BgRemovalError, Result};
 use std::fmt;
 
 /// Video codec enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum VideoCodec {
     /// H.264 codec (most compatible)
     H264,
@@ -94,7 +94,7 @@ impl fmt::Display for VideoCodec {
 }
 
 /// Video quality preset
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum QualityPreset {
     /// Fastest encoding, largest file size
     Fast,
@@ -129,7 +129,7 @@ impl QualityPreset {
 }
 
 /// Video encoding configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VideoEncodingConfig {
     /// Video codec to use
     pub codec: VideoCodec,
@@ -203,10 +203,7 @@ impl VideoEncodingConfig {
         if self.quality < min_quality || self.quality > max_quality {
             return Err(BgRemovalError::processing(format!(
                 "Quality {} is out of range for codec {} (valid range: {}-{})",
-                self.quality,
-                self.codec,
-                min_quality,
-                max_quality
+                self.quality, self.codec, min_quality, max_quality
             )));
         }
 
@@ -237,7 +234,7 @@ impl Default for VideoEncodingConfig {
 }
 
 /// Pixel format for video encoding
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PixelFormat {
     /// YUV 4:2:0 (most common)
     Yuv420p,
@@ -351,7 +348,7 @@ mod tests {
     fn test_quality_preset() {
         let fast = QualityPreset::Fast;
         assert_eq!(fast.ffmpeg_preset(), Some("fast"));
-        
+
         let custom = QualityPreset::Custom;
         assert_eq!(custom.ffmpeg_preset(), None);
     }

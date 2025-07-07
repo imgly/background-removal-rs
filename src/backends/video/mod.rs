@@ -139,4 +139,4 @@ pub trait VideoBackend {
 }
 
 /// Type alias for frame stream
-pub type FrameStream = Box<dyn futures::Stream<Item = Result<VideoFrame>> + Unpin + Send>;
+pub type FrameStream = std::pin::Pin<Box<dyn futures::Stream<Item = Result<VideoFrame>> + Send>>;

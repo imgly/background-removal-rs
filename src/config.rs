@@ -5,7 +5,7 @@ use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "video-support")]
-use crate::backends::video::{VideoCodec, VideoEncodingConfig, QualityPreset};
+use crate::backends::video::{QualityPreset, VideoCodec, VideoEncodingConfig};
 
 /// Execution provider options for ONNX Runtime
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,22 +65,22 @@ impl Default for OutputFormat {
 pub struct VideoProcessingConfig {
     /// Video encoding configuration
     pub encoding: VideoEncodingConfig,
-    
+
     /// Number of frames to process in each batch
     pub batch_size: usize,
-    
+
     /// Whether to preserve the original audio track
     pub preserve_audio: bool,
-    
+
     /// Frame rate override (None = use original frame rate)
     pub fps_override: Option<f64>,
-    
+
     /// Whether to enable parallel frame processing
     pub parallel_processing: bool,
-    
+
     /// Maximum number of parallel workers (0 = auto-detect)
     pub max_workers: usize,
-    
+
     /// Temporary directory for frame processing (None = system temp)
     pub temp_dir: Option<std::path::PathBuf>,
 }
@@ -109,55 +109,55 @@ impl VideoProcessingConfig {
             ..Default::default()
         }
     }
-    
+
     /// Set video codec
     pub fn with_codec(mut self, codec: VideoCodec) -> Self {
         self.encoding.codec = codec;
         self
     }
-    
+
     /// Set video quality
     pub fn with_quality(mut self, quality: u8) -> Self {
         self.encoding.quality = quality;
         self
     }
-    
+
     /// Set quality preset
     pub fn with_preset(mut self, preset: QualityPreset) -> Self {
         self.encoding.preset = preset;
         self
     }
-    
+
     /// Set batch size for frame processing
     pub fn with_batch_size(mut self, batch_size: usize) -> Self {
         self.batch_size = batch_size.max(1); // Ensure at least 1
         self
     }
-    
+
     /// Enable or disable audio preservation
     pub fn with_audio_preservation(mut self, preserve: bool) -> Self {
         self.preserve_audio = preserve;
         self
     }
-    
+
     /// Override frame rate
     pub fn with_fps(mut self, fps: f64) -> Self {
         self.fps_override = Some(fps);
         self
     }
-    
+
     /// Enable or disable parallel processing
     pub fn with_parallel_processing(mut self, enabled: bool) -> Self {
         self.parallel_processing = enabled;
         self
     }
-    
+
     /// Set maximum number of workers
     pub fn with_max_workers(mut self, workers: usize) -> Self {
         self.max_workers = workers;
         self
     }
-    
+
     /// Set temporary directory
     pub fn with_temp_dir<P: Into<std::path::PathBuf>>(mut self, dir: P) -> Self {
         self.temp_dir = Some(dir.into());
@@ -222,7 +222,7 @@ impl Default for RemovalConfig {
             model_spec: ModelSpec::default(), // Default: use first available cached model
             format_hint: None,                // Default: auto-detect format
             #[cfg(feature = "video-support")]
-            video_config: None,               // Default: no video processing config
+            video_config: None, // Default: no video processing config
         }
     }
 }
@@ -454,7 +454,9 @@ impl RemovalConfigBuilder {
     #[cfg(feature = "video-support")]
     #[must_use]
     pub fn video_codec(mut self, codec: VideoCodec) -> Self {
-        let video_config = self.config.video_config
+        let video_config = self
+            .config
+            .video_config
             .unwrap_or_default()
             .with_codec(codec);
         self.config.video_config = Some(video_config);
@@ -465,7 +467,9 @@ impl RemovalConfigBuilder {
     #[cfg(feature = "video-support")]
     #[must_use]
     pub fn video_quality(mut self, quality: u8) -> Self {
-        let video_config = self.config.video_config
+        let video_config = self
+            .config
+            .video_config
             .unwrap_or_default()
             .with_quality(quality);
         self.config.video_config = Some(video_config);
@@ -476,7 +480,9 @@ impl RemovalConfigBuilder {
     #[cfg(feature = "video-support")]
     #[must_use]
     pub fn video_batch_size(mut self, batch_size: usize) -> Self {
-        let video_config = self.config.video_config
+        let video_config = self
+            .config
+            .video_config
             .unwrap_or_default()
             .with_batch_size(batch_size);
         self.config.video_config = Some(video_config);
@@ -487,7 +493,9 @@ impl RemovalConfigBuilder {
     #[cfg(feature = "video-support")]
     #[must_use]
     pub fn preserve_audio(mut self, preserve: bool) -> Self {
-        let video_config = self.config.video_config
+        let video_config = self
+            .config
+            .video_config
             .unwrap_or_default()
             .with_audio_preservation(preserve);
         self.config.video_config = Some(video_config);

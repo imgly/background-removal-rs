@@ -232,7 +232,7 @@ impl OutputFormatHandler {
     /// ```
     #[must_use]
     pub fn is_supported_media_format<P: AsRef<Path>>(path: P) -> bool {
-        Self::is_supported_format(&path) || Self::is_video_format(path)
+        crate::services::ImageIOService::is_supported_format(&path) || Self::is_video_format(path)
     }
 
     /// Get a human-readable description of the detected format
@@ -254,7 +254,7 @@ impl OutputFormatHandler {
     #[must_use]
     pub fn describe_format<P: AsRef<Path>>(path: P) -> String {
         let path_ref = path.as_ref();
-        
+
         if Self::is_video_format(path_ref) {
             #[cfg(feature = "video-support")]
             {
@@ -264,8 +264,8 @@ impl OutputFormatHandler {
             }
             return "Video".to_string();
         }
-        
-        if Self::is_supported_format(path_ref) {
+
+        if crate::services::ImageIOService::is_supported_format(path_ref) {
             if let Some(extension) = path_ref.extension() {
                 if let Some(ext_str) = extension.to_str() {
                     return format!("Image ({})", ext_str.to_uppercase());
@@ -273,7 +273,7 @@ impl OutputFormatHandler {
             }
             return "Image".to_string();
         }
-        
+
         "Unknown format".to_string()
     }
 }

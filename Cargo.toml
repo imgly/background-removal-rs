@@ -92,6 +92,9 @@ tokio-util = { version = "0.7", features = ["io"] }
 sha2 = { version = "0.10" }
 futures-util = { version = "0.3" }
 
+# Temporary file handling (for video processing)
+tempfile = "3.0"
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.0"

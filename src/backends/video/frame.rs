@@ -3,7 +3,6 @@
 //! This module defines the core data structures for representing video frames
 //! and their metadata, as well as utilities for frame processing.
 
-use crate::error::Result;
 use image::{DynamicImage, RgbaImage};
 use std::time::Duration;
 
@@ -51,11 +50,7 @@ impl VideoFrame {
     /// * `image` - Source image
     /// * `frame_number` - Sequential frame number  
     /// * `timestamp` - Frame timestamp in the video
-    pub fn from_dynamic_image(
-        image: DynamicImage,
-        frame_number: u64,
-        timestamp: Duration,
-    ) -> Self {
+    pub fn from_dynamic_image(image: DynamicImage, frame_number: u64, timestamp: Duration) -> Self {
         let rgba_image = image.to_rgba8();
         Self::new(rgba_image, frame_number, timestamp)
     }
@@ -105,7 +100,7 @@ impl FrameProcessingStats {
     pub fn add_frame_time(&mut self, processing_time: Duration) {
         self.frames_processed += 1;
         self.total_processing_time += processing_time;
-        
+
         if self.frames_processed > 0 {
             self.average_frame_time = self.total_processing_time / self.frames_processed as u32;
         }
@@ -225,10 +220,7 @@ impl Iterator for FrameBatchIterator {
             return None;
         }
 
-        let end_index = std::cmp::min(
-            self.current_index + self.batch_size,
-            self.frames.len(),
-        );
+        let end_index = std::cmp::min(self.current_index + self.batch_size, self.frames.len());
 
         let batch_frames = self.frames[self.current_index..end_index].to_vec();
         let batch = FrameBatch::new(batch_frames, self.current_batch);
@@ -259,7 +251,7 @@ mod tests {
     #[test]
     fn test_frame_processing_stats() {
         let mut stats = FrameProcessingStats::new();
-        
+
         stats.add_frame_time(Duration::from_millis(100));
         stats.add_frame_time(Duration::from_millis(200));
         stats.mark_frame_failed();
@@ -268,7 +260,7 @@ mod tests {
         assert_eq!(stats.failed_frames, 1);
         assert_eq!(stats.total_processing_time, Duration::from_millis(300));
         assert_eq!(stats.average_frame_time, Duration::from_millis(150));
-        
+
         let expected_success_rate = (2.0 / 3.0) * 100.0;
         assert!((stats.success_rate() - expected_success_rate).abs() < 0.01);
     }
@@ -276,16 +268,8 @@ mod tests {
     #[test]
     fn test_frame_batch() {
         let frames = vec![
-            VideoFrame::new(
-                RgbaImage::new(10, 10),
-                1,
-                Duration::from_millis(33),
-            ),
-            VideoFrame::new(
-                RgbaImage::new(10, 10),
-                2,
-                Duration::from_millis(66),
-            ),
+            VideoFrame::new(RgbaImage::new(10, 10), 1, Duration::from_millis(33)),
+            VideoFrame::new(RgbaImage::new(10, 10), 2, Duration::from_millis(66)),
         ];
 
         let batch = FrameBatch::new(frames, 0);
@@ -297,17 +281,11 @@ mod tests {
     #[test]
     fn test_frame_batch_iterator() {
         let frames = (0..5)
-            .map(|i| {
-                VideoFrame::new(
-                    RgbaImage::new(10, 10),
-                    i,
-                    Duration::from_millis(i * 33),
-                )
-            })
+            .map(|i| VideoFrame::new(RgbaImage::new(10, 10), i, Duration::from_millis(i * 33)))
             .collect();
 
         let mut iter = FrameBatchIterator::new(frames, 2);
-        
+
         let batch1 = iter.next().unwrap();
         assert_eq!(batch1.len(), 2);
         assert_eq!(batch1.batch_number, 0);
@@ -327,15 +305,11 @@ mod tests {
     fn test_dynamic_image_conversion() {
         let rgba_image = RgbaImage::from_pixel(50, 50, Rgba([0, 255, 0, 255]));
         let frame = VideoFrame::new(rgba_image, 1, Duration::from_secs(1));
-        
+
         let dynamic = frame.to_dynamic_image();
         assert_eq!(dynamic.dimensions(), (50, 50));
 
-        let frame_from_dynamic = VideoFrame::from_dynamic_image(
-            dynamic,
-            2,
-            Duration::from_secs(2),
-        );
+        let frame_from_dynamic = VideoFrame::from_dynamic_image(dynamic, 2, Duration::from_secs(2));
         assert_eq!(frame_from_dynamic.frame_number, 2);
         assert_eq!(frame_from_dynamic.dimensions(), (50, 50));
     }

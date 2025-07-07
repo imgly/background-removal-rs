@@ -13,6 +13,9 @@ use std::path::Path;
 // Use instant crate for cross-platform time compatibility
 use instant::Instant;
 
+#[cfg(feature = "video-support")]
+use crate::backends::video::{FrameProcessingStats, VideoMetadata};
+
 /// ICC color profile information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColorProfile {
@@ -1523,6 +1526,178 @@ impl ProcessingMetadata {
 
         // Update detailed timings (move after using fields)
         self.timings = timings;
+    }
+}
+
+/// Video processing result containing processed video data and metadata
+#[cfg(feature = "video-support")]
+#[derive(Debug)]
+pub struct VideoRemovalResult {
+    /// Video data as bytes
+    pub video_data: Vec<u8>,
+    /// Original video metadata
+    pub original_metadata: VideoMetadata,
+    /// Frame processing statistics
+    pub frame_stats: FrameProcessingStats,
+    /// Processing metadata for the video operation
+    pub processing_metadata: ProcessingMetadata,
+    /// Color profile from the original video (if available)
+    pub color_profile: Option<ColorProfile>,
+}
+
+#[cfg(feature = "video-support")]
+impl VideoRemovalResult {
+    /// Create a new video removal result
+    pub fn new(
+        video_data: Vec<u8>,
+        original_metadata: VideoMetadata,
+        frame_stats: FrameProcessingStats,
+        processing_metadata: ProcessingMetadata,
+        color_profile: Option<ColorProfile>,
+    ) -> Self {
+        Self {
+            video_data,
+            original_metadata,
+            frame_stats,
+            processing_metadata,
+            color_profile,
+        }
+    }
+
+    /// Save the processed video to a file
+    ///
+    /// # Arguments
+    /// * `path` - Output file path
+    ///
+    /// # Returns
+    /// * `Ok(())` - Successfully saved video
+    /// * `Err(BgRemovalError)` - Failed to save video
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// # #[cfg(feature = "video-support")]
+    /// # {
+    /// use imgly_bgremove::VideoRemovalResult;
+    ///
+    /// # async fn example(result: VideoRemovalResult) -> anyhow::Result<()> {
+    /// result.save("output.mp4")?;
+    /// # Ok(())
+    /// # }
+    /// # }
+    /// ```
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        std::fs::write(path.as_ref(), &self.video_data)
+            .map_err(|e| BgRemovalError::file_io_error("write video file", path.as_ref(), &e))?;
+        Ok(())
+    }
+
+    /// Save the processed video to a file with specific codec settings
+    ///
+    /// # Arguments
+    /// * `path` - Output file path
+    /// * `codec` - Video codec to use for encoding
+    /// * `quality` - Encoding quality (codec-specific)
+    ///
+    /// # Returns
+    /// * `Ok(())` - Successfully saved video
+    /// * `Err(BgRemovalError)` - Failed to save video
+    pub fn save_with_codec<P: AsRef<Path>>(
+        &self,
+        path: P,
+        _codec: crate::backends::video::VideoCodec,
+        _quality: u8,
+    ) -> Result<()> {
+        // For now, just save the existing data
+        // In a full implementation, this would re-encode with the specified codec
+        self.save(path)
+    }
+
+    /// Write video data to an async writer
+    ///
+    /// # Arguments
+    /// * `writer` - Async writer destination
+    ///
+    /// # Returns
+    /// Number of bytes written
+    pub async fn write_to<W>(&self, mut writer: W) -> Result<u64>
+    where
+        W: tokio::io::AsyncWrite + Unpin,
+    {
+        use tokio::io::AsyncWriteExt;
+
+        writer.write_all(&self.video_data).await.map_err(|e| {
+            BgRemovalError::processing(format!("Failed to write video data: {}", e))
+        })?;
+
+        writer.flush().await.map_err(|e| {
+            BgRemovalError::processing(format!("Failed to flush video data: {}", e))
+        })?;
+
+        Ok(self.video_data.len() as u64)
+    }
+
+    /// Get video data as bytes
+    pub fn to_bytes(&self) -> &[u8] {
+        &self.video_data
+    }
+
+    /// Get video data size in bytes
+    pub fn size(&self) -> usize {
+        self.video_data.len()
+    }
+
+    /// Get video duration in seconds
+    pub fn duration(&self) -> f64 {
+        self.original_metadata.duration
+    }
+
+    /// Get video dimensions
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.original_metadata.width, self.original_metadata.height)
+    }
+
+    /// Get video frame rate
+    pub fn fps(&self) -> f64 {
+        self.original_metadata.fps
+    }
+
+    /// Get processing success rate
+    pub fn success_rate(&self) -> f64 {
+        self.frame_stats.success_rate()
+    }
+
+    /// Get average processing time per frame
+    pub fn average_frame_time(&self) -> std::time::Duration {
+        self.frame_stats.average_frame_time
+    }
+
+    /// Get total frames processed
+    pub fn frames_processed(&self) -> u64 {
+        self.frame_stats.frames_processed
+    }
+
+    /// Generate a summary report of the video processing
+    pub fn summary(&self) -> String {
+        format!(
+            "Video Processing Summary:\n\
+             - Duration: {:.2}s\n\
+             - Dimensions: {}x{}\n\
+             - Frame Rate: {:.2} fps\n\
+             - Frames Processed: {}\n\
+             - Success Rate: {:.1}%\n\
+             - Average Frame Time: {:.2}ms\n\
+             - Total Processing Time: {:.2}s\n\
+             - Output Size: {:.2} MB",
+            self.duration(),
+            self.original_metadata.width,
+            self.original_metadata.height,
+            self.fps(),
+            self.frames_processed(),
+            self.success_rate(),
+            self.average_frame_time().as_secs_f64() * 1000.0,
+            self.frame_stats.total_processing_time.as_secs_f64(),
+            self.size() as f64 / (1024.0 * 1024.0)
+        )
     }
 }
 

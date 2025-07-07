@@ -5,7 +5,7 @@
 
 #[cfg(feature = "video-support")]
 use crate::{
-    backends::video::{VideoBackend, VideoFormat, VideoMetadata, VideoFrame, FrameStream},
+    backends::video::{FrameStream, VideoBackend, VideoFormat, VideoFrame, VideoMetadata},
     error::{BgRemovalError, Result},
 };
 
@@ -13,7 +13,7 @@ use crate::{
 use async_trait::async_trait;
 
 #[cfg(feature = "video-support")]
-use futures::{stream, Stream, StreamExt};
+use futures::{stream, StreamExt};
 
 #[cfg(feature = "video-support")]
 use std::{path::Path, time::Duration};
@@ -22,7 +22,7 @@ use std::{path::Path, time::Duration};
 use ffmpeg_next as ffmpeg;
 
 #[cfg(feature = "video-support")]
-use image::{RgbaImage, ImageBuffer};
+use image::RgbaImage;
 
 /// FFmpeg video backend implementation
 #[cfg(feature = "video-support")]
@@ -50,8 +50,9 @@ impl FFmpegBackend {
     }
 
     /// Convert FFmpeg frame to VideoFrame
+    #[allow(dead_code)]
     fn convert_frame(
-        frame: &ffmpeg::Frame,
+        frame: &ffmpeg::util::frame::video::Video,
         frame_number: u64,
         time_base: ffmpeg::Rational,
     ) -> Result<VideoFrame> {
@@ -68,18 +69,16 @@ impl FFmpegBackend {
             height,
             ffmpeg::software::scaling::Flags::BILINEAR,
         )
-        .map_err(|e| {
-            BgRemovalError::processing(format!("Failed to create frame scaler: {}", e))
-        })?;
+        .map_err(|e| BgRemovalError::processing(format!("Failed to create frame scaler: {}", e)))?;
 
-        let mut rgba_frame = ffmpeg::Frame::empty();
+        let mut rgba_frame = ffmpeg::util::frame::video::Video::empty();
         scaler.run(frame, &mut rgba_frame).map_err(|e| {
             BgRemovalError::processing(format!("Failed to convert frame to RGBA: {}", e))
         })?;
 
         // Extract RGBA data
         let data = rgba_frame.data(0);
-        let stride = rgba_frame.stride(0);
+        let stride = rgba_frame.stride(0) as u32;
 
         // Create RGBA image from frame data
         let mut rgba_image = RgbaImage::new(width, height);
@@ -140,22 +139,19 @@ impl VideoBackend for FFmpegBackend {
         backend.ensure_initialized()?;
 
         let path = input_path.to_path_buf();
-        
-        // Create async stream of frames
-        let frame_stream = stream::unfold(
-            (path, 0u64),
-            move |(path, frame_count)| async move {
-                // This is a simplified implementation - in practice, we'd need to
-                // handle the FFmpeg context properly across async boundaries
-                match Self::extract_single_frame(&path, frame_count).await {
-                    Ok(Some(frame)) => Some((Ok(frame), (path, frame_count + 1))),
-                    Ok(None) => None, // End of video
-                    Err(e) => Some((Err(e), (path, frame_count + 1))),
-                }
-            },
-        );
 
-        Ok(Box::new(frame_stream))
+        // Create async stream of frames
+        let frame_stream = stream::unfold((path, 0u64), move |(path, frame_count)| async move {
+            // This is a simplified implementation - in practice, we'd need to
+            // handle the FFmpeg context properly across async boundaries
+            match Self::extract_single_frame(&path, frame_count).await {
+                Ok(Some(frame)) => Some((Ok(frame), (path, frame_count + 1))),
+                Ok(None) => None, // End of video
+                Err(e) => Some((Err(e), (path, frame_count + 1))),
+            }
+        });
+
+        Ok(Box::pin(frame_stream))
     }
 
     async fn reassemble_video(
@@ -163,7 +159,7 @@ impl VideoBackend for FFmpegBackend {
         mut frames: FrameStream,
         output_path: &Path,
         metadata: &VideoMetadata,
-        preserve_audio: bool,
+        _preserve_audio: bool,
     ) -> Result<()> {
         let mut backend = self.clone();
         backend.ensure_initialized()?;
@@ -188,14 +184,17 @@ impl VideoBackend for FFmpegBackend {
         while let Some(frame_result) = frames.next().await {
             let _frame = frame_result?;
             frame_count += 1;
-            
+
             // Update progress occasionally
             if frame_count % 30 == 0 {
                 log::debug!("Processed {} frames", frame_count);
             }
         }
 
-        log::info!("Video reassembly completed: {} frames processed", frame_count);
+        log::info!(
+            "Video reassembly completed: {} frames processed",
+            frame_count
+        );
         Ok(())
     }
 
@@ -218,10 +217,10 @@ impl VideoBackend for FFmpegBackend {
                 BgRemovalError::processing("No video stream found in file".to_string())
             })?;
 
-        let codec_context = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())
-            .map_err(|e| {
-                BgRemovalError::processing(format!("Failed to create codec context: {}", e))
-            })?;
+        let codec_context =
+            ffmpeg::codec::context::Context::from_parameters(video_stream.parameters()).map_err(
+                |e| BgRemovalError::processing(format!("Failed to create codec context: {}", e)),
+            )?;
 
         let decoder = codec_context.decoder().video().map_err(|e| {
             BgRemovalError::processing(format!("Failed to create video decoder: {}", e))
@@ -233,13 +232,10 @@ impl VideoBackend for FFmpegBackend {
         let fps = f64::from(video_stream.avg_frame_rate());
         let duration = video_stream.duration() as f64 * f64::from(video_stream.time_base());
         let format = Self::detect_video_format(input_path)?;
-        let codec = decoder.id().name().unwrap_or("unknown").to_string();
-        
+        let codec = decoder.id().name().to_string();
+
         // Check for audio stream
-        let has_audio = input
-            .streams()
-            .best(ffmpeg::media::Type::Audio)
-            .is_some();
+        let has_audio = input.streams().best(ffmpeg::media::Type::Audio).is_some();
 
         Ok(VideoMetadata {
             duration,
@@ -276,10 +272,7 @@ impl Clone for FFmpegBackend {
 #[cfg(feature = "video-support")]
 impl FFmpegBackend {
     /// Extract a single frame (helper function for stream implementation)
-    async fn extract_single_frame(
-        _path: &Path,
-        _frame_number: u64,
-    ) -> Result<Option<VideoFrame>> {
+    async fn extract_single_frame(_path: &Path, _frame_number: u64) -> Result<Option<VideoFrame>> {
         // This is a placeholder implementation
         // In practice, this would involve:
         // 1. Opening the video file
@@ -287,7 +280,7 @@ impl FFmpegBackend {
         // 3. Decoding the frame
         // 4. Converting to VideoFrame
         // 5. Returning the frame or None if end of video
-        
+
         // For now, return None to indicate end of stream
         Ok(None)
     }
