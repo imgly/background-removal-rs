@@ -317,12 +317,12 @@ pub async fn remove_background_from_video_file<P: AsRef<std::path::Path>>(
     input_path: P,
     config: &RemovalConfig,
 ) -> Result<VideoRemovalResult> {
-    use crate::backends::video::{FFmpegBackend, VideoBackend};
+    use crate::backends::video::{FfmpegBackend, VideoBackend};
     use crate::processor::BackgroundRemovalProcessor;
     use crate::types::ProcessingMetadata;
     use futures::StreamExt;
 
-    let backend = FFmpegBackend::new()?;
+    let backend = FfmpegBackend::new()?;
     let metadata = backend.get_metadata(input_path.as_ref()).await?;
 
     // Extract frames

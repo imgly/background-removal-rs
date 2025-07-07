@@ -15,6 +15,10 @@ description = "Consolidated background removal library with ONNX and Tract backe
 name = "imgly-bgremove"
 path = "src/bin/imgly-bgremove.rs"
 
+[[bin]]
+name = "test_video"
+path = "src/bin/test_video.rs"
+
 [features]
 # Default: include all backends and CLI functionality
 default = ["onnx", "tract", "cli", "webp-support", "video-support"]

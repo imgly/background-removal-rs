@@ -1,421 +1,378 @@
-//! FFmpeg integration for video processing
+//! FFmpeg-based video processing backend
 //!
-//! This module provides the main FFmpeg backend implementation for video
-//! frame extraction, processing, and reassembly using the ffmpeg-next crate.
+//! This module provides video processing capabilities using FFmpeg for frame extraction,
+//! processing, and video reassembly.
 
-#[cfg(feature = "video-support")]
-use crate::{
-    backends::video::{FrameStream, VideoBackend, VideoFormat, VideoFrame, VideoMetadata},
-    error::{BgRemovalError, Result},
-};
-
-#[cfg(feature = "video-support")]
+use crate::backends::video::{FrameStream, VideoBackend, VideoFormat, VideoFrame, VideoMetadata};
+use crate::error::{BgRemovalError, Result};
 use async_trait::async_trait;
-
-#[cfg(feature = "video-support")]
 use futures::StreamExt;
+use image::RgbaImage;
+use log::{info, warn};
+use std::path::Path;
+use std::time::Duration;
 
-#[cfg(feature = "video-support")]
-use std::{path::Path, time::Duration};
-
-#[cfg(feature = "video-support")]
+// Re-export ffmpeg-next as ffmpeg for simpler usage
 use ffmpeg_next as ffmpeg;
 
-#[cfg(feature = "video-support")]
-use image::RgbaImage;
+/// FFmpeg-based video processing backend
+pub struct FfmpegBackend;
 
-#[cfg(feature = "video-support")]
-use tokio_stream::wrappers::ReceiverStream;
-
-/// FFmpeg video backend implementation
-#[cfg(feature = "video-support")]
-pub struct FFmpegBackend {
-    /// Whether FFmpeg has been initialized
-    initialized: bool,
-}
-
-#[cfg(feature = "video-support")]
-impl FFmpegBackend {
+impl FfmpegBackend {
     /// Create a new FFmpeg backend
     pub fn new() -> Result<Self> {
-        Ok(Self { initialized: false })
-    }
-
-    /// Initialize FFmpeg
-    fn ensure_initialized(&mut self) -> Result<()> {
-        if !self.initialized {
-            ffmpeg::init().map_err(|e| {
-                BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
-            })?;
-            self.initialized = true;
-        }
-        Ok(())
-    }
-
-    /// Convert FFmpeg frame to VideoFrame
-    fn convert_frame(
-        frame: &ffmpeg::util::frame::video::Video,
-        frame_number: u64,
-        time_base: ffmpeg::Rational,
-    ) -> Result<VideoFrame> {
-        let width = frame.width();
-        let height = frame.height();
-
-        // Convert frame to RGBA format
-        let mut scaler = ffmpeg::software::scaling::Context::get(
-            frame.format(),
-            width,
-            height,
-            ffmpeg::format::Pixel::RGBA,
-            width,
-            height,
-            ffmpeg::software::scaling::Flags::BILINEAR,
-        )
-        .map_err(|e| BgRemovalError::processing(format!("Failed to create frame scaler: {}", e)))?;
-
-        let mut rgba_frame = ffmpeg::util::frame::video::Video::empty();
-        scaler.run(frame, &mut rgba_frame).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to convert frame to RGBA: {}", e))
-        })?;
-
-        // Extract RGBA data
-        let data = rgba_frame.data(0);
-        let stride = rgba_frame.stride(0) as u32;
-
-        // Create RGBA image from frame data
-        let mut rgba_image = RgbaImage::new(width, height);
-        for y in 0..height {
-            let row_start = (y * stride as u32) as usize;
-            for x in 0..width {
-                let pixel_start = row_start + (x * 4) as usize;
-                if pixel_start + 3 < data.len() {
-                    let pixel = image::Rgba([
-                        data[pixel_start],
-                        data[pixel_start + 1],
-                        data[pixel_start + 2],
-                        data[pixel_start + 3],
-                    ]);
-                    rgba_image.put_pixel(x, y, pixel);
-                }
-            }
-        }
-
-        // Calculate timestamp
-        let timestamp_seconds = if let Some(pts) = frame.pts() {
-            pts as f64 * time_base.numerator() as f64 / time_base.denominator() as f64
-        } else {
-            frame_number as f64 / 30.0 // Fallback to 30fps assumption
-        };
-
-        let timestamp = Duration::from_secs_f64(timestamp_seconds);
-        Ok(VideoFrame::new(rgba_image, frame_number, timestamp))
-    }
-
-    /// Extract video format from FFmpeg format context
-    fn detect_video_format(path: &Path) -> Result<VideoFormat> {
-        let extension = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .ok_or_else(|| {
-                BgRemovalError::processing("Cannot determine video format from path".to_string())
-            })?;
-
-        VideoFormat::from_extension(extension).ok_or_else(|| {
-            BgRemovalError::processing(format!("Unsupported video format: {}", extension))
-        })
+        Ok(Self)
     }
 }
 
-#[cfg(feature = "video-support")]
-impl Default for FFmpegBackend {
+impl Default for FfmpegBackend {
     fn default() -> Self {
-        Self::new().unwrap_or_else(|_| Self { initialized: false })
+        Self::new().expect("Failed to create FFmpeg backend")
     }
 }
 
-#[cfg(feature = "video-support")]
 #[async_trait]
-impl VideoBackend for FFmpegBackend {
+impl VideoBackend for FfmpegBackend {
     async fn extract_frames(&self, input_path: &Path) -> Result<FrameStream> {
-        // Initialize FFmpeg globally if needed
-        if !self.initialized {
-            ffmpeg::init().map_err(|e| {
-                BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
-            })?;
-        }
+        info!("Extracting frames from {}", input_path.display());
+
+        // Initialize FFmpeg
+        ffmpeg::init().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
+        })?;
 
         // Open input file
-        let mut input = ffmpeg::format::input(input_path).map_err(|e| {
-            BgRemovalError::processing(format!(
-                "Failed to open video file {}: {}",
-                input_path.display(),
-                e
-            ))
+        let mut input = ffmpeg::format::input(&input_path).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to open input video: {}", e))
         })?;
 
-        // Find video stream
+        // Find the best video stream
         let video_stream_index = input
             .streams()
             .best(ffmpeg::media::Type::Video)
-            .ok_or_else(|| BgRemovalError::processing("No video stream found in file".to_string()))?
+            .ok_or_else(|| BgRemovalError::processing("No video stream found".to_string()))?
             .index();
 
-        // Get video stream info
+        // Get video decoder
         let video_stream = input.stream(video_stream_index).unwrap();
-        let time_base = video_stream.time_base();
-
-        // Create decoder
-        let context_decoder =
+        let time_base = video_stream.time_base(); // Get time_base before mutable borrow
+        let decoder_context =
             ffmpeg::codec::context::Context::from_parameters(video_stream.parameters()).map_err(
-                |e| BgRemovalError::processing(format!("Failed to create codec context: {}", e)),
+                |e| BgRemovalError::processing(format!("Failed to create decoder context: {}", e)),
             )?;
-
-        let mut decoder = context_decoder.decoder().video().map_err(|e| {
+        let mut decoder = decoder_context.decoder().video().map_err(|e| {
             BgRemovalError::processing(format!("Failed to create video decoder: {}", e))
         })?;
 
-        // Create channel for frame transfer
-        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        // Extract all frames synchronously first
+        let mut frames = Vec::new();
 
-        // Spawn blocking task for FFmpeg operations
-        tokio::task::spawn_blocking(move || {
-            let mut frame_number = 0u64;
-            let mut packet_count = 0;
+        // Use better scaling flags for higher quality
+        let scaling_flags = ffmpeg::software::scaling::Flags::LANCZOS
+            | ffmpeg::software::scaling::Flags::ACCURATE_RND
+            | ffmpeg::software::scaling::Flags::FULL_CHR_H_INT;
 
-            // Process packets
-            for (stream, packet) in input.packets() {
-                if stream.index() == video_stream_index {
-                    packet_count += 1;
+        let mut scaler = ffmpeg::software::scaling::Context::get(
+            decoder.format(),
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::format::Pixel::RGBA,
+            decoder.width(),
+            decoder.height(),
+            scaling_flags,
+        )
+        .map_err(|e| BgRemovalError::processing(format!("Failed to create scaler: {}", e)))?;
 
-                    // Send packet to decoder
-                    if let Err(e) = decoder.send_packet(&packet) {
-                        log::error!("Failed to send packet to decoder: {}", e);
+        for (stream, packet) in input.packets() {
+            if stream.index() == video_stream_index {
+                info!("Processing packet for stream {}", stream.index());
+                decoder.send_packet(&packet).map_err(|e| {
+                    BgRemovalError::processing(format!("Failed to send packet to decoder: {}", e))
+                })?;
+
+                let mut decoded_frame = ffmpeg::frame::Video::empty();
+                while decoder.receive_frame(&mut decoded_frame).is_ok() {
+                    info!("Received frame from decoder");
+                    let mut rgba_frame = ffmpeg::frame::Video::empty();
+                    scaler.run(&decoded_frame, &mut rgba_frame).map_err(|e| {
+                        BgRemovalError::processing(format!("Failed to scale frame: {}", e))
+                    })?;
+
+                    // Convert FFmpeg frame to our VideoFrame
+                    let width = rgba_frame.width();
+                    let height = rgba_frame.height();
+                    let data = rgba_frame.data(0);
+                    let stride = rgba_frame.stride(0) as usize;
+
+                    // Validate frame dimensions
+                    if width == 0 || height == 0 {
+                        warn!(
+                            "Skipping frame with invalid dimensions: {}x{}",
+                            width, height
+                        );
                         continue;
                     }
 
-                    // Receive decoded frames
-                    let mut decoded = ffmpeg::util::frame::video::Video::empty();
-                    while decoder.receive_frame(&mut decoded).is_ok() {
-                        // Convert frame to VideoFrame
-                        match FFmpegBackend::convert_frame(&decoded, frame_number, time_base) {
-                            Ok(video_frame) => {
-                                if tx.blocking_send(Ok(video_frame)).is_err() {
-                                    // Receiver dropped, stop processing
-                                    return;
+                    let row_bytes = (width * 4) as usize; // 4 bytes per RGBA pixel
+                    let mut image_data = vec![0u8; (width * height * 4) as usize];
+
+                    // Copy row by row, handling stride properly
+                    for y in 0..height {
+                        let src_row_start = (y as usize) * stride;
+                        let src_row_end = src_row_start + row_bytes;
+                        let dst_row_start = (y as usize) * row_bytes;
+                        let dst_row_end = dst_row_start + row_bytes;
+
+                        // Validate bounds before copying
+                        if src_row_end <= data.len() && dst_row_end <= image_data.len() {
+                            image_data[dst_row_start..dst_row_end]
+                                .copy_from_slice(&data[src_row_start..src_row_end]);
+                        } else {
+                            warn!("Frame data bounds check failed at row {}: src_end={}, data_len={}, dst_end={}, image_len={}", 
+                                  y, src_row_end, data.len(), dst_row_end, image_data.len());
+                            // Fill with transparent pixels for safety
+                            if dst_row_end <= image_data.len() {
+                                for i in (dst_row_start..dst_row_end).step_by(4) {
+                                    if i + 3 < image_data.len() {
+                                        image_data[i] = 0; // R
+                                        image_data[i + 1] = 0; // G
+                                        image_data[i + 2] = 0; // B
+                                        image_data[i + 3] = 0; // A (transparent)
+                                    }
                                 }
-                                frame_number += 1;
-                            },
-                            Err(e) => {
-                                log::error!("Failed to convert frame {}: {}", frame_number, e);
-                                if tx.blocking_send(Err(e)).is_err() {
-                                    return;
-                                }
-                            },
+                            }
+                        }
+                    }
+
+                    let rgba_image =
+                        RgbaImage::from_raw(width, height, image_data).ok_or_else(|| {
+                            BgRemovalError::processing("Failed to create RGBA image".to_string())
+                        })?;
+
+                    let frame_number = frames.len() as u64;
+
+                    // Calculate proper timestamp from PTS and time base
+                    let pts = decoded_frame.pts().unwrap_or(0);
+                    let timestamp_seconds =
+                        pts as f64 * time_base.numerator() as f64 / time_base.denominator() as f64;
+                    let timestamp = Duration::from_secs_f64(timestamp_seconds.max(0.0));
+
+                    let video_frame = VideoFrame {
+                        image: rgba_image,
+                        frame_number,
+                        timestamp,
+                        width,
+                        height,
+                    };
+
+                    // Validate frame before adding to collection
+                    if let Err(validation_error) = video_frame.validate() {
+                        warn!("Frame {} validation failed: {}", frame_number, validation_error);
+                        continue;
+                    }
+
+                    if video_frame.is_likely_corrupted() {
+                        warn!("Frame {} appears to be corrupted, skipping", frame_number);
+                        continue;
+                    }
+
+                    frames.push(Ok(video_frame));
+                }
+            }
+        }
+
+        // Flush decoder
+        decoder.send_eof().ok();
+        let mut decoded_frame = ffmpeg::frame::Video::empty();
+        while decoder.receive_frame(&mut decoded_frame).is_ok() {
+            let mut rgba_frame = ffmpeg::frame::Video::empty();
+            scaler
+                .run(&decoded_frame, &mut rgba_frame)
+                .map_err(|e| BgRemovalError::processing(format!("Failed to scale frame: {}", e)))?;
+
+            // Convert final frames with proper stride handling
+            let width = rgba_frame.width();
+            let height = rgba_frame.height();
+            let data = rgba_frame.data(0);
+            let stride = rgba_frame.stride(0) as usize;
+
+            // Validate frame dimensions
+            if width == 0 || height == 0 {
+                warn!(
+                    "Skipping final frame with invalid dimensions: {}x{}",
+                    width, height
+                );
+                continue;
+            }
+
+            let row_bytes = (width * 4) as usize; // 4 bytes per RGBA pixel
+            let mut image_data = vec![0u8; (width * height * 4) as usize];
+
+            // Copy row by row, handling stride properly
+            for y in 0..height {
+                let src_row_start = (y as usize) * stride;
+                let src_row_end = src_row_start + row_bytes;
+                let dst_row_start = (y as usize) * row_bytes;
+                let dst_row_end = dst_row_start + row_bytes;
+
+                // Validate bounds before copying
+                if src_row_end <= data.len() && dst_row_end <= image_data.len() {
+                    image_data[dst_row_start..dst_row_end]
+                        .copy_from_slice(&data[src_row_start..src_row_end]);
+                } else {
+                    warn!("Final frame data bounds check failed at row {}: src_end={}, data_len={}, dst_end={}, image_len={}", 
+                          y, src_row_end, data.len(), dst_row_end, image_data.len());
+                    // Fill with transparent pixels for safety
+                    if dst_row_end <= image_data.len() {
+                        for i in (dst_row_start..dst_row_end).step_by(4) {
+                            if i + 3 < image_data.len() {
+                                image_data[i] = 0; // R
+                                image_data[i + 1] = 0; // G
+                                image_data[i + 2] = 0; // B
+                                image_data[i + 3] = 0; // A (transparent)
+                            }
                         }
                     }
                 }
             }
 
-            // Send remaining frames
-            decoder.send_eof().ok();
-            let mut decoded = ffmpeg::util::frame::video::Video::empty();
-            while decoder.receive_frame(&mut decoded).is_ok() {
-                match FFmpegBackend::convert_frame(&decoded, frame_number, time_base) {
-                    Ok(video_frame) => {
-                        if tx.blocking_send(Ok(video_frame)).is_err() {
-                            return;
-                        }
-                        frame_number += 1;
-                    },
-                    Err(e) => {
-                        log::error!("Failed to convert frame {}: {}", frame_number, e);
-                        if tx.blocking_send(Err(e)).is_err() {
-                            return;
-                        }
-                    },
-                }
+            let rgba_image = RgbaImage::from_raw(width, height, image_data).ok_or_else(|| {
+                BgRemovalError::processing("Failed to create RGBA image".to_string())
+            })?;
+
+            let frame_number = frames.len() as u64;
+
+            // Calculate proper timestamp from PTS and time base
+            let pts = decoded_frame.pts().unwrap_or(0);
+            let timestamp_seconds =
+                pts as f64 * time_base.numerator() as f64 / time_base.denominator() as f64;
+            let timestamp = Duration::from_secs_f64(timestamp_seconds.max(0.0));
+
+            let video_frame = VideoFrame {
+                image: rgba_image,
+                frame_number,
+                timestamp,
+                width,
+                height,
+            };
+
+            // Validate frame before adding to collection
+            if let Err(validation_error) = video_frame.validate() {
+                warn!("Final frame {} validation failed: {}", frame_number, validation_error);
+                continue;
             }
 
-            log::info!(
-                "Extracted {} frames from {} packets",
-                frame_number,
-                packet_count
-            );
-        });
+            if video_frame.is_likely_corrupted() {
+                warn!("Final frame {} appears to be corrupted, skipping", frame_number);
+                continue;
+            }
 
-        // Convert receiver to stream
-        let frame_stream = ReceiverStream::new(rx);
-        Ok(Box::pin(frame_stream))
+            frames.push(Ok(video_frame));
+        }
+
+        info!("Extracted {} frames", frames.len());
+
+        // Convert to async stream
+        let stream = futures::stream::iter(frames);
+        Ok(Box::pin(stream))
     }
 
     async fn reassemble_video(
         &self,
-        mut frames: FrameStream,
+        frames: FrameStream,
         output_path: &Path,
         metadata: &VideoMetadata,
         preserve_audio: bool,
     ) -> Result<()> {
-        log::info!(
-            "Reassembling video to {} with {}x{} resolution at {:.2} fps",
-            output_path.display(),
-            metadata.width,
-            metadata.height,
-            metadata.fps
-        );
+        // Collect frames first to avoid borrow checker issues with async
+        let mut collected_frames = Vec::new();
+        let mut frames_pin = std::pin::pin!(frames);
 
-        // Create output directory if it doesn't exist
-        if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to create output directory: {}", e))
-            })?;
+        while let Some(frame_result) = StreamExt::next(&mut frames_pin).await {
+            collected_frames.push(frame_result?);
         }
 
-        // For now, create a simple text file explaining the current state
-        // and save frames to a directory for user access
-        let output_dir = output_path.with_extension("frames");
-        std::fs::create_dir_all(&output_dir).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to create frames directory: {}", e))
-        })?;
+        // Run encoding in blocking task to avoid Send issues with FFmpeg
+        let output_path = output_path.to_owned();
+        let metadata = metadata.clone();
 
-        let mut frame_count = 0;
-        while let Some(frame_result) = frames.next().await {
-            let frame = frame_result?;
-            
-            // Save frame as PNG
-            let frame_path = output_dir.join(format!("frame_{:06}.png", frame_count));
-            frame.image.save(&frame_path).map_err(|e| {
-                BgRemovalError::processing(format!("Failed to save frame {}: {}", frame_count, e))
-            })?;
-
-            frame_count += 1;
-
-            // Update progress occasionally
-            if frame_count % 30 == 0 {
-                log::debug!("Processed {} frames", frame_count);
-            }
-        }
-
-        // Create a simple text file with metadata and instructions
-        let readme_path = output_dir.join("README.txt");
-        let readme_content = format!(
-            "Background Removal Video Processing Results\n\
-             ==========================================\n\
-             \n\
-             Original video: {}\n\
-             Duration: {:.2}s\n\
-             Resolution: {}x{}\n\
-             FPS: {:.2}\n\
-             Codec: {}\n\
-             Has Audio: {}\n\
-             Frames Processed: {}\n\
-             \n\
-             FRAME EXPORT COMPLETE\n\
-             ---------------------\n\
-             This directory contains individual processed frames with background removal applied.\n\
-             Each frame has been processed through the AI model to remove the background.\n\
-             \n\
-             TO CREATE A VIDEO:\n\
-             Use FFmpeg to reassemble these frames into a video:\n\
-             \n\
-             # Basic video creation (no audio):\n\
-             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libx264 -pix_fmt yuv420p output.mp4\n\
-             \n\
-             # With higher quality settings:\n\
-             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p output.mp4\n\
-             \n\
-             # To preserve transparency (WebM format):\n\
-             ffmpeg -framerate {:.2} -i frame_%06d.png -c:v libvpx-vp9 -pix_fmt yuva420p output.webm\n\
-             \n\
-             For more advanced options, refer to FFmpeg documentation.\n\
-             Full video encoding will be implemented in a future update of this tool.\n",
-            output_path.display(),
-            metadata.duration,
-            metadata.width,
-            metadata.height,
-            metadata.fps,
-            metadata.codec,
-            metadata.has_audio,
-            frame_count,
-            metadata.fps,
-            metadata.fps,
-            metadata.fps
-        );
-
-        std::fs::write(&readme_path, readme_content).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write README file: {}", e))
-        })?;
-
-        // Create a placeholder message in the output file
-        let info_message = format!(
-            "Background removal video processing completed.\n\
-             {} frames were processed and saved to: {}\n\
-             \n\
-             See the README.txt file in that directory for instructions on creating a video.\n\
-             \n\
-             Full video encoding will be implemented in a future update.\n",
-            frame_count,
-            output_dir.display()
-        );
-
-        std::fs::write(output_path, info_message).map_err(|e| {
-            BgRemovalError::processing(format!("Failed to write output file: {}", e))
-        })?;
-
-        log::info!(
-            "Video processing completed: {} frames saved to {}",
-            frame_count,
-            output_dir.display()
-        );
-        log::info!(
-            "Check {} for instructions on creating a video from the processed frames",
-            readme_path.display()
-        );
-
-        if preserve_audio && metadata.has_audio {
-            log::warn!("Audio preservation not yet implemented - audio track will be lost");
-        }
+        tokio::task::spawn_blocking(move || {
+            Self::encode_frames_sync(collected_frames, &output_path, &metadata, preserve_audio)
+        })
+        .await
+        .map_err(|e| BgRemovalError::processing(format!("Task join error: {}", e)))??;
 
         Ok(())
     }
 
     async fn get_metadata(&self, input_path: &Path) -> Result<VideoMetadata> {
-        let mut backend = self.clone();
-        backend.ensure_initialized()?;
+        info!("Getting metadata for {}", input_path.display());
 
-        let input = ffmpeg::format::input(input_path).map_err(|e| {
-            BgRemovalError::processing(format!(
-                "Failed to open video file {}: {}",
-                input_path.display(),
-                e
-            ))
+        // Initialize FFmpeg
+        ffmpeg::init().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
         })?;
 
+        // Open input file
+        let input = ffmpeg::format::input(&input_path).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to open input video: {}", e))
+        })?;
+
+        // Find the best video stream
         let video_stream = input
             .streams()
             .best(ffmpeg::media::Type::Video)
-            .ok_or_else(|| {
-                BgRemovalError::processing("No video stream found in file".to_string())
-            })?;
+            .ok_or_else(|| BgRemovalError::processing("No video stream found".to_string()))?;
 
-        let codec_context =
+        // Extract metadata
+        let duration = input.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE);
+
+        // Get actual video dimensions from decoder parameters
+        let decoder_context =
             ffmpeg::codec::context::Context::from_parameters(video_stream.parameters()).map_err(
-                |e| BgRemovalError::processing(format!("Failed to create codec context: {}", e)),
+                |e| BgRemovalError::processing(format!("Failed to create decoder context: {}", e)),
             )?;
-
-        let decoder = codec_context.decoder().video().map_err(|e| {
+        let decoder = decoder_context.decoder().video().map_err(|e| {
             BgRemovalError::processing(format!("Failed to create video decoder: {}", e))
         })?;
 
-        // Extract metadata
+        // Extract actual dimensions from decoder
         let width = decoder.width();
         let height = decoder.height();
-        let fps = f64::from(video_stream.avg_frame_rate());
-        let duration = video_stream.duration() as f64 * f64::from(video_stream.time_base());
-        let format = FFmpegBackend::detect_video_format(input_path)?;
-        let codec = decoder.id().name().to_string();
+
+        // Validate dimensions
+        if width == 0 || height == 0 {
+            return Err(BgRemovalError::processing(format!(
+                "Invalid video dimensions: {}x{}",
+                width, height
+            )));
+        }
+
+        let fps = video_stream.avg_frame_rate().numerator() as f64
+            / video_stream.avg_frame_rate().denominator() as f64;
+
+        // Detect format from file extension
+        let format = input_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(VideoFormat::from_extension)
+            .unwrap_or(VideoFormat::Mp4);
 
         // Check for audio stream
-        let has_audio = input.streams().best(ffmpeg::media::Type::Audio).is_some();
+        let has_audio = input
+            .streams()
+            .any(|s| s.parameters().medium() == ffmpeg::media::Type::Audio);
+
+        // Get codec name
+        let codec = video_stream.parameters().id().name().to_string();
+
+        // Estimate bitrate
+        let bitrate = input.bit_rate() as u64;
+
+        info!(
+            "Video metadata extracted: {}x{} at {:.2} fps, duration: {:.2}s, codec: {}",
+            width, height, fps, duration, codec
+        );
 
         Ok(VideoMetadata {
             duration,
@@ -424,7 +381,7 @@ impl VideoBackend for FFmpegBackend {
             fps,
             format,
             codec,
-            bitrate: None, // Could be extracted from stream if needed
+            bitrate: if bitrate > 0 { Some(bitrate) } else { None },
             has_audio,
         })
     }
@@ -440,31 +397,221 @@ impl VideoBackend for FFmpegBackend {
     }
 }
 
-#[cfg(feature = "video-support")]
-impl Clone for FFmpegBackend {
-    fn clone(&self) -> Self {
-        Self {
-            initialized: false, // Force re-initialization for each clone
+impl FfmpegBackend {
+    fn encode_frames_sync(
+        frames: Vec<VideoFrame>,
+        output_path: &Path,
+        metadata: &VideoMetadata,
+        preserve_audio: bool,
+    ) -> Result<()> {
+        info!(
+            "Reassembling video to {} with {}x{} resolution at {:.2} fps",
+            output_path.display(),
+            metadata.width,
+            metadata.height,
+            metadata.fps
+        );
+
+        // Create output directory if it doesn't exist
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to create output directory: {}", e))
+            })?;
         }
-    }
-}
 
-// Stub implementations for when video-support feature is disabled
-#[cfg(not(feature = "video-support"))]
-pub struct FFmpegBackend;
+        // Initialize FFmpeg globally
+        ffmpeg::init().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
+        })?;
 
-#[cfg(not(feature = "video-support"))]
-impl FFmpegBackend {
-    pub fn new() -> Result<Self> {
-        Err(BgRemovalError::processing(
-            "Video support not enabled. Compile with --features video-support".to_string(),
-        ))
-    }
-}
+        // Create output format and context
+        let output_format_name = match metadata.format {
+            VideoFormat::Mp4 => "mp4",
+            VideoFormat::Avi => "avi",
+            VideoFormat::Mov => "mov",
+            VideoFormat::Mkv => "matroska",
+            VideoFormat::WebM => "webm",
+        };
 
-#[cfg(not(feature = "video-support"))]
-impl Default for FFmpegBackend {
-    fn default() -> Self {
-        Self
+        let mut output =
+            ffmpeg::format::output_as(&output_path, output_format_name).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to create output format: {}", e))
+            })?;
+
+        // Set up video encoder
+        let codec_id = match metadata.format {
+            VideoFormat::Mp4 | VideoFormat::Mov | VideoFormat::Avi => ffmpeg::codec::Id::H264,
+            VideoFormat::Mkv => ffmpeg::codec::Id::H264,
+            VideoFormat::WebM => ffmpeg::codec::Id::VP9,
+        };
+
+        let codec = ffmpeg::encoder::find(codec_id)
+            .ok_or_else(|| BgRemovalError::processing(format!("Codec {:?} not found", codec_id)))?;
+
+        let pixel_format = match codec_id {
+            ffmpeg::codec::Id::H264 => ffmpeg::format::Pixel::YUV420P,
+            ffmpeg::codec::Id::VP9 => ffmpeg::format::Pixel::YUVA420P,
+            _ => ffmpeg::format::Pixel::YUV420P,
+        };
+
+        let mut video_encoder = ffmpeg::codec::context::Context::new_with_codec(codec)
+            .encoder()
+            .video()
+            .map_err(|e| {
+                BgRemovalError::processing(format!("Failed to create video encoder context: {}", e))
+            })?;
+
+        // Configure encoder
+        video_encoder.set_width(metadata.width);
+        video_encoder.set_height(metadata.height);
+        video_encoder.set_time_base(ffmpeg::Rational::new(1, (metadata.fps as i32) * 1000));
+        video_encoder.set_format(pixel_format);
+        video_encoder.set_bit_rate(metadata.bitrate.unwrap_or(1_000_000) as usize);
+
+        let mut video_encoder = video_encoder.open_as(codec).map_err(|e| {
+            BgRemovalError::processing(format!("Failed to open video encoder: {}", e))
+        })?;
+
+        // Add video stream to output
+        {
+            let mut video_stream = output.add_stream(codec).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to add video stream: {}", e))
+            })?;
+            video_stream.set_parameters(&video_encoder);
+        }
+
+        // Write output header
+        output.write_header().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to write output header: {}", e))
+        })?;
+
+        // Create scaling context for converting RGBA to encoder format
+        // Use better scaling flags for higher quality during encoding
+        let encoding_scaling_flags = ffmpeg::software::scaling::Flags::LANCZOS
+            | ffmpeg::software::scaling::Flags::ACCURATE_RND
+            | ffmpeg::software::scaling::Flags::FULL_CHR_H_INT;
+
+        let mut scaler = ffmpeg::software::scaling::Context::get(
+            ffmpeg::format::Pixel::RGBA,
+            metadata.width,
+            metadata.height,
+            pixel_format,
+            metadata.width,
+            metadata.height,
+            encoding_scaling_flags,
+        )
+        .map_err(|e| BgRemovalError::processing(format!("Failed to create scaler: {}", e)))?;
+
+        // Process frames and encode video
+        for (frame_count, video_frame) in frames.iter().enumerate() {
+            // Create FFmpeg frame from our VideoFrame
+            let mut rgba_frame = ffmpeg::util::frame::video::Video::new(
+                ffmpeg::format::Pixel::RGBA,
+                metadata.width,
+                metadata.height,
+            );
+
+            // Copy image data to FFmpeg frame with proper stride handling
+            let image_data = video_frame.image.as_raw();
+            let stride = rgba_frame.stride(0) as usize;
+            let row_bytes = (metadata.width * 4) as usize; // 4 bytes per RGBA pixel
+
+            {
+                let frame_data = rgba_frame.data_mut(0);
+                for y in 0..metadata.height {
+                    let src_row_start = (y as usize) * row_bytes;
+                    let src_row_end = src_row_start + row_bytes;
+                    let dst_row_start = (y as usize) * stride;
+                    let dst_row_end = dst_row_start + row_bytes;
+
+                    // Validate bounds and copy row data
+                    if src_row_end <= image_data.len() && dst_row_end <= frame_data.len() {
+                        frame_data[dst_row_start..dst_row_end]
+                            .copy_from_slice(&image_data[src_row_start..src_row_end]);
+                    } else {
+                        warn!("Encoding frame data bounds check failed at row {}: src_end={}, image_len={}, dst_end={}, frame_len={}", 
+                              y, src_row_end, image_data.len(), dst_row_end, frame_data.len());
+                        // Fill with black transparent pixels for safety
+                        if dst_row_end <= frame_data.len() {
+                            for i in (dst_row_start..dst_row_end).step_by(4) {
+                                if i + 3 < frame_data.len() {
+                                    frame_data[i] = 0; // R
+                                    frame_data[i + 1] = 0; // G
+                                    frame_data[i + 2] = 0; // B
+                                    frame_data[i + 3] = 0; // A (transparent)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Calculate proper timestamp for encoding based on frame rate
+            let pts = (frame_count as f64 * 1000.0) as i64; // Frame timing in milliseconds
+
+            // Set frame timestamp
+            rgba_frame.set_pts(Some(pts));
+
+            // Create output frame for encoder
+            let mut output_frame = ffmpeg::util::frame::video::Video::empty();
+            output_frame.set_format(pixel_format);
+            output_frame.set_width(metadata.width);
+            output_frame.set_height(metadata.height);
+
+            // Scale RGBA to encoder format
+            scaler
+                .run(&rgba_frame, &mut output_frame)
+                .map_err(|e| BgRemovalError::processing(format!("Failed to scale frame: {}", e)))?;
+
+            // Use the original frame's timestamp if available, otherwise calculated PTS
+            let final_pts = video_frame.timestamp.as_millis() as i64;
+            output_frame.set_pts(Some(final_pts));
+
+            // Encode frame
+            video_encoder.send_frame(&output_frame).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to send frame to encoder: {}", e))
+            })?;
+
+            // Receive encoded packets
+            let mut encoded_packet = ffmpeg::Packet::empty();
+            while video_encoder.receive_packet(&mut encoded_packet).is_ok() {
+                encoded_packet.set_stream(0); // First stream
+                encoded_packet.write_interleaved(&mut output).map_err(|e| {
+                    BgRemovalError::processing(format!("Failed to write packet: {}", e))
+                })?;
+            }
+        }
+
+        // Flush encoder
+        video_encoder.send_eof().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to send EOF to encoder: {}", e))
+        })?;
+
+        // Receive any remaining packets
+        let mut encoded_packet = ffmpeg::Packet::empty();
+        while video_encoder.receive_packet(&mut encoded_packet).is_ok() {
+            encoded_packet.set_stream(0);
+            encoded_packet.write_interleaved(&mut output).map_err(|e| {
+                BgRemovalError::processing(format!("Failed to write final packet: {}", e))
+            })?;
+        }
+
+        // Write trailer
+        output
+            .write_trailer()
+            .map_err(|e| BgRemovalError::processing(format!("Failed to write trailer: {}", e)))?;
+
+        info!(
+            "Successfully encoded {} frames to {}",
+            frames.len(),
+            output_path.display()
+        );
+
+        // Handle audio preservation if requested
+        if preserve_audio && metadata.has_audio {
+            warn!("Audio preservation not yet implemented - output video will have no audio");
+        }
+
+        Ok(())
     }
 }
