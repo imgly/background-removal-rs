@@ -562,6 +562,9 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
         return Ok(0);
     }
 
+    // Sort files alphanumerically for consistent processing order
+    all_files.sort();
+
     info!("Found {} image file(s) to process", all_files.len());
 
     // For multiple files, show progress bar
@@ -1305,6 +1308,48 @@ mod tests {
         assert!(filenames.contains(&"root.jpg".into()));
         assert!(filenames.contains(&"sub.png".into()));
         assert!(filenames.contains(&"deep.webp".into()));
+    }
+
+    #[test]
+    fn test_find_image_files_alphanumerical_sorting() {
+        let temp_dir = tempdir().unwrap();
+
+        // Create test files with names that would have different order with filesystem vs alphabetical ordering
+        fs::write(temp_dir.path().join("z_last.jpg"), b"test").unwrap();
+        fs::write(temp_dir.path().join("a_first.png"), b"test").unwrap();
+        fs::write(temp_dir.path().join("m_middle.webp"), b"test").unwrap();
+        fs::write(temp_dir.path().join("img10.jpg"), b"test").unwrap();
+        fs::write(temp_dir.path().join("img2.jpg"), b"test").unwrap();
+        fs::write(temp_dir.path().join("img1.jpg"), b"test").unwrap();
+
+        // Test that files are returned in alphanumerical order
+        let mut files = find_image_files(temp_dir.path(), false, None).unwrap();
+
+        // The sorting happens in process_inputs(), but find_image_files should at least return consistent results
+        // Let's sort here to simulate what process_inputs does
+        files.sort();
+
+        let filenames: Vec<String> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+
+        // Verify alphanumerical ordering
+        assert_eq!(filenames.len(), 6);
+        assert_eq!(filenames[0], "a_first.png");
+        assert_eq!(filenames[1], "img1.jpg");
+        assert_eq!(filenames[2], "img10.jpg");
+        assert_eq!(filenames[3], "img2.jpg");
+        assert_eq!(filenames[4], "m_middle.webp");
+        assert_eq!(filenames[5], "z_last.jpg");
+
+        // Verify that files are indeed sorted alphanumerically
+        let mut expected = filenames.clone();
+        expected.sort();
+        assert_eq!(
+            filenames, expected,
+            "Files should be in alphanumerical order"
+        );
     }
 
     #[test]

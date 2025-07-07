@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Batch processing order**: Files are now processed in alphanumerical order for consistent, predictable processing across different operating systems and filesystems
+
 ## [0.2.0] - 2025-07-05
 
 ### Added
