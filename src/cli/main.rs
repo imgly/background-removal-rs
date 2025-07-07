@@ -20,7 +20,7 @@ use tracing::{debug, info as trace_info, trace, warn as trace_warn};
 #[command(name = "imgly-bgremove")]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Cli {
-    /// Input image files or directories (use "-" for stdin)
+    /// Input image/video files or directories (use "-" for stdin)
     #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models", "clear_cache", "show_cache_dir"])]
     pub input: Vec<String>,
 
@@ -99,6 +99,26 @@ pub struct Cli {
     /// Disable all caches during processing (forces fresh session loading)
     #[arg(long)]
     pub no_cache: bool,
+
+    /// Video processing frame batch size for GPU efficiency (video only)
+    #[cfg(feature = "video-support")]
+    #[arg(long, default_value_t = 8)]
+    pub video_batch_size: usize,
+
+    /// Preserve audio track in video output (video only)
+    #[cfg(feature = "video-support")]
+    #[arg(long, default_value_t = true)]
+    pub preserve_audio: bool,
+
+    /// Video codec for output (h264, h265, vp8, vp9, av1) (video only)
+    #[cfg(feature = "video-support")]
+    #[arg(long, default_value = "h264")]
+    pub video_codec: String,
+
+    /// Video quality setting (codec-specific range) (video only)
+    #[cfg(feature = "video-support")]
+    #[arg(long)]
+    pub video_quality: Option<u8>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -108,6 +128,16 @@ pub enum CliOutputFormat {
     Webp,
     Tiff,
     Rgba8,
+    #[cfg(feature = "video-support")]
+    Mp4,
+    #[cfg(feature = "video-support")]
+    Avi,
+    #[cfg(feature = "video-support")]
+    Mov,
+    #[cfg(feature = "video-support")]
+    Mkv,
+    #[cfg(feature = "video-support")]
+    Webm,
 }
 
 pub async fn main() -> Result<()> {
@@ -532,22 +562,24 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
         return process_stdin(cli.output.as_ref(), processor).await;
     }
 
-    // Collect all image files from inputs (files and directories)
+    // Collect all media files from inputs (files and directories)
     let mut all_files = Vec::new();
 
     for input in &cli.input {
         let path = PathBuf::from(input);
 
         if path.is_file() {
-            // Single file - validate it's an image
+            // Single file - validate it's an image or video
             if is_image_file(&path, &["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"]) {
                 all_files.push(path);
+            } else if is_video_file(&path) {
+                all_files.push(path);
             } else {
-                warn!("Skipping non-image file: {}", path.display());
+                warn!("Skipping unsupported file: {}", path.display());
             }
         } else if path.is_dir() {
-            // Directory - find all image files
-            let dir_files = find_image_files(&path, cli.recursive, cli.pattern.as_deref())?;
+            // Directory - find all media files
+            let dir_files = find_media_files(&path, cli.recursive, cli.pattern.as_deref())?;
             all_files.extend(dir_files);
         } else {
             anyhow::bail!(
@@ -558,7 +590,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
     }
 
     if all_files.is_empty() {
-        warn!("No image files found in the provided inputs");
+        warn!("No supported media files found in the provided inputs");
         return Ok(0);
     }
 
@@ -633,7 +665,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
             })
         };
 
-        match process_single_file(processor, &input_file, output_path.as_ref()).await {
+        match process_single_media_file(cli, processor, &input_file, output_path.as_ref()).await {
             Ok(_) => {
                 processed_count += 1;
                 if cli.verbose > 1 {
@@ -769,6 +801,20 @@ async fn process_stdin(
     }
 
     Ok(1)
+}
+
+/// Process a single media file (image or video) and return success count
+async fn process_single_media_file(
+    cli: &Cli,
+    processor: &mut BackgroundRemovalProcessor,
+    input_path: &Path,
+    output_path: Option<&String>,
+) -> Result<usize> {
+    if is_video_file(input_path) {
+        process_single_video_file(cli, input_path, output_path).await
+    } else {
+        process_single_file(processor, input_path, output_path).await
+    }
 }
 
 /// Process a single image file using the unified processor
@@ -983,6 +1029,7 @@ fn write_stdout(data: &[u8]) -> Result<()> {
 }
 
 /// Find image files in directory (moved from old main.rs)
+#[allow(dead_code)]
 fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     let image_extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"];
@@ -1012,11 +1059,58 @@ fn find_image_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Resul
     Ok(files)
 }
 
+/// Find all media files (images and videos) in a directory
+fn find_media_files(dir: &Path, recursive: bool, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    let image_extensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"];
+
+    if recursive {
+        for entry in walkdir::WalkDir::new(dir) {
+            let entry = entry?;
+            if entry.file_type().is_file() {
+                let path = entry.path();
+                if (is_image_file(path, &image_extensions) || is_video_file(path))
+                    && matches_pattern(path, pattern)
+                {
+                    files.push(path.to_path_buf());
+                }
+            }
+        }
+    } else {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let path = entry.path();
+                if (is_image_file(&path, &image_extensions) || is_video_file(&path))
+                    && matches_pattern(&path, pattern)
+                {
+                    files.push(path);
+                }
+            }
+        }
+    }
+
+    Ok(files)
+}
+
 /// Check if file is an image based on extension
 fn is_image_file(path: &Path, extensions: &[&str]) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| extensions.contains(&ext.to_lowercase().as_str()))
+}
+
+/// Check if file is a video file
+#[cfg(feature = "video-support")]
+fn is_video_file(path: &Path) -> bool {
+    use crate::services::OutputFormatHandler;
+    OutputFormatHandler::is_video_format(path)
+}
+
+/// Check if file is a video file (stub for when video support is disabled)
+#[cfg(not(feature = "video-support"))]
+fn is_video_file(_path: &Path) -> bool {
+    false
 }
 
 /// Check if file matches the given pattern
@@ -1077,6 +1171,146 @@ fn generate_output_path_with_dir(
         .join(output_filename)
         .to_string_lossy()
         .to_string()
+}
+
+/// Process a single video file using the video processing API
+#[cfg(feature = "video-support")]
+async fn process_single_video_file(
+    cli: &Cli,
+    input_path: &Path,
+    output_path: Option<&String>,
+) -> Result<usize> {
+    use crate::{
+        backends::video::codec::{QualityPreset, VideoCodec, VideoEncodingConfig},
+        config::{RemovalConfig, VideoProcessingConfig},
+        models::{ModelSource, ModelSpec},
+        remove_background_from_video_file,
+        utils::{ExecutionProviderManager, ModelSpecParser},
+    };
+
+    info!("🎬 Processing video file: {}", input_path.display());
+
+    // Build video configuration from CLI options
+    let video_codec = VideoCodec::from_str(&cli.video_codec)
+        .with_context(|| format!("Invalid video codec: {}", cli.video_codec))?;
+
+    let mut encoding_config =
+        VideoEncodingConfig::new(video_codec).with_preset(QualityPreset::Medium);
+
+    if let Some(quality) = cli.video_quality {
+        encoding_config = encoding_config.with_quality(quality);
+    }
+
+    let video_config = VideoProcessingConfig {
+        encoding: encoding_config,
+        batch_size: cli.video_batch_size,
+        preserve_audio: cli.preserve_audio,
+        fps_override: None,
+        parallel_processing: true,
+        max_workers: 0, // 0 = auto-detect
+        temp_dir: None,
+    };
+
+    // Build main removal configuration
+    let (model_spec, _) = if let Some(model_arg) = &cli.model {
+        let model_spec = ModelSpecParser::parse(model_arg);
+        (model_spec, model_arg.clone())
+    } else {
+        use crate::cache::ModelCache;
+        let default_url = ModelCache::get_default_model_url();
+        let model_spec = ModelSpec {
+            source: ModelSource::Downloaded(ModelCache::url_to_model_id(default_url)),
+            variant: cli.variant.clone(),
+        };
+        (model_spec, ModelCache::url_to_model_id(default_url))
+    };
+
+    let (_backend_type, execution_provider) =
+        ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
+            .context("Invalid execution provider format")?;
+
+    let removal_config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .execution_provider(execution_provider)
+        .video_config(video_config)
+        .build()
+        .context("Failed to build removal configuration")?;
+
+    // Process the video
+    let start_time = Instant::now();
+    let result = remove_background_from_video_file(input_path, &removal_config)
+        .await
+        .context("Failed to process video")?;
+
+    let processing_time = start_time.elapsed();
+
+    // Determine output path
+    let final_output_path = match output_path {
+        Some(target) if target == "-" => {
+            anyhow::bail!("Cannot output video to stdout");
+        },
+        Some(target) => target.clone(),
+        None => {
+            // Generate default output path based on CLI format or input extension
+            let stem = input_path.file_stem().unwrap_or_default();
+            let parent = input_path.parent().unwrap_or(Path::new("."));
+
+            let extension = match cli.format {
+                CliOutputFormat::Mp4 => "mp4",
+                CliOutputFormat::Avi => "avi",
+                CliOutputFormat::Mov => "mov",
+                CliOutputFormat::Mkv => "mkv",
+                CliOutputFormat::Webm => "webm",
+                _ => "mp4", // Default to mp4 for non-video output formats
+            };
+
+            parent
+                .join(format!(
+                    "{}_bg_removed.{}",
+                    stem.to_string_lossy(),
+                    extension
+                ))
+                .to_string_lossy()
+                .to_string()
+        },
+    };
+
+    // Save the processed video
+    std::fs::write(&final_output_path, result.video_data)
+        .with_context(|| format!("Failed to write output video: {}", final_output_path))?;
+
+    // Display processing statistics
+    info!("🎬 Video processing completed:");
+    info!(
+        "  ├─ Frames processed: {}",
+        result.frame_stats.frames_processed
+    );
+    info!("  ├─ Failed frames: {}", result.frame_stats.failed_frames);
+    info!(
+        "  ├─ Success rate: {:.1}%",
+        result.frame_stats.success_rate()
+    );
+    info!(
+        "  ├─ Average frame time: {:.0}ms",
+        result.frame_stats.average_frame_time.as_millis()
+    );
+    info!(
+        "  ├─ Total processing time: {:.2}s",
+        processing_time.as_secs_f64()
+    );
+    info!("  └─ Output: {}", final_output_path);
+
+    Ok(1)
+}
+
+/// Process a single video file (stub for when video support is disabled)
+#[cfg(not(feature = "video-support"))]
+async fn process_single_video_file(
+    _cli: &Cli,
+    input_path: &Path,
+    _output_path: Option<&String>,
+) -> Result<usize> {
+    anyhow::bail!("Video processing not supported. Enable 'video-support' feature and ensure FFmpeg is available. File: {}", input_path.display());
 }
 
 #[cfg(test)]
