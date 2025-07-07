@@ -17,11 +17,14 @@ path = "src/bin/imgly-bgremove.rs"
 
 [features]
 # Default: include all backends and CLI functionality
-default = ["onnx", "tract", "cli", "webp-support"]
+default = ["onnx", "tract", "cli", "webp-support", "video-support"]
 
 # Backend features
 onnx = ["dep:ort"]
 tract = ["dep:tract-onnx", "dep:tract-core"]
+
+# Video processing support
+video-support = ["dep:ffmpeg-next"]
 
 # CLI functionality (UI-specific features only)
 cli = ["dep:clap", "dep:indicatif", "dep:tracing-subscriber", "dep:uuid", "dep:glob", "dep:walkdir"]
@@ -45,6 +48,8 @@ thiserror = "1.0"
 
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -76,6 +81,9 @@ walkdir = { version = "2.0", optional = true }
 # Advanced tracing features (optional)
 tracing-appender = { version = "0.2", optional = true }
 tracing-opentelemetry = { version = "0.22", optional = true }
+
+# Video processing dependencies (feature-gated)
+ffmpeg-next = { version = "7.1", optional = true }
 
 # Model download and caching dependencies (always available)
 reqwest = { version = "0.11", features = ["rustls-tls", "stream"] }

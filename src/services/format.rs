@@ -1,10 +1,15 @@
 //! Output format handling service
 //!
 //! This module separates output format conversion logic from business logic,
-//! making the system more testable and maintainable.
+//! making the system more testable and maintainable. It also provides video
+//! format detection when video support is enabled.
 
 use crate::{config::OutputFormat, error::Result};
 use image::{DynamicImage, ImageBuffer, RgbaImage};
+use std::path::Path;
+
+#[cfg(feature = "video-support")]
+use crate::backends::video::VideoFormat;
 
 /// Service for handling output format conversions
 pub struct OutputFormatHandler;
@@ -143,6 +148,133 @@ impl OutputFormatHandler {
             OutputFormat::WebP => Some((85, 0, 100)),
             OutputFormat::Png | OutputFormat::Tiff | OutputFormat::Rgba8 => None, // Lossless
         }
+    }
+
+    /// Detect if a file path is a video format (when video support is enabled)
+    ///
+    /// # Arguments
+    /// * `path` - Path to check
+    ///
+    /// # Returns
+    /// * `true` - If the file extension indicates a video format
+    /// * `false` - If the file extension indicates an image format or is unknown
+    ///
+    /// # Examples
+    /// ```rust
+    /// use imgly_bgremove::services::OutputFormatHandler;
+    ///
+    /// assert!(OutputFormatHandler::is_video_format("video.mp4"));
+    /// assert!(!OutputFormatHandler::is_video_format("image.jpg"));
+    /// ```
+    #[must_use]
+    pub fn is_video_format<P: AsRef<Path>>(path: P) -> bool {
+        #[cfg(feature = "video-support")]
+        {
+            if let Some(extension) = path.as_ref().extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    return VideoFormat::from_extension(ext_str).is_some();
+                }
+            }
+        }
+        #[cfg(not(feature = "video-support"))]
+        {
+            let _ = path; // Silence unused parameter warning
+        }
+        false
+    }
+
+    /// Get video format from file path (when video support is enabled)
+    ///
+    /// # Arguments
+    /// * `path` - Path to analyze
+    ///
+    /// # Returns
+    /// * `Some(VideoFormat)` - If the file extension indicates a supported video format
+    /// * `None` - If not a video format or video support is disabled
+    ///
+    /// # Examples
+    /// ```rust,no_run
+    /// use imgly_bgremove::services::OutputFormatHandler;
+    ///
+    /// # #[cfg(feature = "video-support")]
+    /// # {
+    /// let format = OutputFormatHandler::detect_video_format("video.mp4");
+    /// assert!(format.is_some());
+    /// # }
+    /// ```
+    #[cfg(feature = "video-support")]
+    #[must_use]
+    pub fn detect_video_format<P: AsRef<Path>>(path: P) -> Option<VideoFormat> {
+        if let Some(extension) = path.as_ref().extension() {
+            if let Some(ext_str) = extension.to_str() {
+                return VideoFormat::from_extension(ext_str);
+            }
+        }
+        None
+    }
+
+    /// Check if a path represents a supported media format (image or video)
+    ///
+    /// # Arguments
+    /// * `path` - Path to check
+    ///
+    /// # Returns
+    /// * `true` - If the file extension is a supported image or video format
+    /// * `false` - If the file extension is not supported
+    ///
+    /// # Examples
+    /// ```rust
+    /// use imgly_bgremove::services::OutputFormatHandler;
+    ///
+    /// assert!(OutputFormatHandler::is_supported_media_format("image.jpg"));
+    /// assert!(OutputFormatHandler::is_supported_media_format("video.mp4"));
+    /// assert!(!OutputFormatHandler::is_supported_media_format("document.pdf"));
+    /// ```
+    #[must_use]
+    pub fn is_supported_media_format<P: AsRef<Path>>(path: P) -> bool {
+        Self::is_supported_format(&path) || Self::is_video_format(path)
+    }
+
+    /// Get a human-readable description of the detected format
+    ///
+    /// # Arguments
+    /// * `path` - Path to analyze
+    ///
+    /// # Returns
+    /// A string describing the detected format type
+    ///
+    /// # Examples
+    /// ```rust
+    /// use imgly_bgremove::services::OutputFormatHandler;
+    ///
+    /// assert_eq!(OutputFormatHandler::describe_format("test.jpg"), "Image (JPEG)");
+    /// assert_eq!(OutputFormatHandler::describe_format("test.mp4"), "Video (MP4)");
+    /// assert_eq!(OutputFormatHandler::describe_format("test.txt"), "Unknown format");
+    /// ```
+    #[must_use]
+    pub fn describe_format<P: AsRef<Path>>(path: P) -> String {
+        let path_ref = path.as_ref();
+        
+        if Self::is_video_format(path_ref) {
+            #[cfg(feature = "video-support")]
+            {
+                if let Some(video_format) = Self::detect_video_format(path_ref) {
+                    return format!("Video ({})", format!("{:?}", video_format).to_uppercase());
+                }
+            }
+            return "Video".to_string();
+        }
+        
+        if Self::is_supported_format(path_ref) {
+            if let Some(extension) = path_ref.extension() {
+                if let Some(ext_str) = extension.to_str() {
+                    return format!("Image ({})", ext_str.to_uppercase());
+                }
+            }
+            return "Image".to_string();
+        }
+        
+        "Unknown format".to_string()
     }
 }
 
