@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Batch processing output directory support**: CLI now respects `--output` flag when processing multiple files, allowing users to specify a custom output directory for batch operations instead of placing files alongside inputs
 
+### Changed
+- **Batch processing order**: Files are now processed in alphanumerical order for consistent, predictable processing across different operating systems and filesystems
+
 ## [0.2.0] - 2025-07-05
 
 ### Added
