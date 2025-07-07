@@ -48,12 +48,18 @@ impl VideoFrame {
     pub fn validate(&self) -> Result<(), String> {
         // Check dimensions
         if self.width == 0 || self.height == 0 {
-            return Err(format!("Invalid frame dimensions: {}x{}", self.width, self.height));
+            return Err(format!(
+                "Invalid frame dimensions: {}x{}",
+                self.width, self.height
+            ));
         }
 
         // Check if dimensions are too large (could cause memory issues)
         if self.width > 8192 || self.height > 8192 {
-            return Err(format!("Frame dimensions too large: {}x{} (max 8192x8192)", self.width, self.height));
+            return Err(format!(
+                "Frame dimensions too large: {}x{} (max 8192x8192)",
+                self.width, self.height
+            ));
         }
 
         // Check if image data size matches expected size
@@ -61,13 +67,14 @@ impl VideoFrame {
         let actual_size = self.image.as_raw().len();
         if actual_size != expected_size {
             return Err(format!(
-                "Frame data size mismatch: expected {} bytes, got {} bytes", 
+                "Frame data size mismatch: expected {} bytes, got {} bytes",
                 expected_size, actual_size
             ));
         }
 
         // Check timestamp is reasonable (not negative, not extremely large)
-        if self.timestamp.as_secs() > 86400 { // More than 24 hours
+        if self.timestamp.as_secs() > 86400 {
+            // More than 24 hours
             return Err(format!("Unreasonable timestamp: {:?}", self.timestamp));
         }
 
@@ -82,17 +89,18 @@ impl VideoFrame {
     pub fn is_likely_corrupted(&self) -> bool {
         let data = self.image.as_raw();
         let total_pixels = (self.width * self.height) as usize;
-        
+
         if data.is_empty() || total_pixels == 0 {
             return true;
         }
 
         // Only consider completely zero pixels as corruption if ALL pixels are zero
         // This is more conservative since background removal creates many transparent pixels
-        let zero_pixels = data.chunks_exact(4)
+        let zero_pixels = data
+            .chunks_exact(4)
             .filter(|pixel| pixel == &[0, 0, 0, 0])
             .count();
-        
+
         // Only flag as corrupted if 100% of pixels are zero (empty frame)
         if zero_pixels == total_pixels {
             return true;
@@ -103,7 +111,7 @@ impl VideoFrame {
         let mut invalid_count = 0;
         for chunk in data.chunks_exact(4) {
             // Check for specific corruption patterns that are unlikely in valid frames
-            // - All channels at maximum with alpha at 0 (impossible combination)  
+            // - All channels at maximum with alpha at 0 (impossible combination)
             // - Repeating byte patterns that indicate memory corruption
             if chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255 && chunk[3] == 0 {
                 invalid_count += 1;

@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Video quality degradation**: Implemented better scaling algorithm using LANCZOS interpolation with higher quality flags for improved visual output
 - **Video timestamp accuracy**: Fixed timestamp calculation using proper PTS and time base conversion for accurate frame timing
 - **Video processing robustness**: Added comprehensive frame validation with corruption detection and improved error handling throughout the video pipeline
+- **Video frame rate preservation**: Fixed frame rate preservation in output videos by using proper 90kHz time base and correct PTS calculation, ensuring output videos maintain the same frame rate as input (e.g., 24fps input produces 24fps output)
 
 ## [0.2.0] - 2025-07-05
 

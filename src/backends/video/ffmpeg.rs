@@ -167,7 +167,10 @@ impl VideoBackend for FfmpegBackend {
 
                     // Validate frame before adding to collection
                     if let Err(validation_error) = video_frame.validate() {
-                        warn!("Frame {} validation failed: {}", frame_number, validation_error);
+                        warn!(
+                            "Frame {} validation failed: {}",
+                            frame_number, validation_error
+                        );
                         continue;
                     }
 
@@ -258,12 +261,18 @@ impl VideoBackend for FfmpegBackend {
 
             // Validate frame before adding to collection
             if let Err(validation_error) = video_frame.validate() {
-                warn!("Final frame {} validation failed: {}", frame_number, validation_error);
+                warn!(
+                    "Final frame {} validation failed: {}",
+                    frame_number, validation_error
+                );
                 continue;
             }
 
             if video_frame.is_likely_corrupted() {
-                warn!("Final frame {} appears to be corrupted, skipping", frame_number);
+                warn!(
+                    "Final frame {} appears to be corrupted, skipping",
+                    frame_number
+                );
                 continue;
             }
 
@@ -464,7 +473,8 @@ impl FfmpegBackend {
         // Configure encoder
         video_encoder.set_width(metadata.width);
         video_encoder.set_height(metadata.height);
-        video_encoder.set_time_base(ffmpeg::Rational::new(1, (metadata.fps as i32) * 1000));
+        // Use a high-resolution time base for precise timing (90kHz is common for video)
+        video_encoder.set_time_base(ffmpeg::Rational::new(1, 90000));
         video_encoder.set_format(pixel_format);
         video_encoder.set_bit_rate(metadata.bitrate.unwrap_or(1_000_000) as usize);
 
@@ -478,6 +488,8 @@ impl FfmpegBackend {
                 BgRemovalError::processing(format!("Failed to add video stream: {}", e))
             })?;
             video_stream.set_parameters(&video_encoder);
+            // Set stream time base to match encoder time base
+            video_stream.set_time_base(ffmpeg::Rational::new(1, 90000));
         }
 
         // Write output header
@@ -546,8 +558,11 @@ impl FfmpegBackend {
                 }
             }
 
-            // Calculate proper timestamp for encoding based on frame rate
-            let pts = (frame_count as f64 * 1000.0) as i64; // Frame timing in milliseconds
+            // Calculate PTS based on frame count and frame rate
+            // Time base is 1/90000, so convert frame timing to 90kHz units
+            // Frame duration in seconds = 1/fps, in 90kHz units = 90000/fps
+            let frame_duration_in_timebase = (90000.0 / metadata.fps) as i64;
+            let pts = frame_count as i64 * frame_duration_in_timebase;
 
             // Set frame timestamp
             rgba_frame.set_pts(Some(pts));
@@ -563,9 +578,8 @@ impl FfmpegBackend {
                 .run(&rgba_frame, &mut output_frame)
                 .map_err(|e| BgRemovalError::processing(format!("Failed to scale frame: {}", e)))?;
 
-            // Use the original frame's timestamp if available, otherwise calculated PTS
-            let final_pts = video_frame.timestamp.as_millis() as i64;
-            output_frame.set_pts(Some(final_pts));
+            // Use the frame-based PTS that matches our time base
+            output_frame.set_pts(Some(pts));
 
             // Encode frame
             video_encoder.send_frame(&output_frame).map_err(|e| {
