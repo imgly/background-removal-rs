@@ -24,7 +24,7 @@ pub struct Cli {
     #[arg(value_name = "INPUT", required_unless_present_any = &["show_providers", "only_download", "list_models", "clear_cache", "show_cache_dir"])]
     pub input: Vec<String>,
 
-    /// Output file or directory (use "-" for stdout)
+    /// Output file (single input) or directory (batch processing). Use "-" for stdout.
     #[arg(short, long, value_name = "OUTPUT")]
     pub output: Option<String>,
 
@@ -586,6 +586,35 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
     let file_count = all_files.len();
     let batch_start_time = Instant::now();
 
+    // Validate and prepare output directory for batch processing
+    let output_dir = if file_count > 1 {
+        if let Some(ref output) = cli.output {
+            if output == "-" {
+                anyhow::bail!("Cannot use stdout (-) as output when processing multiple files");
+            }
+            let output_path = PathBuf::from(output);
+            // Create output directory if it doesn't exist
+            if !output_path.exists() {
+                std::fs::create_dir_all(&output_path).with_context(|| {
+                    format!(
+                        "Failed to create output directory: {}",
+                        output_path.display()
+                    )
+                })?;
+            } else if output_path.is_file() {
+                anyhow::bail!(
+                    "Output path exists and is a file, not a directory: {}",
+                    output_path.display()
+                );
+            }
+            Some(output_path)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     for input_file in all_files {
         if let Some(ref pb) = progress {
             pb.set_message(format!("Processing {}", input_file.display()));
@@ -595,8 +624,10 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
             // Single file - use specified output or generate default
             cli.output.clone()
         } else {
-            // Multiple files - always generate default names (ignore --output)
-            None
+            // Multiple files - use output directory if specified
+            output_dir.as_ref().map(|dir| {
+                generate_output_path_with_dir(&input_file, dir, processor.config().output_format)
+            })
         };
 
         match process_single_file(processor, &input_file, output_path.as_ref()).await {
@@ -1019,6 +1050,30 @@ fn generate_output_path(input_path: &Path, format: crate::OutputFormat) -> PathB
         stem.to_string_lossy(),
         extension
     ))
+}
+
+/// Generate output path with custom output directory, preserving relative structure
+fn generate_output_path_with_dir(
+    input_path: &Path,
+    output_dir: &Path,
+    format: crate::OutputFormat,
+) -> String {
+    let stem = input_path.file_stem().unwrap_or_default();
+
+    let extension = match format {
+        crate::OutputFormat::Png => "png",
+        crate::OutputFormat::Jpeg => "jpg",
+        crate::OutputFormat::WebP => "webp",
+        crate::OutputFormat::Tiff => "tiff",
+        crate::OutputFormat::Rgba8 => "rgba8",
+    };
+
+    let output_filename = format!("{}_bg_removed.{}", stem.to_string_lossy(), extension);
+
+    output_dir
+        .join(output_filename)
+        .to_string_lossy()
+        .to_string()
 }
 
 #[cfg(test)]
@@ -1589,5 +1644,77 @@ mod tests {
         // The result depends on how glob handles invalid patterns
         // We just ensure it doesn't panic
         assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_generate_output_path_with_dir() {
+        use crate::config::OutputFormat;
+
+        let output_dir = Path::new("/output");
+        
+        // Test basic functionality
+        let input = Path::new("test.jpg");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "/output/test_bg_removed.png");
+
+        // Test different formats
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Jpeg);
+        assert_eq!(output, "/output/test_bg_removed.jpg");
+
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::WebP);
+        assert_eq!(output, "/output/test_bg_removed.webp");
+
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Tiff);
+        assert_eq!(output, "/output/test_bg_removed.tiff");
+
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Rgba8);
+        assert_eq!(output, "/output/test_bg_removed.rgba8");
+
+        // Test with complex input path (directory info should be ignored)
+        let input = Path::new("/path/to/image.png");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "/output/image_bg_removed.png");
+
+        // Test with complex filename
+        let input = Path::new("my.complex.filename.jpeg");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "/output/my.complex.filename_bg_removed.png");
+
+        // Test with no extension
+        let input = Path::new("filename_no_ext");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "/output/filename_no_ext_bg_removed.png");
+
+        // Test with different output directory
+        let custom_dir = Path::new("/custom/output/dir");
+        let output = generate_output_path_with_dir(input, custom_dir, OutputFormat::Jpeg);
+        assert_eq!(output, "/custom/output/dir/filename_no_ext_bg_removed.jpg");
+    }
+
+    #[test]
+    fn test_generate_output_path_with_dir_edge_cases() {
+        use crate::config::OutputFormat;
+
+        // Test empty directory path (current directory)
+        let output_dir = Path::new("");
+        let input = Path::new("test.jpg");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "test_bg_removed.png");
+
+        // Test current directory
+        let output_dir = Path::new(".");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "./test_bg_removed.png");
+
+        // Test relative directory
+        let output_dir = Path::new("relative/path");
+        let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
+        assert_eq!(output, "relative/path/test_bg_removed.png");
+
+        // Test with unicode characters in paths
+        let unicode_dir = Path::new("/output/测试/图片");
+        let unicode_input = Path::new("测试图片.jpg");
+        let output = generate_output_path_with_dir(unicode_input, unicode_dir, OutputFormat::Png);
+        assert_eq!(output, "/output/测试/图片/测试图片_bg_removed.png");
     }
 }
