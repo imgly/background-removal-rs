@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Batch processing order**: Files are now processed in alphanumerical order for consistent, predictable processing across different operating systems and filesystems
 
+### Fixed
+- **Video frame distortion**: Resolved frame distortion issues in video processing by fixing hardcoded resolution metadata extraction to use actual video dimensions
+- **Video frame corruption**: Improved frame data copying with proper stride handling to prevent memory corruption and data misalignment
+- **Video quality degradation**: Implemented better scaling algorithm using LANCZOS interpolation with higher quality flags for improved visual output
+- **Video timestamp accuracy**: Fixed timestamp calculation using proper PTS and time base conversion for accurate frame timing
+- **Video processing robustness**: Added comprehensive frame validation with corruption detection and improved error handling throughout the video pipeline
+
 ## [0.2.0] - 2025-07-05
 
 ### Added
