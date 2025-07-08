@@ -364,53 +364,53 @@ impl ProgressReporter for EnhancedProgressReporter {
     fn report_progress(&self, update: ProgressUpdate) {
         if self.verbose {
             if let Some(eta) = update.eta_ms {
-                log::info!(
-                    "[{}] {} ({}ms elapsed, ~{}ms remaining)",
+                println!(
+                    "[{}%] {} ({}ms elapsed, ~{}ms remaining)",
                     update.progress,
                     update.description,
                     update.elapsed_ms,
                     eta
                 );
             } else {
-                log::info!(
-                    "[{}] {} ({}ms elapsed)",
+                println!(
+                    "[{}%] {} ({}ms elapsed)",
                     update.progress,
                     update.description,
                     update.elapsed_ms
                 );
             }
         } else {
-            log::info!("[{}%] {}", update.progress, update.description);
+            println!("[{}%] {}", update.progress, update.description);
         }
     }
 
     fn report_completion(&self, timings: ProcessingTimings) {
-        log::info!("✅ Background removal completed in {}ms", timings.total_ms);
+        println!("✅ Background removal completed in {}ms", timings.total_ms);
 
         if self.verbose {
-            log::info!("  📊 Detailed timings:");
-            log::info!("    • Image decode: {}ms", timings.image_decode_ms);
-            log::info!("    • Preprocessing: {}ms", timings.preprocessing_ms);
-            log::info!("    • Inference: {}ms", timings.inference_ms);
-            log::info!("    • Postprocessing: {}ms", timings.postprocessing_ms);
+            println!("  📊 Detailed timings:");
+            println!("    • Image decode: {}ms", timings.image_decode_ms);
+            println!("    • Preprocessing: {}ms", timings.preprocessing_ms);
+            println!("    • Inference: {}ms", timings.inference_ms);
+            println!("    • Postprocessing: {}ms", timings.postprocessing_ms);
         }
     }
 
     fn report_error(&self, stage: ProcessingStage, error: &str) {
-        log::error!("❌ Error during {}: {}", stage.description(), error);
+        eprintln!("❌ Error during {}: {}", stage.description(), error);
     }
 
     fn report_batch_progress(&self, update: BatchProgressUpdate) {
         if self.enable_nested_progress {
             // Overall batch progress
-            log::info!(
+            println!(
                 "📁 Batch Processing: {}/{} files ({:.1} files/sec) - ETA: {}",
                 update.stats.items_completed,
                 update.stats.items_total,
                 update.stats.processing_rate,
                 Self::format_eta(update.stats.eta_seconds)
             );
-            log::info!(
+            println!(
                 "[{}] {}% Overall Progress",
                 Self::progress_bar(update.total_progress.progress),
                 update.total_progress.progress
@@ -418,13 +418,13 @@ impl ProgressReporter for EnhancedProgressReporter {
 
             // Current item progress
             if let Some(ref item_progress) = update.current_item_progress {
-                log::info!("");
-                log::info!(
+                println!();
+                println!(
                     "📄 Current: {} ({})",
                     update.stats.current_item_name,
                     Self::format_file_size(&update.stats.current_item_name)
                 );
-                log::info!(
+                println!(
                     "[{}] {}% {}",
                     Self::progress_bar(item_progress.progress),
                     item_progress.progress,
@@ -432,16 +432,16 @@ impl ProgressReporter for EnhancedProgressReporter {
                 );
 
                 if self.verbose {
-                    log::info!("├─ Elapsed: {}ms", item_progress.elapsed_ms);
+                    println!("├─ Elapsed: {}ms", item_progress.elapsed_ms);
                     if let Some(eta) = item_progress.eta_ms {
-                        log::info!("└─ ETA: {}ms", eta);
+                        println!("└─ ETA: {}ms", eta);
                     }
                 }
             }
 
             // Statistics
-            log::info!("");
-            log::info!(
+            println!();
+            println!(
                 "⏱️  Timing: {} elapsed, {} remaining",
                 Self::format_duration(update.total_progress.elapsed_ms),
                 Self::format_eta(update.stats.eta_seconds)
