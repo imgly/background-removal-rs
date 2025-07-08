@@ -4,7 +4,14 @@
 
 // use super::backend_factory::CliBackendFactory; // No longer needed with simplified backend creation
 use super::config::CliConfigBuilder;
-use crate::{processor::BackgroundRemovalProcessor, utils::ExecutionProviderManager};
+use crate::{
+    processor::BackgroundRemovalProcessor,
+    services::{
+        create_cli_progress_reporter, BatchProcessingStats, BatchProgressUpdate, ProcessingStage,
+        ProgressUpdate,
+    },
+    utils::ExecutionProviderManager,
+};
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -601,11 +608,14 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
     // Sort files alphanumerically for consistent processing order
     all_files.sort();
 
-    info!("Found {} image file(s) to process", all_files.len());
+    info!("Found {} media file(s) to process", all_files.len());
 
-    // For multiple files, show progress bar
-    let show_progress = all_files.len() > 1;
-    let progress = if show_progress {
+    // Create appropriate progress reporter based on --progress flag
+    let progress_reporter =
+        create_cli_progress_reporter(cli.progress, cli.verbose > 0, all_files.len());
+
+    // For backward compatibility with indicatif progress bar when --progress is not used
+    let indicatif_progress = if !cli.progress && all_files.len() > 1 {
         let pb = ProgressBar::new(all_files.len() as u64);
         pb.set_style(
             ProgressStyle::default_bar()
@@ -654,9 +664,54 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
         None
     };
 
-    for input_file in all_files {
-        if let Some(ref pb) = progress {
+    for (_index, input_file) in all_files.iter().enumerate() {
+        let file_start_time = Instant::now();
+
+        // Update indicatif progress bar if used (backward compatibility)
+        if let Some(ref pb) = indicatif_progress {
             pb.set_message(format!("Processing {}", input_file.display()));
+        }
+
+        // Report enhanced progress if --progress is enabled
+        if cli.progress && file_count > 1 {
+            // Calculate processing rate
+            let elapsed_seconds = batch_start_time.elapsed().as_secs_f64();
+            let processing_rate = if elapsed_seconds > 0.0 && processed_count > 0 {
+                processed_count as f64 / elapsed_seconds
+            } else {
+                0.0
+            };
+
+            // Calculate ETA
+            let remaining_items = file_count - processed_count - failed_count;
+            let eta_seconds = if processing_rate > 0.0 {
+                Some((remaining_items as f64 / processing_rate) as u64)
+            } else {
+                None
+            };
+
+            // Create batch progress update
+            let batch_update = BatchProgressUpdate {
+                total_progress: ProgressUpdate::new(
+                    ProcessingStage::BatchItemProcessing,
+                    batch_start_time,
+                ),
+                current_item_progress: Some(ProgressUpdate::new(
+                    ProcessingStage::ImageLoading,
+                    file_start_time,
+                )),
+                stats: BatchProcessingStats {
+                    items_completed: processed_count,
+                    items_total: file_count,
+                    items_failed: failed_count,
+                    current_item_name: input_file.display().to_string(),
+                    processing_rate,
+                    eta_seconds,
+                },
+            };
+
+            // Report progress using the trait method
+            progress_reporter.report_batch_progress(batch_update);
         }
 
         let output_path = if file_count == 1 {
@@ -669,7 +724,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
             })
         };
 
-        match process_single_media_file(cli, processor, &input_file, output_path.as_ref()).await {
+        match process_single_media_file(cli, processor, input_file, output_path.as_ref()).await {
             Ok(_) => {
                 processed_count += 1;
                 if cli.verbose > 1 {
@@ -679,15 +734,21 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
             Err(e) => {
                 error!("❌ Failed to process {}: {}", input_file.display(), e);
                 failed_count += 1;
+
+                // Report error through progress reporter
+                progress_reporter.report_error(
+                    ProcessingStage::BatchItemProcessing,
+                    &format!("Failed to process {}: {}", input_file.display(), e),
+                );
             },
         }
 
-        if let Some(ref pb) = progress {
+        if let Some(ref pb) = indicatif_progress {
             pb.inc(1);
         }
     }
 
-    if let Some(pb) = progress {
+    if let Some(pb) = indicatif_progress {
         pb.finish_with_message(format!(
             "Completed! Processed: {processed_count}, Failed: {failed_count}"
         ));

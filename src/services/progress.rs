@@ -347,7 +347,7 @@ impl EnhancedProgressReporter {
                 let minutes = seconds / 60;
                 let remaining_seconds = seconds % 60;
                 format!("{}m {}s", minutes, remaining_seconds)
-            }
+            },
             None => "calculating...".to_string(),
         }
     }
@@ -539,15 +539,15 @@ pub fn create_cli_progress_reporter(
         (false, _) => {
             // No --progress flag: use simple console reporter
             Box::new(ConsoleProgressReporter::new(verbose))
-        }
+        },
         (true, 1) => {
             // --progress with single item: use enhanced without nested
             Box::new(EnhancedProgressReporter::new(false, verbose))
-        }
+        },
         (true, _) => {
             // --progress with multiple items: use enhanced with nested progress
             Box::new(EnhancedProgressReporter::new(true, verbose))
-        }
+        },
     }
 }
 
