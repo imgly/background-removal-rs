@@ -207,6 +207,7 @@ mod tests {
             show_cache_dir: false,
             cache_dir: None,
             no_cache: false,
+            progress: false,
             #[cfg(feature = "video-support")]
             video_batch_size: 8,
             #[cfg(feature = "video-support")]

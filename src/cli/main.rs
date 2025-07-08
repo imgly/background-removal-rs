@@ -100,6 +100,10 @@ pub struct Cli {
     #[arg(long)]
     pub no_cache: bool,
 
+    /// Show detailed progress with nested file/frame information for batch and video processing
+    #[arg(long)]
+    pub progress: bool,
+
     /// Video processing frame batch size for GPU efficiency (video only)
     #[cfg(feature = "video-support")]
     #[arg(long, default_value_t = 8)]
@@ -1691,6 +1695,7 @@ mod tests {
             show_cache_dir: false,
             cache_dir: None,
             no_cache: false,
+            progress: false,
             #[cfg(feature = "video-support")]
             video_batch_size: 8,
             #[cfg(feature = "video-support")]
@@ -1743,6 +1748,7 @@ mod tests {
             show_cache_dir: false,
             cache_dir: None,
             no_cache: false,
+            progress: false,
             #[cfg(feature = "video-support")]
             video_batch_size: 8,
             #[cfg(feature = "video-support")]
