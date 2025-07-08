@@ -1151,4 +1151,267 @@ mod tests {
             reporter.report_error(ProcessingStage::FileSaving, "Test error");
         }
     }
+
+    #[test]
+    fn test_batch_processing_stats_creation() {
+        let stats = BatchProcessingStats {
+            items_completed: 5,
+            items_total: 10,
+            items_failed: 1,
+            current_item_name: "test_image.jpg".to_string(),
+            processing_rate: 2.5,
+            eta_seconds: Some(120),
+        };
+
+        assert_eq!(stats.items_completed, 5);
+        assert_eq!(stats.items_total, 10);
+        assert_eq!(stats.items_failed, 1);
+        assert_eq!(stats.current_item_name, "test_image.jpg");
+        assert_eq!(stats.processing_rate, 2.5);
+        assert_eq!(stats.eta_seconds, Some(120));
+    }
+
+    #[test]
+    fn test_batch_progress_update_creation() {
+        let start_time = Instant::now();
+        let total_progress = ProgressUpdate::new(ProcessingStage::BatchItemProcessing, start_time);
+        let current_item_progress = Some(ProgressUpdate::new(
+            ProcessingStage::ImageLoading,
+            start_time,
+        ));
+
+        let stats = BatchProcessingStats {
+            items_completed: 3,
+            items_total: 5,
+            items_failed: 0,
+            current_item_name: "image3.png".to_string(),
+            processing_rate: 1.2,
+            eta_seconds: Some(100),
+        };
+
+        let batch_update = BatchProgressUpdate {
+            total_progress,
+            current_item_progress,
+            stats,
+        };
+
+        assert_eq!(
+            batch_update.total_progress.stage,
+            ProcessingStage::BatchItemProcessing
+        );
+        assert!(batch_update.current_item_progress.is_some());
+        assert_eq!(batch_update.stats.items_completed, 3);
+        assert_eq!(batch_update.stats.items_total, 5);
+    }
+
+    #[test]
+    fn test_enhanced_progress_reporter_creation() {
+        let reporter = EnhancedProgressReporter::new(true, true);
+
+        // Test that the reporter implements the ProgressReporter trait
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now());
+        reporter.report_progress(update);
+
+        // Test batch progress reporting
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(
+                ProcessingStage::BatchItemProcessing,
+                Instant::now(),
+            ),
+            current_item_progress: Some(ProgressUpdate::new(
+                ProcessingStage::ImageLoading,
+                Instant::now(),
+            )),
+            stats: BatchProcessingStats {
+                items_completed: 2,
+                items_total: 5,
+                items_failed: 0,
+                current_item_name: "test.jpg".to_string(),
+                processing_rate: 1.5,
+                eta_seconds: Some(60),
+            },
+        };
+
+        reporter.report_batch_progress(batch_update);
+    }
+
+    #[test]
+    fn test_batch_stages_descriptions() {
+        // Test batch processing stage descriptions
+        assert_eq!(
+            ProcessingStage::BatchInitialization.description(),
+            "Initializing batch processing"
+        );
+        assert_eq!(
+            ProcessingStage::BatchItemProcessing.description(),
+            "Processing batch item"
+        );
+        assert_eq!(
+            ProcessingStage::BatchFinalization.description(),
+            "Finalizing batch processing"
+        );
+    }
+
+    #[test]
+    fn test_video_stages_descriptions() {
+        // Test video processing stage descriptions
+        assert_eq!(
+            ProcessingStage::VideoAnalysis.description(),
+            "Analyzing video metadata"
+        );
+        assert_eq!(
+            ProcessingStage::VideoDecoding.description(),
+            "Decoding video stream"
+        );
+        assert_eq!(
+            ProcessingStage::FrameExtraction.description(),
+            "Extracting video frames"
+        );
+        assert_eq!(
+            ProcessingStage::FrameProcessing.description(),
+            "Processing video frame"
+        );
+        assert_eq!(
+            ProcessingStage::VideoEncoding.description(),
+            "Encoding video output"
+        );
+        assert_eq!(
+            ProcessingStage::VideoFinalization.description(),
+            "Finalizing video file"
+        );
+    }
+
+    #[test]
+    fn test_batch_stages_progress_percentages() {
+        // Test that batch stages have reasonable progress percentages
+        assert!(ProcessingStage::BatchInitialization.progress_percentage() < 100);
+        assert!(ProcessingStage::BatchItemProcessing.progress_percentage() < 100);
+        assert!(ProcessingStage::BatchFinalization.progress_percentage() < 100);
+    }
+
+    #[test]
+    fn test_video_stages_progress_percentages() {
+        // Test that video stages have reasonable progress percentages
+        assert!(ProcessingStage::VideoAnalysis.progress_percentage() <= 100);
+        assert!(ProcessingStage::VideoDecoding.progress_percentage() <= 100);
+        assert!(ProcessingStage::FrameExtraction.progress_percentage() <= 100);
+        assert!(ProcessingStage::FrameProcessing.progress_percentage() <= 100);
+        assert!(ProcessingStage::VideoEncoding.progress_percentage() <= 100);
+        assert_eq!(
+            ProcessingStage::VideoFinalization.progress_percentage(),
+            100
+        ); // Final stage should be 100%
+
+        // Test progression order makes sense
+        assert!(
+            ProcessingStage::VideoAnalysis.progress_percentage()
+                < ProcessingStage::VideoDecoding.progress_percentage()
+        );
+        assert!(
+            ProcessingStage::VideoDecoding.progress_percentage()
+                < ProcessingStage::FrameExtraction.progress_percentage()
+        );
+        assert!(
+            ProcessingStage::FrameExtraction.progress_percentage()
+                < ProcessingStage::FrameProcessing.progress_percentage()
+        );
+        assert!(
+            ProcessingStage::FrameProcessing.progress_percentage()
+                < ProcessingStage::VideoEncoding.progress_percentage()
+        );
+        assert!(
+            ProcessingStage::VideoEncoding.progress_percentage()
+                <= ProcessingStage::VideoFinalization.progress_percentage()
+        );
+    }
+
+    #[test]
+    fn test_create_cli_progress_reporter_no_progress() {
+        let reporter = create_cli_progress_reporter(false, false, 1);
+
+        // Should create NoOpProgressReporter when progress is disabled
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now());
+        reporter.report_progress(update); // Should not output anything
+    }
+
+    #[test]
+    fn test_create_cli_progress_reporter_with_progress() {
+        let reporter = create_cli_progress_reporter(true, false, 5);
+
+        // Should create EnhancedProgressReporter when progress is enabled
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(
+                ProcessingStage::BatchItemProcessing,
+                Instant::now(),
+            ),
+            current_item_progress: None,
+            stats: BatchProcessingStats {
+                items_completed: 1,
+                items_total: 5,
+                items_failed: 0,
+                current_item_name: "image1.jpg".to_string(),
+                processing_rate: 0.8,
+                eta_seconds: Some(200),
+            },
+        };
+
+        reporter.report_batch_progress(batch_update);
+    }
+
+    #[test]
+    fn test_enhanced_progress_reporter_error_handling() {
+        let reporter = EnhancedProgressReporter::new(true, true);
+
+        // Test error reporting
+        reporter.report_error(ProcessingStage::Inference, "Test error message");
+        reporter.report_error(
+            ProcessingStage::BatchItemProcessing,
+            "Batch processing failed",
+        );
+    }
+
+    #[test]
+    fn test_batch_progress_stats_with_zero_processing_rate() {
+        let stats = BatchProcessingStats {
+            items_completed: 0,
+            items_total: 10,
+            items_failed: 0,
+            current_item_name: "first_image.jpg".to_string(),
+            processing_rate: 0.0,
+            eta_seconds: None,
+        };
+
+        assert_eq!(stats.processing_rate, 0.0);
+        assert_eq!(stats.eta_seconds, None);
+    }
+
+    #[test]
+    fn test_all_progress_reporters_implement_default_batch_reporting() {
+        // Test that all reporters have default batch progress implementation
+        let reporters: Vec<Box<dyn ProgressReporter>> = vec![
+            Box::new(NoOpProgressReporter),
+            Box::new(ConsoleProgressReporter::new(true)),
+            Box::new(EnhancedProgressReporter::new(true, true)),
+        ];
+
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(
+                ProcessingStage::BatchItemProcessing,
+                Instant::now(),
+            ),
+            current_item_progress: None,
+            stats: BatchProcessingStats {
+                items_completed: 1,
+                items_total: 3,
+                items_failed: 0,
+                current_item_name: "test.jpg".to_string(),
+                processing_rate: 1.0,
+                eta_seconds: Some(60),
+            },
+        };
+
+        for reporter in reporters {
+            reporter.report_batch_progress(batch_update.clone());
+        }
+    }
 }

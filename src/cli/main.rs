@@ -1255,6 +1255,18 @@ async fn process_single_video_file(
 
     info!("🎬 Processing video file: {}", input_path.display());
 
+    // Create progress reporter for video processing if --progress is enabled
+    let progress_reporter = create_cli_progress_reporter(cli.progress, cli.verbose > 0, 1);
+    let video_start_time = Instant::now();
+
+    // Report initial video processing stage
+    if cli.progress {
+        progress_reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::VideoAnalysis,
+            video_start_time,
+        ));
+    }
+
     // Build video configuration from CLI options
     let video_codec = VideoCodec::from_str(&cli.video_codec)
         .with_context(|| format!("Invalid video codec: {}", cli.video_codec))?;
@@ -1301,6 +1313,14 @@ async fn process_single_video_file(
         .build()
         .context("Failed to build removal configuration")?;
 
+    // Report video processing start
+    if cli.progress {
+        progress_reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::FrameProcessing,
+            video_start_time,
+        ));
+    }
+
     // Process the video
     let start_time = Instant::now();
     let result = remove_background_from_video_file(input_path, &removal_config)
@@ -1308,6 +1328,14 @@ async fn process_single_video_file(
         .context("Failed to process video")?;
 
     let processing_time = start_time.elapsed();
+
+    // Report video encoding stage
+    if cli.progress {
+        progress_reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::VideoEncoding,
+            video_start_time,
+        ));
+    }
 
     // Determine output path
     let final_output_path = match output_path {
@@ -1340,9 +1368,25 @@ async fn process_single_video_file(
         },
     };
 
+    // Report video finalization stage
+    if cli.progress {
+        progress_reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::VideoFinalization,
+            video_start_time,
+        ));
+    }
+
     // Save the processed video
     std::fs::write(&final_output_path, result.video_data)
         .with_context(|| format!("Failed to write output video: {}", final_output_path))?;
+
+    // Report completion
+    if cli.progress {
+        progress_reporter.report_progress(ProgressUpdate::new(
+            ProcessingStage::Completed,
+            video_start_time,
+        ));
+    }
 
     // Display processing statistics
     info!("🎬 Video processing completed:");

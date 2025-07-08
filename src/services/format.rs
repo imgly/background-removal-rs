@@ -247,7 +247,7 @@ impl OutputFormatHandler {
     /// ```rust
     /// use imgly_bgremove::services::OutputFormatHandler;
     ///
-    /// assert_eq!(OutputFormatHandler::describe_format("test.jpg"), "Image (JPEG)");
+    /// assert_eq!(OutputFormatHandler::describe_format("test.jpg"), "Image (JPG)");
     /// assert_eq!(OutputFormatHandler::describe_format("test.mp4"), "Video (MP4)");
     /// assert_eq!(OutputFormatHandler::describe_format("test.txt"), "Unknown format");
     /// ```
