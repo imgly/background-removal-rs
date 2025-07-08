@@ -10,6 +10,7 @@ pub mod progress;
 pub use format::OutputFormatHandler;
 pub use io::ImageIOService;
 pub use progress::{
-    ConsoleProgressReporter, NoOpProgressReporter, ProcessingStage, ProgressReporter,
-    ProgressTracker, ProgressUpdate,
+    create_cli_progress_reporter, BatchProcessingStats, BatchProgressUpdate,
+    ConsoleProgressReporter, EnhancedProgressReporter, NoOpProgressReporter, ProcessingStage,
+    ProgressReporter, ProgressTracker, ProgressUpdate,
 };

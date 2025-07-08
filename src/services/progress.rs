@@ -29,6 +29,28 @@ pub enum ProcessingStage {
     FileSaving,
     /// Processing completed
     Completed,
+
+    // Batch processing stages
+    /// Initializing batch processing
+    BatchInitialization,
+    /// Processing individual item in batch
+    BatchItemProcessing,
+    /// Finalizing batch processing
+    BatchFinalization,
+
+    // Video processing stages
+    /// Analyzing video metadata and properties
+    VideoAnalysis,
+    /// Decoding video stream
+    VideoDecoding,
+    /// Extracting frames from video
+    FrameExtraction,
+    /// Processing individual frame
+    FrameProcessing,
+    /// Encoding processed frames to video
+    VideoEncoding,
+    /// Finalizing video output
+    VideoFinalization,
 }
 
 impl ProcessingStage {
@@ -46,6 +68,19 @@ impl ProcessingStage {
             ProcessingStage::FormatConversion => "Converting output format",
             ProcessingStage::FileSaving => "Saving result",
             ProcessingStage::Completed => "Processing completed",
+
+            // Batch processing stages
+            ProcessingStage::BatchInitialization => "Initializing batch processing",
+            ProcessingStage::BatchItemProcessing => "Processing batch item",
+            ProcessingStage::BatchFinalization => "Finalizing batch processing",
+
+            // Video processing stages
+            ProcessingStage::VideoAnalysis => "Analyzing video metadata",
+            ProcessingStage::VideoDecoding => "Decoding video stream",
+            ProcessingStage::FrameExtraction => "Extracting video frames",
+            ProcessingStage::FrameProcessing => "Processing video frame",
+            ProcessingStage::VideoEncoding => "Encoding video output",
+            ProcessingStage::VideoFinalization => "Finalizing video file",
         }
     }
 
@@ -63,6 +98,19 @@ impl ProcessingStage {
             ProcessingStage::FormatConversion => 98,
             ProcessingStage::FileSaving => 99,
             ProcessingStage::Completed => 100,
+
+            // Batch processing stages (use high-level progress values)
+            ProcessingStage::BatchInitialization => 5,
+            ProcessingStage::BatchItemProcessing => 50, // Variable based on items
+            ProcessingStage::BatchFinalization => 98,
+
+            // Video processing stages
+            ProcessingStage::VideoAnalysis => 5,
+            ProcessingStage::VideoDecoding => 10,
+            ProcessingStage::FrameExtraction => 20,
+            ProcessingStage::FrameProcessing => 70, // Variable based on frames
+            ProcessingStage::VideoEncoding => 90,
+            ProcessingStage::VideoFinalization => 100,
         }
     }
 }
@@ -119,6 +167,34 @@ impl ProgressUpdate {
     }
 }
 
+/// Statistics for batch processing operations
+#[derive(Debug, Clone)]
+pub struct BatchProcessingStats {
+    /// Number of items completed
+    pub items_completed: usize,
+    /// Total number of items to process
+    pub items_total: usize,
+    /// Number of items that failed processing
+    pub items_failed: usize,
+    /// Name/path of the current item being processed
+    pub current_item_name: String,
+    /// Processing rate in items per second
+    pub processing_rate: f64,
+    /// Estimated time remaining in seconds
+    pub eta_seconds: Option<u64>,
+}
+
+/// Nested progress update for batch operations
+#[derive(Debug, Clone)]
+pub struct BatchProgressUpdate {
+    /// Overall batch progress (total files/frames progress)
+    pub total_progress: ProgressUpdate,
+    /// Current item progress (current file stages, current frame processing)
+    pub current_item_progress: Option<ProgressUpdate>,
+    /// Processing statistics
+    pub stats: BatchProcessingStats,
+}
+
 /// Trait for reporting progress during background removal operations
 pub trait ProgressReporter: Send + Sync {
     /// Report a progress update
@@ -139,6 +215,15 @@ pub trait ProgressReporter: Send + Sync {
     /// * `stage` - Stage where error occurred
     /// * `error` - Error description
     fn report_error(&self, stage: ProcessingStage, error: &str);
+
+    /// Report batch progress update with nested item progress
+    ///
+    /// # Arguments
+    /// * `update` - Batch progress update with total and current item progress
+    fn report_batch_progress(&self, update: BatchProgressUpdate) {
+        // Default implementation does nothing - only enhanced reporter implements this
+        drop(update);
+    }
 }
 
 /// No-op progress reporter that discards all progress updates
@@ -215,6 +300,156 @@ impl ProgressReporter for ConsoleProgressReporter {
     }
 }
 
+/// Enhanced progress reporter with nested progress support for batch operations
+pub struct EnhancedProgressReporter {
+    enable_nested_progress: bool,
+    verbose: bool,
+}
+
+impl EnhancedProgressReporter {
+    /// Create a new enhanced progress reporter
+    ///
+    /// # Arguments
+    /// * `enable_nested_progress` - Whether to show nested progress for batch operations
+    /// * `verbose` - Whether to show detailed timing information
+    #[must_use]
+    pub fn new(enable_nested_progress: bool, verbose: bool) -> Self {
+        Self {
+            enable_nested_progress,
+            verbose,
+        }
+    }
+
+    /// Format a simple progress bar
+    fn progress_bar(percentage: u8) -> String {
+        let filled = (percentage as usize * 20) / 100;
+        let empty = 20 - filled;
+        format!("{}{}", "█".repeat(filled), "░".repeat(empty))
+    }
+
+    /// Format duration in milliseconds to human-readable string
+    fn format_duration(ms: u64) -> String {
+        let seconds = ms / 1000;
+        if seconds < 60 {
+            format!("{}s", seconds)
+        } else {
+            let minutes = seconds / 60;
+            let remaining_seconds = seconds % 60;
+            format!("{}m {}s", minutes, remaining_seconds)
+        }
+    }
+
+    /// Format ETA in seconds to human-readable string
+    fn format_eta(eta_seconds: Option<u64>) -> String {
+        match eta_seconds {
+            Some(seconds) if seconds < 60 => format!("{}s", seconds),
+            Some(seconds) => {
+                let minutes = seconds / 60;
+                let remaining_seconds = seconds % 60;
+                format!("{}m {}s", minutes, remaining_seconds)
+            }
+            None => "calculating...".to_string(),
+        }
+    }
+
+    /// Get approximate file size for display (mock implementation)
+    fn format_file_size(_path: &str) -> String {
+        // In a real implementation, this would check actual file size
+        // For now, return a placeholder
+        "calculating...".to_string()
+    }
+}
+
+impl ProgressReporter for EnhancedProgressReporter {
+    fn report_progress(&self, update: ProgressUpdate) {
+        if self.verbose {
+            if let Some(eta) = update.eta_ms {
+                log::info!(
+                    "[{}] {} ({}ms elapsed, ~{}ms remaining)",
+                    update.progress,
+                    update.description,
+                    update.elapsed_ms,
+                    eta
+                );
+            } else {
+                log::info!(
+                    "[{}] {} ({}ms elapsed)",
+                    update.progress,
+                    update.description,
+                    update.elapsed_ms
+                );
+            }
+        } else {
+            log::info!("[{}%] {}", update.progress, update.description);
+        }
+    }
+
+    fn report_completion(&self, timings: ProcessingTimings) {
+        log::info!("✅ Background removal completed in {}ms", timings.total_ms);
+
+        if self.verbose {
+            log::info!("  📊 Detailed timings:");
+            log::info!("    • Image decode: {}ms", timings.image_decode_ms);
+            log::info!("    • Preprocessing: {}ms", timings.preprocessing_ms);
+            log::info!("    • Inference: {}ms", timings.inference_ms);
+            log::info!("    • Postprocessing: {}ms", timings.postprocessing_ms);
+        }
+    }
+
+    fn report_error(&self, stage: ProcessingStage, error: &str) {
+        log::error!("❌ Error during {}: {}", stage.description(), error);
+    }
+
+    fn report_batch_progress(&self, update: BatchProgressUpdate) {
+        if self.enable_nested_progress {
+            // Overall batch progress
+            log::info!(
+                "📁 Batch Processing: {}/{} files ({:.1} files/sec) - ETA: {}",
+                update.stats.items_completed,
+                update.stats.items_total,
+                update.stats.processing_rate,
+                Self::format_eta(update.stats.eta_seconds)
+            );
+            log::info!(
+                "[{}] {}% Overall Progress",
+                Self::progress_bar(update.total_progress.progress),
+                update.total_progress.progress
+            );
+
+            // Current item progress
+            if let Some(ref item_progress) = update.current_item_progress {
+                log::info!("");
+                log::info!(
+                    "📄 Current: {} ({})",
+                    update.stats.current_item_name,
+                    Self::format_file_size(&update.stats.current_item_name)
+                );
+                log::info!(
+                    "[{}] {}% {}",
+                    Self::progress_bar(item_progress.progress),
+                    item_progress.progress,
+                    item_progress.description
+                );
+
+                if self.verbose {
+                    log::info!("├─ Elapsed: {}ms", item_progress.elapsed_ms);
+                    if let Some(eta) = item_progress.eta_ms {
+                        log::info!("└─ ETA: {}ms", eta);
+                    }
+                }
+            }
+
+            // Statistics
+            log::info!("");
+            log::info!(
+                "⏱️  Timing: {} elapsed, {} remaining",
+                Self::format_duration(update.total_progress.elapsed_ms),
+                Self::format_eta(update.stats.eta_seconds)
+            );
+        }
+    }
+}
+
 /// Progress tracker that manages timing and progress reporting
 pub struct ProgressTracker {
     reporter: Box<dyn ProgressReporter>,
@@ -283,6 +518,36 @@ impl ProgressTracker {
     #[must_use]
     pub fn current_stage(&self) -> Option<&ProcessingStage> {
         self.current_stage.as_ref()
+    }
+}
+
+/// Create appropriate progress reporter based on CLI flags
+///
+/// # Arguments
+/// * `enable_progress` - Whether the --progress flag was set
+/// * `verbose` - Whether verbose logging is enabled
+/// * `batch_size` - Number of items in batch (for determining if nested progress is needed)
+///
+/// # Returns
+/// A boxed progress reporter appropriate for the given configuration
+pub fn create_cli_progress_reporter(
+    enable_progress: bool,
+    verbose: bool,
+    batch_size: usize,
+) -> Box<dyn ProgressReporter> {
+    match (enable_progress, batch_size) {
+        (false, _) => {
+            // No --progress flag: use simple console reporter
+            Box::new(ConsoleProgressReporter::new(verbose))
+        }
+        (true, 1) => {
+            // --progress with single item: use enhanced without nested
+            Box::new(EnhancedProgressReporter::new(false, verbose))
+        }
+        (true, _) => {
+            // --progress with multiple items: use enhanced with nested progress
+            Box::new(EnhancedProgressReporter::new(true, verbose))
+        }
     }
 }
 
