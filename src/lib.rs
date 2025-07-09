@@ -344,9 +344,17 @@ pub async fn remove_background_from_video_file<P: AsRef<std::path::Path>>(
 
     // Process frames
     let _start_time = instant::Instant::now();
+    let total_frames = metadata.frame_count.unwrap_or(0);
+    let mut current_frame = 0u64;
+    
     while let Some(frame_result) = frame_stream.next().await {
         let frame = frame_result?;
         let frame_start = instant::Instant::now();
+
+        // Call progress callback if provided
+        if let Some(ref callback) = config.video_progress_callback {
+            callback(current_frame, total_frames);
+        }
 
         match processor.process_image(&frame.to_dynamic_image()) {
             Ok(result) => {
@@ -363,6 +371,8 @@ pub async fn remove_background_from_video_file<P: AsRef<std::path::Path>>(
                 frame_stats.mark_frame_failed();
             },
         }
+        
+        current_frame += 1;
     }
 
     // Reassemble video

@@ -180,7 +180,9 @@
       "Bash(./validate_tracing_integration)",
       "Bash(./target/release/imgly-bgremove:*)",
       "Bash(git tag:*)",
-      "Bash(tokei:*)"
+      "Bash(tokei:*)",
+      "Bash(./test_video_progress.sh:*)",
+      "Bash(./fix_tests.sh)"
     ],
     "deny": []
   },

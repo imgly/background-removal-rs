@@ -96,6 +96,8 @@ pub struct VideoMetadata {
     pub bitrate: Option<u64>,
     /// Whether the video has an audio track
     pub has_audio: bool,
+    /// Total number of frames in the video
+    pub frame_count: Option<u64>,
 }
 
 /// Trait for video backend implementations

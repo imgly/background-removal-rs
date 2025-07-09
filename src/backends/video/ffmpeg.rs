@@ -378,9 +378,16 @@ impl VideoBackend for FfmpegBackend {
         // Estimate bitrate
         let bitrate = input.bit_rate() as u64;
 
+        // Calculate total frame count
+        let frame_count = if fps > 0.0 && duration > 0.0 {
+            Some((fps * duration).round() as u64)
+        } else {
+            None
+        };
+
         info!(
-            "Video metadata extracted: {}x{} at {:.2} fps, duration: {:.2}s, codec: {}",
-            width, height, fps, duration, codec
+            "Video metadata extracted: {}x{} at {:.2} fps, duration: {:.2}s, codec: {}, frames: {}",
+            width, height, fps, duration, codec, frame_count.unwrap_or(0)
         );
 
         Ok(VideoMetadata {
@@ -392,6 +399,7 @@ impl VideoBackend for FfmpegBackend {
             codec,
             bitrate: if bitrate > 0 { Some(bitrate) } else { None },
             has_audio,
+            frame_count,
         })
     }
 

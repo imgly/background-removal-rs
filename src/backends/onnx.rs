@@ -936,6 +936,8 @@ mod tests {
                 format_hint: None,
                 #[cfg(feature = "video-support")]
                 video_config: None,
+                #[cfg(feature = "video-support")]
+                video_progress_callback: None,
             };
 
             // This will likely fail due to missing model, but should not panic
@@ -982,6 +984,8 @@ mod tests {
                 format_hint: None,
                 #[cfg(feature = "video-support")]
                 video_config: None,
+                #[cfg(feature = "video-support")]
+                video_progress_callback: None,
             };
 
             // Attempt initialization (may fail due to missing model, but shouldn't panic)
@@ -1014,6 +1018,8 @@ mod tests {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         // Attempt initialization with debug mode - should fail gracefully without model manager

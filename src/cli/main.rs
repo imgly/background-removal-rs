@@ -1257,7 +1257,7 @@ async fn process_single_video_file(
     info!("🎬 Processing video file: {}", input_path.display());
 
     // Create progress reporter for video processing if --progress is enabled
-    let progress_reporter = create_cli_progress_reporter(cli.progress, cli.verbose > 0, 1);
+    let progress_reporter = std::sync::Arc::new(create_cli_progress_reporter(cli.progress, cli.verbose > 0, 1));
     let video_start_time = Instant::now();
 
     // Report initial video processing stage
@@ -1307,10 +1307,55 @@ async fn process_single_video_file(
         ExecutionProviderManager::parse_provider_string(&cli.execution_provider)
             .context("Invalid execution provider format")?;
 
-    let removal_config = RemovalConfig::builder()
+    // Create a channel for progress updates if --progress is enabled
+    let progress_channel = if cli.progress {
+        let (tx, rx) = std::sync::mpsc::channel::<(u64, u64)>();
+        
+        // Spawn a thread to handle progress updates
+        let progress_reporter_clone = progress_reporter.clone();
+        let start_time = video_start_time;
+        std::thread::spawn(move || {
+            while let Ok((current, total)) = rx.recv() {
+                if total > 0 {
+                    let stats = BatchProcessingStats {
+                        items_completed: 0,
+                        items_total: 1,
+                        items_failed: 0,
+                        current_item_name: format!("Processing video"),
+                        processing_rate: 0.0,
+                        eta_seconds: None,
+                        frame_info: Some((current as usize + 1, total as usize)),
+                    };
+                    
+                    let update = BatchProgressUpdate {
+                        total_progress: ProgressUpdate::new(ProcessingStage::BatchItemProcessing, start_time),
+                        current_item_progress: Some(ProgressUpdate::new(ProcessingStage::FrameProcessing, start_time)),
+                        stats,
+                    };
+                    
+                    progress_reporter_clone.report_batch_progress(update);
+                }
+            }
+        });
+        
+        Some(tx)
+    } else {
+        None
+    };
+
+    let mut removal_config_builder = RemovalConfig::builder()
         .model_spec(model_spec)
         .execution_provider(execution_provider)
-        .video_config(video_config)
+        .video_config(video_config);
+
+    // Add progress callback if progress reporting is enabled
+    if let Some(tx) = progress_channel {
+        removal_config_builder = removal_config_builder.video_progress_callback(move |current, total| {
+            let _ = tx.send((current, total));
+        });
+    }
+
+    let removal_config = removal_config_builder
         .build()
         .context("Failed to build removal configuration")?;
 

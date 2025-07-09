@@ -147,6 +147,8 @@ impl ProcessorConfig {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         }
     }
 }

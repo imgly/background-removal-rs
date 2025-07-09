@@ -526,6 +526,8 @@ mod tests {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         assert!(!backend.is_initialized());
@@ -559,6 +561,8 @@ mod tests {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         // Initialize backend
@@ -600,6 +604,8 @@ mod tests {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         let result = failing_backend.initialize(&config);
@@ -660,6 +666,8 @@ mod tests {
             format_hint: None,
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         // Initialize both backends

@@ -15,6 +15,7 @@ Remove backgrounds from images using state-of-the-art deep learning models with 
 - **Model and Session Caching**: Fast startup with cached models and sessions
 - **Batching**: Efficient batch processing of multiple images
 - **Color Profile Support**: Preserves ICC color profiles from input images
+- **Progress Tracking**: Real-time progress bars for batch and video processing
 
 ## Supported Platforms
 
@@ -227,6 +228,12 @@ imgly-bgremove photo.jpg --output result.png
 # Batch process a directory
 imgly-bgremove photos/ --output results/ --recursive
 
+# Batch processing with progress bars
+imgly-bgremove photos/*.jpg --progress --output results/
+
+# Video processing with frame-by-frame progress
+imgly-bgremove video.mp4 --progress --output output.mp4
+
 # Use specific execution provider
 imgly-bgremove input.jpg --output output.png --execution-provider onnx:coreml
 
@@ -236,6 +243,37 @@ curl -s https://example.com/image.jpg | imgly-bgremove - --output - | upload-too
 # Force specific model
 imgly-bgremove input.jpg --output output.png --model birefnet --variant fp16
 ```
+
+### Progress Tracking
+
+The `--progress` flag enables detailed progress reporting with dual stacked progress bars:
+
+```bash
+# Process multiple images with progress tracking
+imgly-bgremove images/*.jpg --progress --output processed/
+
+# Output shows:
+# Total Progress: [===========----------] 5/10 files • 50% • ETA: 12s
+# Current File:   [================-----] Processing frame 80% • landscape.jpg
+```
+
+For video processing, the progress bars show frame-by-frame progress:
+
+```bash
+# Process video with frame progress
+imgly-bgremove video.mp4 --progress --output result.mp4
+
+# Output shows:
+# Total Progress: [=====================] 1/1 files • 100%
+# Frame Progress: [===========----------] Processing frame 140/280 • 50%
+```
+
+Features:
+- **Top bar**: Overall progress across all files
+- **Bottom bar**: Current file processing stages or video frame progress
+- **ETA calculation**: Estimated time remaining based on processing rate
+- **Processing rate**: Files or frames per second
+- **Detailed stages**: Shows what operation is currently running
 
 ## Library Examples
 
@@ -332,6 +370,49 @@ async fn example() -> anyhow::Result<()> {
 }
 ```
 
+### Video Processing with Progress Tracking
+
+```rust,no_run
+use imgly_bgremove::{
+    remove_background_from_video_file, RemovalConfig, ModelSpec, ModelSource,
+    VideoProcessingConfig, ExecutionProvider
+};
+use std::sync::{Arc, Mutex};
+
+async fn example() -> anyhow::Result<()> {
+    // Setup progress tracking
+    let progress = Arc::new(Mutex::new((0u64, 0u64)));
+    let progress_clone = progress.clone();
+    
+    // Configure with video progress callback
+    let model_spec = ModelSpec {
+        source: ModelSource::Downloaded("imgly--isnet-general-onnx".to_string()),
+        variant: None,
+    };
+    
+    let config = RemovalConfig::builder()
+        .model_spec(model_spec)
+        .execution_provider(ExecutionProvider::Auto)
+        .video_config(VideoProcessingConfig::default())
+        .video_progress_callback(move |current, total| {
+            let mut p = progress_clone.lock().unwrap();
+            *p = (current, total);
+            println!("Processing frame {}/{}", current + 1, total);
+        })
+        .build()?;
+    
+    // Process video with progress tracking
+    let result = remove_background_from_video_file("input.mp4", &config).await?;
+    result.save("output.mp4")?;
+    
+    // Final progress should show all frames processed
+    let final_progress = progress.lock().unwrap();
+    println!("Processed {} frames total", final_progress.1);
+    
+    Ok(())
+}
+```
+
 ## CLI Reference
 
 ```text
@@ -350,6 +431,7 @@ OPTIONS:
   -v, --verbose...                         Enable verbose logging (-v: INFO, -vv: DEBUG, -vvv: TRACE)
   -r, --recursive                          Process directory recursively
       --pattern <PATTERN>                  Pattern for batch processing (e.g., "*.jpg")
+      --progress                           Show detailed progress bars during processing
       --show-providers                     Show execution provider diagnostics and exit
   -m, --model <MODEL>                      Model name, URL, or path to model folder
       --variant <VARIANT>                  Model variant (fp16, fp32) [default: fp16]

@@ -166,7 +166,7 @@ impl VideoProcessingConfig {
 }
 
 /// Configuration for background removal operations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct RemovalConfig {
     /// Execution provider for ONNX Runtime
     pub execution_provider: ExecutionProvider,
@@ -205,6 +205,12 @@ pub struct RemovalConfig {
     /// Video processing configuration (only used when processing videos)
     #[cfg(feature = "video-support")]
     pub video_config: Option<VideoProcessingConfig>,
+
+    /// Progress callback for video frame processing
+    /// Called with (current_frame, total_frames) for each processed frame
+    #[serde(skip)]
+    #[cfg(feature = "video-support")]
+    pub video_progress_callback: Option<Box<dyn Fn(u64, u64) + Send + Sync>>,
 }
 
 impl Default for RemovalConfig {
@@ -223,6 +229,83 @@ impl Default for RemovalConfig {
             format_hint: None,                // Default: auto-detect format
             #[cfg(feature = "video-support")]
             video_config: None, // Default: no video processing config
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None, // Default: no progress callback
+        }
+    }
+}
+
+impl std::fmt::Debug for RemovalConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("RemovalConfig");
+        debug_struct
+            .field("execution_provider", &self.execution_provider)
+            .field("output_format", &self.output_format)
+            .field("jpeg_quality", &self.jpeg_quality)
+            .field("webp_quality", &self.webp_quality)
+            .field("debug", &self.debug)
+            .field("intra_threads", &self.intra_threads)
+            .field("inter_threads", &self.inter_threads)
+            .field("preserve_color_profiles", &self.preserve_color_profiles)
+            .field("disable_cache", &self.disable_cache)
+            .field("model_spec", &self.model_spec)
+            .field("format_hint", &self.format_hint);
+            
+        #[cfg(feature = "video-support")]
+        {
+            debug_struct.field("video_config", &self.video_config);
+            debug_struct.field("video_progress_callback", &self.video_progress_callback.is_some());
+        }
+        
+        debug_struct.finish()
+    }
+}
+
+impl Clone for RemovalConfig {
+    fn clone(&self) -> Self {
+        Self {
+            execution_provider: self.execution_provider,
+            output_format: self.output_format,
+            jpeg_quality: self.jpeg_quality,
+            webp_quality: self.webp_quality,
+            debug: self.debug,
+            intra_threads: self.intra_threads,
+            inter_threads: self.inter_threads,
+            preserve_color_profiles: self.preserve_color_profiles,
+            disable_cache: self.disable_cache,
+            model_spec: self.model_spec.clone(),
+            format_hint: self.format_hint,
+            #[cfg(feature = "video-support")]
+            video_config: self.video_config.clone(),
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None, // Callbacks cannot be cloned
+        }
+    }
+}
+
+impl PartialEq for RemovalConfig {
+    fn eq(&self, other: &Self) -> bool {
+        let base_eq = self.execution_provider == other.execution_provider
+            && self.output_format == other.output_format
+            && self.jpeg_quality == other.jpeg_quality
+            && self.webp_quality == other.webp_quality
+            && self.debug == other.debug
+            && self.intra_threads == other.intra_threads
+            && self.inter_threads == other.inter_threads
+            && self.preserve_color_profiles == other.preserve_color_profiles
+            && self.disable_cache == other.disable_cache
+            && self.model_spec == other.model_spec
+            && self.format_hint == other.format_hint;
+            
+        #[cfg(feature = "video-support")]
+        {
+            base_eq && self.video_config == other.video_config
+            // Note: video_progress_callback is intentionally excluded from equality comparison
+        }
+        
+        #[cfg(not(feature = "video-support"))]
+        {
+            base_eq
         }
     }
 }
@@ -499,6 +582,17 @@ impl RemovalConfigBuilder {
             .unwrap_or_default()
             .with_audio_preservation(preserve);
         self.config.video_config = Some(video_config);
+        self
+    }
+
+    /// Set video progress callback (when video support is enabled)
+    #[cfg(feature = "video-support")]
+    #[must_use]
+    pub fn video_progress_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(u64, u64) + Send + Sync + 'static,
+    {
+        self.config.video_progress_callback = Some(Box::new(callback));
         self
     }
 
@@ -872,6 +966,8 @@ mod tests {
             format_hint: Some(ImageFormat::Png),
             #[cfg(feature = "video-support")]
             video_config: None,
+            #[cfg(feature = "video-support")]
+            video_progress_callback: None,
         };
 
         // Serialize to JSON
