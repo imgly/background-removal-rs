@@ -182,6 +182,8 @@ pub struct BatchProcessingStats {
     pub processing_rate: f64,
     /// Estimated time remaining in seconds
     pub eta_seconds: Option<u64>,
+    /// Frame information for video processing (current_frame, total_frames)
+    pub frame_info: Option<(usize, usize)>,
 }
 
 /// Nested progress update for batch operations
@@ -306,6 +308,17 @@ pub struct EnhancedProgressReporter {
     verbose: bool,
 }
 
+/// Stacked progress reporter using indicatif for dual progress bars
+#[cfg(feature = "cli")]
+pub struct StackedProgressReporter {
+    _multi_progress: std::sync::Arc<indicatif::MultiProgress>,
+    total_bar: indicatif::ProgressBar,
+    current_bar: indicatif::ProgressBar,
+    verbose: bool,
+    _start_time: Instant,
+    _draw_thread: Option<std::thread::JoinHandle<()>>,
+}
+
 impl EnhancedProgressReporter {
     /// Create a new enhanced progress reporter
     ///
@@ -366,17 +379,12 @@ impl ProgressReporter for EnhancedProgressReporter {
             if let Some(eta) = update.eta_ms {
                 println!(
                     "[{}%] {} ({}ms elapsed, ~{}ms remaining)",
-                    update.progress,
-                    update.description,
-                    update.elapsed_ms,
-                    eta
+                    update.progress, update.description, update.elapsed_ms, eta
                 );
             } else {
                 println!(
                     "[{}%] {} ({}ms elapsed)",
-                    update.progress,
-                    update.description,
-                    update.elapsed_ms
+                    update.progress, update.description, update.elapsed_ms
                 );
             }
         } else {
@@ -446,6 +454,188 @@ impl ProgressReporter for EnhancedProgressReporter {
                 Self::format_duration(update.total_progress.elapsed_ms),
                 Self::format_eta(update.stats.eta_seconds)
             );
+        }
+    }
+}
+
+#[cfg(feature = "cli")]
+impl StackedProgressReporter {
+    /// Create a new stacked progress reporter with dual progress bars
+    #[must_use]
+    pub fn new(verbose: bool) -> Self {
+        use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+        use std::sync::Arc;
+
+        let multi_progress = Arc::new(MultiProgress::new());
+
+        // Create total progress bar (for overall files/items)
+        let total_bar = multi_progress.add(ProgressBar::new(100));
+        total_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files | {percent}% | ETA: {eta}")
+                .unwrap()
+                .progress_chars("█▓░"),
+        );
+
+        // Create current item progress bar
+        let current_bar = multi_progress.add(ProgressBar::new(100));
+        current_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.yellow} [{bar:40.yellow/red}] {msg}")
+                .unwrap()
+                .progress_chars("█▓░")
+                .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ "),
+        );
+
+        // Don't need a separate draw thread with indicatif 0.17
+        // The progress bars will update automatically
+
+        Self {
+            _multi_progress: multi_progress,
+            total_bar,
+            current_bar,
+            verbose,
+            _start_time: Instant::now(),
+            _draw_thread: None,
+        }
+    }
+
+    /// Update the total progress bar
+    fn update_total_progress(&self, completed: usize, total: usize, eta_seconds: Option<u64>) {
+        self.total_bar.set_length(total as u64);
+        self.total_bar.set_position(completed as u64);
+
+        if let Some(eta) = eta_seconds {
+            self.total_bar
+                .set_message(format!("ETA: {}", Self::format_eta(Some(eta))));
+        }
+        
+        // Tick to keep the progress bar active
+        self.total_bar.tick();
+    }
+
+    /// Update the current item progress bar
+    fn update_current_progress(&self, stage: &ProcessingStage, progress: u8, item_name: &str) {
+        self.current_bar.set_position(progress as u64);
+        self.current_bar.set_message(format!(
+            "Current: {} - {} ({}%)",
+            item_name,
+            stage.description(),
+            progress
+        ));
+        
+        // Tick to keep the progress bar active
+        self.current_bar.tick();
+    }
+
+    /// Update frame progress for video processing
+    fn update_frame_progress(&self, current_frame: usize, total_frames: usize, item_name: &str) {
+        if total_frames > 0 {
+            let progress = ((current_frame as f64 / total_frames as f64) * 100.0) as u64;
+            self.current_bar.set_length(100);
+            self.current_bar.set_position(progress);
+            self.current_bar.set_message(format!(
+                "Processing {}: Frame {}/{} | {}%",
+                item_name, current_frame, total_frames, progress
+            ));
+        } else {
+            // When we don't have frame count info, show indeterminate progress
+            self.current_bar.set_length(0); // Makes it a spinner
+            self.current_bar.set_message(format!(
+                "Processing video: {} (analyzing frames...)",
+                item_name
+            ));
+        }
+        
+        // Tick to keep the progress bar active
+        self.current_bar.tick();
+    }
+
+    /// Clear the progress bars on completion
+    fn clear_progress_bars(&self) {
+        self.total_bar.finish_and_clear();
+        self.current_bar.finish_and_clear();
+    }
+
+    /// Format ETA in seconds to human-readable string
+    fn format_eta(eta_seconds: Option<u64>) -> String {
+        match eta_seconds {
+            Some(seconds) if seconds < 60 => format!("{}s", seconds),
+            Some(seconds) => {
+                let minutes = seconds / 60;
+                let remaining_seconds = seconds % 60;
+                format!("{}m {}s", minutes, remaining_seconds)
+            },
+            None => "calculating...".to_string(),
+        }
+    }
+}
+
+#[cfg(feature = "cli")]
+impl ProgressReporter for StackedProgressReporter {
+    fn report_progress(&self, update: ProgressUpdate) {
+        // For individual file progress updates
+        self.current_bar.set_position(update.progress as u64);
+        self.current_bar
+            .set_message(format!("{} ({}%)", update.description, update.progress));
+    }
+
+    fn report_completion(&self, timings: ProcessingTimings) {
+        self.clear_progress_bars();
+        println!("✅ Background removal completed in {}ms", timings.total_ms);
+
+        if self.verbose {
+            println!("  📊 Detailed timings:");
+            println!("    • Image decode: {}ms", timings.image_decode_ms);
+            println!("    • Preprocessing: {}ms", timings.preprocessing_ms);
+            println!("    • Inference: {}ms", timings.inference_ms);
+            println!("    • Postprocessing: {}ms", timings.postprocessing_ms);
+        }
+    }
+
+    fn report_error(&self, stage: ProcessingStage, error: &str) {
+        // Temporarily clear progress bars to show error
+        self.total_bar.suspend(|| {
+            eprintln!("❌ Error during {}: {}", stage.description(), error);
+        });
+    }
+
+    fn report_batch_progress(&self, update: BatchProgressUpdate) {
+        // Update total progress bar
+        self.update_total_progress(
+            update.stats.items_completed,
+            update.stats.items_total,
+            update.stats.eta_seconds,
+        );
+
+        // Update current item progress bar
+        if let Some(ref item_progress) = update.current_item_progress {
+            // Check if we have frame information for video processing
+            if let Some((current_frame, total_frames)) = update.stats.frame_info {
+                // Show frame progress for video processing
+                self.update_frame_progress(
+                    current_frame,
+                    total_frames,
+                    &update.stats.current_item_name,
+                );
+            } else if matches!(item_progress.stage, ProcessingStage::FrameProcessing | ProcessingStage::VideoDecoding | ProcessingStage::VideoEncoding) {
+                // For video stages without frame info, show indeterminate progress
+                self.current_bar.set_length(0); // Makes it a spinner
+                self.current_bar.enable_steady_tick(std::time::Duration::from_millis(80));
+                self.current_bar.set_message(format!(
+                    "Processing video: {} - {}",
+                    &update.stats.current_item_name,
+                    item_progress.stage.description()
+                ));
+                self.current_bar.tick();
+            } else {
+                // For regular file processing, show stage progress
+                self.update_current_progress(
+                    &item_progress.stage,
+                    item_progress.progress,
+                    &update.stats.current_item_name,
+                );
+            }
         }
     }
 }
@@ -540,12 +730,19 @@ pub fn create_cli_progress_reporter(
             // No --progress flag: use simple console reporter
             Box::new(ConsoleProgressReporter::new(verbose))
         },
+        #[cfg(feature = "cli")]
         (true, 1) => {
-            // --progress with single item: use enhanced without nested
-            Box::new(EnhancedProgressReporter::new(false, verbose))
+            // --progress with single item: use stacked reporter but it will mostly show current item progress
+            Box::new(StackedProgressReporter::new(verbose))
         },
+        #[cfg(feature = "cli")]
         (true, _) => {
-            // --progress with multiple items: use enhanced with nested progress
+            // --progress with multiple items: use stacked reporter with dual progress bars
+            Box::new(StackedProgressReporter::new(verbose))
+        },
+        #[cfg(not(feature = "cli"))]
+        (true, _) => {
+            // Fallback when CLI feature is not enabled
             Box::new(EnhancedProgressReporter::new(true, verbose))
         },
     }
@@ -1161,6 +1358,7 @@ mod tests {
             current_item_name: "test_image.jpg".to_string(),
             processing_rate: 2.5,
             eta_seconds: Some(120),
+            frame_info: None,
         };
 
         assert_eq!(stats.items_completed, 5);
@@ -1187,6 +1385,7 @@ mod tests {
             current_item_name: "image3.png".to_string(),
             processing_rate: 1.2,
             eta_seconds: Some(100),
+            frame_info: None,
         };
 
         let batch_update = BatchProgressUpdate {
@@ -1229,6 +1428,7 @@ mod tests {
                 current_item_name: "test.jpg".to_string(),
                 processing_rate: 1.5,
                 eta_seconds: Some(60),
+                frame_info: None,
             },
         };
 
@@ -1352,6 +1552,7 @@ mod tests {
                 current_item_name: "image1.jpg".to_string(),
                 processing_rate: 0.8,
                 eta_seconds: Some(200),
+                frame_info: None,
             },
         };
 
@@ -1379,6 +1580,7 @@ mod tests {
             current_item_name: "first_image.jpg".to_string(),
             processing_rate: 0.0,
             eta_seconds: None,
+            frame_info: None,
         };
 
         assert_eq!(stats.processing_rate, 0.0);
@@ -1407,6 +1609,7 @@ mod tests {
                 current_item_name: "test.jpg".to_string(),
                 processing_rate: 1.0,
                 eta_seconds: Some(60),
+                frame_info: None,
             },
         };
 

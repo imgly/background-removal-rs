@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Enhanced progress reporting**: New `--progress` CLI flag provides detailed nested progress information for batch and video processing operations, including per-item progress, processing rates, ETA calculations, and comprehensive stage reporting
+- **Dual stacked progress bars**: When `--progress` flag is used, displays two visually stacked progress bars - one showing total files/items progress and another showing current file processing stages. For video processing, shows an indeterminate spinner with stage information (frame-by-frame progress requires future API enhancements)
 - **Batch processing output directory support**: CLI now respects `--output` flag when processing multiple files, allowing users to specify a custom output directory for batch operations instead of placing files alongside inputs
 
 ### Changed

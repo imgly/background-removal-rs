@@ -707,6 +707,7 @@ async fn process_inputs(cli: &Cli, processor: &mut BackgroundRemovalProcessor) -
                     current_item_name: input_file.display().to_string(),
                     processing_rate,
                     eta_seconds,
+                    frame_info: None, // No frame info for image processing
                 },
             };
 
