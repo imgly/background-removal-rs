@@ -21,6 +21,26 @@ pub struct FfmpegBackend;
 impl FfmpegBackend {
     /// Create a new FFmpeg backend
     pub fn new() -> Result<Self> {
+        // Initialize FFmpeg once at backend creation
+        ffmpeg::init().map_err(|e| {
+            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
+        })?;
+        
+        // Set FFmpeg log level based on current log level
+        // Only show FFmpeg output in debug mode or higher
+        #[allow(unsafe_code)]
+        if log::log_enabled!(log::Level::Debug) {
+            unsafe {
+                ffmpeg::ffi::av_log_set_level(ffmpeg::ffi::AV_LOG_INFO);
+            }
+        } else {
+            // Suppress FFmpeg output for non-debug levels
+            #[allow(unsafe_code)]
+            unsafe {
+                ffmpeg::ffi::av_log_set_level(ffmpeg::ffi::AV_LOG_QUIET);
+            }
+        }
+        
         Ok(Self)
     }
 }
@@ -35,11 +55,6 @@ impl Default for FfmpegBackend {
 impl VideoBackend for FfmpegBackend {
     async fn extract_frames(&self, input_path: &Path) -> Result<FrameStream> {
         info!("Extracting frames from {}", input_path.display());
-
-        // Initialize FFmpeg
-        ffmpeg::init().map_err(|e| {
-            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
-        })?;
 
         // Open input file
         let mut input = ffmpeg::format::input(&input_path).map_err(|e| {
@@ -317,11 +332,6 @@ impl VideoBackend for FfmpegBackend {
     async fn get_metadata(&self, input_path: &Path) -> Result<VideoMetadata> {
         info!("Getting metadata for {}", input_path.display());
 
-        // Initialize FFmpeg
-        ffmpeg::init().map_err(|e| {
-            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
-        })?;
-
         // Open input file
         let input = ffmpeg::format::input(&input_path).map_err(|e| {
             BgRemovalError::processing(format!("Failed to open input video: {}", e))
@@ -436,10 +446,7 @@ impl FfmpegBackend {
             })?;
         }
 
-        // Initialize FFmpeg globally
-        ffmpeg::init().map_err(|e| {
-            BgRemovalError::processing(format!("Failed to initialize FFmpeg: {}", e))
-        })?;
+        // FFmpeg is already initialized in the constructor
 
         // Create output format and context
         let output_format_name = match metadata.format {

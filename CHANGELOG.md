@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Batch processing order**: Files are now processed in alphanumerical order for consistent, predictable processing across different operating systems and filesystems
 
 ### Fixed
+- **FFmpeg verbose output suppression**: FFmpeg encoder statistics are now only shown when debug logging is enabled (-vv flag), preventing cluttered output during normal video processing
 - **Video frame distortion**: Resolved frame distortion issues in video processing by fixing hardcoded resolution metadata extraction to use actual video dimensions
 - **Video frame corruption**: Improved frame data copying with proper stride handling to prevent memory corruption and data misalignment
 - **Video quality degradation**: Implemented better scaling algorithm using LANCZOS interpolation with higher quality flags for improved visual output
