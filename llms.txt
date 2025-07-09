@@ -116,6 +116,7 @@
 /bin/lint.sh : Linting script using clippy with strict rules
 /bin/pre-commit-hook.sh : Git pre-commit hook for code quality checks
 /scripts/claude.sandbox.sh : Claude AI sandbox environment setup script
+/capa : Capability management script for branch/worktree workflow with Claude Code integration
 
 # CI/CD Configuration
 /.github/workflows/ci.yml : GitHub Actions CI/CD workflow for testing and building

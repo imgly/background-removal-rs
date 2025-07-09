@@ -1,0 +1,277 @@
+#!/bin/bash
+
+# capa - Capability management script for bg_remove-rs
+# Manages branches, worktrees, and Claude Code sessions for development capabilities
+
+set -e
+
+SCRIPT_NAME="capa"
+WORKTREE_BASE="worktree"
+BRANCH_PREFIX="feat"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+# Function to check if capability exists
+capability_exists() {
+    local capability=$1
+    local worktree_path="${WORKTREE_BASE}/${BRANCH_PREFIX}-${capability}"
+    local branch_name="${BRANCH_PREFIX}/${capability}"
+    
+    if [ -d "$worktree_path" ] || git branch --list "$branch_name" | grep -q "$branch_name"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to initialize a new capability
+capa_init() {
+    local capability=$1
+    
+    if [ -z "$capability" ]; then
+        print_error "Capability name is required"
+        echo "Usage: $SCRIPT_NAME init <capability-name>"
+        exit 1
+    fi
+    
+    # Convert capability name to lowercase and replace spaces with hyphens
+    capability=$(echo "$capability" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    
+    local worktree_path="${WORKTREE_BASE}/${BRANCH_PREFIX}-${capability}"
+    local branch_name="${BRANCH_PREFIX}/${capability}"
+    
+    # Check if capability already exists
+    if capability_exists "$capability"; then
+        print_error "Capability '$capability' already exists"
+        exit 1
+    fi
+    
+    # Create the worktree and branch
+    print_info "Creating new capability: $capability"
+    print_info "Branch: $branch_name"
+    print_info "Worktree: $worktree_path"
+    
+    git worktree add "$worktree_path" -b "$branch_name"
+    
+    print_success "Capability '$capability' initialized successfully"
+    print_info "To start working on this capability, run: $SCRIPT_NAME resume $capability"
+}
+
+# Function to resume work on a capability
+capa_resume() {
+    local capability=$1
+    
+    if [ -z "$capability" ]; then
+        print_error "Capability name is required"
+        echo "Usage: $SCRIPT_NAME resume <capability-name>"
+        exit 1
+    fi
+    
+    # Convert capability name to lowercase and replace spaces with hyphens
+    capability=$(echo "$capability" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    
+    local worktree_path="${WORKTREE_BASE}/${BRANCH_PREFIX}-${capability}"
+    local branch_name="${BRANCH_PREFIX}/${capability}"
+    
+    # Check if worktree exists
+    if [ ! -d "$worktree_path" ]; then
+        print_error "Capability '$capability' does not exist or worktree not found"
+        print_info "You may need to run: $SCRIPT_NAME init $capability"
+        exit 1
+    fi
+    
+    print_info "Resuming work on capability: $capability"
+    
+    # Change to the worktree directory
+    cd "$worktree_path"
+    
+    # Detect terminal type and open new session
+    if [ -n "$TMUX" ]; then
+        # We're inside tmux - create a new window
+        print_info "Opening in new tmux window..."
+        tmux new-window -n "capa-$capability" -c "$PWD" "claude code --resume"
+    elif command -v osascript >/dev/null 2>&1; then
+        # macOS - use AppleScript to open new terminal tab
+        print_info "Opening in new Terminal tab (macOS)..."
+        osascript -e "
+            tell application \"Terminal\"
+                activate
+                tell application \"System Events\" to keystroke \"t\" using command down
+                delay 0.5
+                do script \"cd $PWD && claude code --resume\" in front window
+            end tell"
+    elif [ -n "$GNOME_TERMINAL_SERVICE" ] || [ -n "$VTE_VERSION" ]; then
+        # GNOME Terminal
+        print_info "Opening in new GNOME Terminal tab..."
+        gnome-terminal --tab --working-directory="$PWD" -- bash -c "claude code --resume; exec bash"
+    elif command -v konsole >/dev/null 2>&1; then
+        # KDE Konsole
+        print_info "Opening in new Konsole tab..."
+        konsole --new-tab --workdir "$PWD" -e "claude code --resume"
+    elif command -v xterm >/dev/null 2>&1; then
+        # Fallback to xterm
+        print_info "Opening in new xterm window..."
+        xterm -e "cd $PWD && claude code --resume" &
+    else
+        # No GUI terminal detected - just run in current terminal
+        print_warning "Could not detect terminal type. Running in current session..."
+        print_info "Working directory: $PWD"
+        claude code --resume
+    fi
+}
+
+# Function to finish and clean up a capability
+capa_finish() {
+    local capability=$1
+    
+    if [ -z "$capability" ]; then
+        print_error "Capability name is required"
+        echo "Usage: $SCRIPT_NAME finish <capability-name>"
+        exit 1
+    fi
+    
+    # Convert capability name to lowercase and replace spaces with hyphens
+    capability=$(echo "$capability" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    
+    local worktree_path="${WORKTREE_BASE}/${BRANCH_PREFIX}-${capability}"
+    local branch_name="${BRANCH_PREFIX}/${capability}"
+    
+    # Check if worktree exists
+    if [ ! -d "$worktree_path" ]; then
+        print_error "Capability '$capability' worktree not found"
+        exit 1
+    fi
+    
+    print_info "Finishing capability: $capability"
+    
+    # Change back to main repository root
+    cd "$(git rev-parse --show-toplevel)"
+    
+    # Check if we're on main branch
+    current_branch=$(git branch --show-current)
+    if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+        print_info "Switching to main branch..."
+        git checkout main || git checkout master
+    fi
+    
+    # Merge the feature branch
+    print_info "Merging branch $branch_name..."
+    if git merge "$branch_name" --no-ff -m "feat: merge capability $capability"; then
+        print_success "Branch merged successfully"
+    else
+        print_error "Merge failed. Please resolve conflicts and run again."
+        exit 1
+    fi
+    
+    # Remove the worktree
+    print_info "Removing worktree..."
+    git worktree remove "$worktree_path"
+    
+    # Delete the branch
+    print_info "Deleting branch $branch_name..."
+    git branch -d "$branch_name"
+    
+    print_success "Capability '$capability' finished and cleaned up successfully"
+}
+
+# Function to list all active capabilities
+capa_list() {
+    print_info "Active capabilities:"
+    echo ""
+    
+    # List all worktrees
+    git worktree list | grep -E "worktree/${BRANCH_PREFIX}-" | while read -r line; do
+        worktree_path=$(echo "$line" | awk '{print $1}')
+        branch_name=$(echo "$line" | awk '{print $3}' | tr -d '[]')
+        capability_name=$(basename "$worktree_path" | sed "s/^${BRANCH_PREFIX}-//")
+        
+        echo -e "  ${GREEN}●${NC} $capability_name"
+        echo "    Branch: $branch_name"
+        echo "    Path: $worktree_path"
+        echo ""
+    done
+    
+    # Check if any capabilities exist
+    if ! git worktree list | grep -q "worktree/${BRANCH_PREFIX}-"; then
+        echo "  No active capabilities found."
+        echo ""
+        print_info "Use '$SCRIPT_NAME init <capability-name>' to create a new capability"
+    fi
+}
+
+# Function to show help
+show_help() {
+    cat << EOF
+capa - Capability management for bg_remove-rs
+
+Usage: $SCRIPT_NAME <command> [arguments]
+
+Commands:
+    init <name>     Create a new capability with branch and worktree
+    resume <name>   Resume work on an existing capability (opens Claude Code)
+    finish <name>   Merge capability and clean up branch/worktree
+    list           List all active capabilities
+    help           Show this help message
+
+Examples:
+    $SCRIPT_NAME init user-authentication
+    $SCRIPT_NAME resume user-authentication
+    $SCRIPT_NAME finish user-authentication
+
+Notes:
+    - Capability names are automatically converted to lowercase with hyphens
+    - The 'resume' command will attempt to open Claude Code in a new terminal tab/window
+    - Supported terminals: tmux, macOS Terminal, GNOME Terminal, Konsole, xterm
+EOF
+}
+
+# Main script logic
+case "$1" in
+    init)
+        capa_init "$2"
+        ;;
+    resume)
+        capa_resume "$2"
+        ;;
+    finish)
+        capa_finish "$2"
+        ;;
+    list)
+        capa_list
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        if [ -z "$1" ]; then
+            show_help
+        else
+            print_error "Unknown command: $1"
+            echo ""
+            show_help
+            exit 1
+        fi
+        ;;
+esac
