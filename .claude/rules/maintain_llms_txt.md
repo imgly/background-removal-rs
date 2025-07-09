@@ -143,8 +143,7 @@ Before committing changes that affect file structure:
 - Documentation references **SHOULD point to** llms.txt for structure
 
 ### Supports Development Workflow
-- **Mandatory worktree usage** includes llms.txt updates in feature branches
-- **Implementation planning** should reference llms.txt for context
+- **Feature development** includes llms.txt updates
 - **Code quality standards** include keeping documentation current
 
 ### Enables AI Assistant Effectiveness

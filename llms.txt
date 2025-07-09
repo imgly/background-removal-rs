@@ -129,9 +129,7 @@
 /.claude/experts/sonnet-v4.md : Sonnet v4 expert configuration and capabilities
 
 # Development Rules
-/.claude/rules/mandatory_worktree_usage.md : Critical rule enforcing git worktree usage for all development
 /.claude/rules/task_management.md : Task management rules and guidelines for Claude
-/.claude/rules/implementation_planning.md : Implementation planning and worktree creation rules
 /.claude/rules/process_execution.md : Process execution requirements and standards
 /.claude/rules/kiss_principle.md : Keep It Simple principle enforcement
 /.claude/rules/yagni_principle.md : You Aren't Gonna Need It principle guidelines
@@ -140,7 +138,6 @@
 /.claude/rules/commit_guidelines.md : Git commit message conventions and standards
 /.claude/rules/documentation_protocols.md : Documentation standards and requirements
 /.claude/rules/changelog_update.md : Rules for maintaining changelog files during development
-/.claude/rules/git_workflow.md : Git workflow and branching strategy requirements
 /.claude/rules/cargo_check_after_changes.md : Cargo check requirement after Rust changes
 /.claude/rules/cargo_fmt_after_changes.md : Cargo format requirement after Rust changes
 /.claude/rules/cargo_test_after_completion.md : Cargo test requirement after task completion

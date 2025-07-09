@@ -215,9 +215,8 @@ cargo test integration
 - **Supports mandatory_doc_test_execution.md** by testing docs without cache
 
 ### Enforcement Alignment
-- **Follows mandatory_worktree_usage.md** by being created in feature worktree
 - **Supports code_quality.md** by revealing hidden quality issues
-- **Enhances git_workflow.md** by ensuring complete feature validation
+- **Ensures complete feature validation** before merging
 
 ## Documentation Requirements
 

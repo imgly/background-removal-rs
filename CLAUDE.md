@@ -16,10 +16,8 @@ Whenever an external process is started in the background, remember it's PID and
 
 
 # Rules
-@.claude/rules/mandatory_worktree_usage.md
 @.claude/rules/repository_structure_reference.md
 @.claude/rules/task_management.md
-@.claude/rules/implementation_planning.md
 @.claude/rules/process_execution.md
 @.claude/rules/kiss_principle.md
 @.claude/rules/yagni_principle.md
@@ -30,7 +28,6 @@ Whenever an external process is started in the background, remember it's PID and
 @.claude/rules/commit_guidelines.md
 @.claude/rules/documentation_protocols.md
 @.claude/rules/changelog_update.md
-@.claude/rules/git_workflow.md
 @.claude/rules/cargo_check_after_changes.md
 @.claude/rules/cargo_fmt_after_changes.md
 @.claude/rules/cargo_test_after_completion.md
