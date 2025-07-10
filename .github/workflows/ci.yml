@@ -63,10 +63,10 @@ jobs:
         ffmpeg -version
 
     - name: Check
-      run: cargo check --verbose
+      run: cargo check --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
 
     - name: Test
-      run: cargo test --verbose
+      run: cargo test --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
