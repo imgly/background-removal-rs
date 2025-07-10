@@ -50,6 +50,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         choco install ffmpeg
+        choco install pkgconfiglite
         echo "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin" >> $env:GITHUB_PATH
 
     - name: Check
