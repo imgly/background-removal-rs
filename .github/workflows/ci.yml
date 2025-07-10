@@ -49,15 +49,32 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install ffmpeg
+        choco install ffmpeg-full
         choco install pkgconfiglite
         echo "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin" >> $env:GITHUB_PATH
+      env:
+        FFMPEG_DIR: C:\ProgramData\chocolatey\lib\ffmpeg-full\tools\ffmpeg
 
     - name: Check
       run: cargo check --verbose
+      if: matrix.os != 'windows-latest'
+
+    - name: Check (Windows without video)
+      if: matrix.os == 'windows-latest'
+      run: cargo check --verbose --no-default-features --features "onnx,tract,cli,webp-support"
 
     - name: Build
       run: cargo build --verbose
+      if: matrix.os != 'windows-latest'
+
+    - name: Build (Windows without video)
+      if: matrix.os == 'windows-latest'
+      run: cargo build --verbose --no-default-features --features "onnx,tract,cli,webp-support"
 
     - name: Test
       run: cargo test --verbose
+      if: matrix.os != 'windows-latest'
+
+    - name: Test (Windows without video)
+      if: matrix.os == 'windows-latest'
+      run: cargo test --verbose --no-default-features --features "onnx,tract,cli,webp-support"
