@@ -63,34 +63,36 @@ jobs:
         New-Item -ItemType Directory -Force -Path $pkgConfigPath
         
         # Create libavutil.pc
-        @"
-prefix=$($ffmpegPath.FullName)
-exec_prefix=`${prefix}
-libdir=`${prefix}/lib
-includedir=`${prefix}/include
-
-Name: libavutil
-Description: FFmpeg utility library
-Version: 58.2.100
-Libs: -L`${libdir} -lavutil
-Cflags: -I`${includedir}
-"@ | Out-File -FilePath "$pkgConfigPath\libavutil.pc" -Encoding ASCII
+        $content = @"
+        prefix=$($ffmpegPath.FullName)
+        exec_prefix=`${prefix}
+        libdir=`${prefix}/lib
+        includedir=`${prefix}/include
+        
+        Name: libavutil
+        Description: FFmpeg utility library
+        Version: 58.2.100
+        Libs: -L`${libdir} -lavutil
+        Cflags: -I`${includedir}
+        "@
+        $content | Out-File -FilePath "$pkgConfigPath\libavutil.pc" -Encoding ASCII
         
         # Create similar files for other libraries
         $libs = @("avcodec", "avformat", "avfilter", "avdevice", "swresample", "swscale")
         foreach ($lib in $libs) {
-          @"
-prefix=$($ffmpegPath.FullName)
-exec_prefix=`${prefix}
-libdir=`${prefix}/lib
-includedir=`${prefix}/include
-
-Name: lib$lib
-Description: FFmpeg $lib library
-Version: 58.2.100
-Libs: -L`${libdir} -l$lib
-Cflags: -I`${includedir}
-"@ | Out-File -FilePath "$pkgConfigPath\lib$lib.pc" -Encoding ASCII
+          $content = @"
+        prefix=$($ffmpegPath.FullName)
+        exec_prefix=`${prefix}
+        libdir=`${prefix}/lib
+        includedir=`${prefix}/include
+        
+        Name: lib$lib
+        Description: FFmpeg $lib library
+        Version: 58.2.100
+        Libs: -L`${libdir} -l$lib
+        Cflags: -I`${includedir}
+        "@
+          $content | Out-File -FilePath "$pkgConfigPath\lib$lib.pc" -Encoding ASCII
         }
         
         # Set PKG_CONFIG_PATH
