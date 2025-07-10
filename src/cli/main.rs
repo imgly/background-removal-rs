@@ -2107,40 +2107,49 @@ mod tests {
         // Test basic functionality
         let input = Path::new("test.jpg");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "/output/test_bg_removed.png");
+        let expected = output_dir.join("test_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test different formats
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Jpeg);
-        assert_eq!(output, "/output/test_bg_removed.jpg");
+        let expected = output_dir.join("test_bg_removed.jpg");
+        assert_eq!(output, expected.to_string_lossy());
 
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::WebP);
-        assert_eq!(output, "/output/test_bg_removed.webp");
+        let expected = output_dir.join("test_bg_removed.webp");
+        assert_eq!(output, expected.to_string_lossy());
 
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Tiff);
-        assert_eq!(output, "/output/test_bg_removed.tiff");
+        let expected = output_dir.join("test_bg_removed.tiff");
+        assert_eq!(output, expected.to_string_lossy());
 
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Rgba8);
-        assert_eq!(output, "/output/test_bg_removed.rgba8");
+        let expected = output_dir.join("test_bg_removed.rgba8");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test with complex input path (directory info should be ignored)
         let input = Path::new("/path/to/image.png");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "/output/image_bg_removed.png");
+        let expected = output_dir.join("image_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test with complex filename
         let input = Path::new("my.complex.filename.jpeg");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "/output/my.complex.filename_bg_removed.png");
+        let expected = output_dir.join("my.complex.filename_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test with no extension
         let input = Path::new("filename_no_ext");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "/output/filename_no_ext_bg_removed.png");
+        let expected = output_dir.join("filename_no_ext_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test with different output directory
         let custom_dir = Path::new("/custom/output/dir");
         let output = generate_output_path_with_dir(input, custom_dir, OutputFormat::Jpeg);
-        assert_eq!(output, "/custom/output/dir/filename_no_ext_bg_removed.jpg");
+        let expected = custom_dir.join("filename_no_ext_bg_removed.jpg");
+        assert_eq!(output, expected.to_string_lossy());
     }
 
     #[test]
@@ -2151,22 +2160,26 @@ mod tests {
         let output_dir = Path::new("");
         let input = Path::new("test.jpg");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "test_bg_removed.png");
+        let expected = output_dir.join("test_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test current directory
         let output_dir = Path::new(".");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "./test_bg_removed.png");
+        let expected = output_dir.join("test_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test relative directory
         let output_dir = Path::new("relative/path");
         let output = generate_output_path_with_dir(input, output_dir, OutputFormat::Png);
-        assert_eq!(output, "relative/path/test_bg_removed.png");
+        let expected = output_dir.join("test_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
 
         // Test with unicode characters in paths
         let unicode_dir = Path::new("/output/测试/图片");
         let unicode_input = Path::new("测试图片.jpg");
         let output = generate_output_path_with_dir(unicode_input, unicode_dir, OutputFormat::Png);
-        assert_eq!(output, "/output/测试/图片/测试图片_bg_removed.png");
+        let expected = unicode_dir.join("测试图片_bg_removed.png");
+        assert_eq!(output, expected.to_string_lossy());
     }
 }
