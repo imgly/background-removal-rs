@@ -18,6 +18,7 @@ path = "src/bin/imgly-bgremove.rs"
 [[bin]]
 name = "test_video"
 path = "src/bin/test_video.rs"
+required-features = ["video-support"]
 
 [features]
 # Default: include all backends and CLI functionality
