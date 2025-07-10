@@ -49,34 +49,18 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Install pkg-config first
-        choco install pkgconfiglite -y
+        # Install FFmpeg using Chocolatey
+        choco install ffmpeg-full -y
         
-        # Download pre-built FFmpeg binaries with development files
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1-full_build-shared.7z" -OutFile "ffmpeg.7z"
+        # Refresh environment variables
+        refreshenv
         
-        # Install 7-zip to extract the archive
-        choco install 7zip -y
-        
-        # Extract FFmpeg
-        & "C:\Program Files\7-Zip\7z.exe" x ffmpeg.7z -oC:\ffmpeg_temp -y
-        
-        # Move to final location
-        $ffmpegDir = Get-ChildItem -Path "C:\ffmpeg_temp" -Directory | Select-Object -First 1
-        Move-Item -Path $ffmpegDir.FullName -Destination "C:\ffmpeg"
-        
-        # Set environment variables
-        echo "C:\ffmpeg\bin" >> $env:GITHUB_PATH
-        echo "FFMPEG_DIR=C:\ffmpeg" >> $env:GITHUB_ENV
-        echo "PKG_CONFIG_PATH=C:\ffmpeg\lib\pkgconfig" >> $env:GITHUB_ENV
+        # Set FFmpeg directory environment variable
+        $ffmpegPath = (Get-Command ffmpeg).Path | Split-Path | Split-Path
+        echo "FFMPEG_DIR=$ffmpegPath" >> $env:GITHUB_ENV
         
         # Verify FFmpeg installation
-        C:\ffmpeg\bin\ffmpeg.exe -version
-        
-        # Check that development files exist
-        Get-ChildItem -Path "C:\ffmpeg\include" -Recurse -Filter "*.h" | Select-Object -First 5
-        Get-ChildItem -Path "C:\ffmpeg\lib" -Filter "*.lib" | Select-Object -First 5
+        ffmpeg -version
 
     - name: Check
       run: cargo check --verbose
