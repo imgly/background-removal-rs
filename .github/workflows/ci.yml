@@ -73,17 +73,31 @@ jobs:
         echo "FFMPEG_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
         echo "PKG_CONFIG_PATH=C:\vcpkg\installed\x64-windows\lib\pkgconfig" >> $env:GITHUB_ENV
         
-        # Verify FFmpeg installation
-        if (Test-Path "C:\vcpkg\installed\x64-windows\bin\ffmpeg.exe") {
-            C:\vcpkg\installed\x64-windows\bin\ffmpeg.exe -version
+        # Check what vcpkg actually installed
+        Write-Host "Checking installed files in bin directory:"
+        Get-ChildItem C:\vcpkg\installed\x64-windows\bin -ErrorAction SilentlyContinue | Select-Object -First 20
+        
+        Write-Host "`nChecking installed files in tools directory:"
+        Get-ChildItem C:\vcpkg\installed\x64-windows\tools -ErrorAction SilentlyContinue | Select-Object -First 20
+        
+        # Verify development files exist (these are what we really need)
+        Write-Host "`nChecking include directories:"
+        Get-ChildItem C:\vcpkg\installed\x64-windows\include\libav* -Directory -ErrorAction SilentlyContinue
+        
+        Write-Host "`nChecking library files:"
+        Get-ChildItem C:\vcpkg\installed\x64-windows\lib\*.lib -ErrorAction SilentlyContinue | Select-Object -First 10
+        
+        Write-Host "`nChecking pkgconfig files:"
+        Get-ChildItem C:\vcpkg\installed\x64-windows\lib\pkgconfig\*.pc -ErrorAction SilentlyContinue
+        
+        # The ffmpeg-sys-next crate needs the libraries, not the executable
+        # So we just verify the libraries are present
+        if (Test-Path "C:\vcpkg\installed\x64-windows\lib\avcodec.lib") {
+            Write-Host "`nFFmpeg libraries successfully installed!"
         } else {
-            Write-Error "FFmpeg not found at expected location"
+            Write-Error "FFmpeg libraries not found!"
             exit 1
         }
-        
-        # Verify development files exist
-        Get-ChildItem C:\vcpkg\installed\x64-windows\include\libav* -Directory
-        Get-ChildItem C:\vcpkg\installed\x64-windows\lib\*.lib | Select-Object -First 10
 
     - name: Check
       run: cargo check --verbose
