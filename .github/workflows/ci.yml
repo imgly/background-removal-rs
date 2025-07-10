@@ -49,57 +49,17 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Download prebuilt FFmpeg libraries
-        Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg.zip"
-        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\ffmpeg"
-        $ffmpegPath = Get-ChildItem -Path "C:\ffmpeg" -Directory | Select-Object -First 1
+        # Use vcpkg to install FFmpeg
+        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat
+        C:\vcpkg\vcpkg install ffmpeg[avcodec,avformat,avfilter,avdevice,swresample,swscale]:x64-windows
         
-        # Set environment variables for FFmpeg
-        echo "FFMPEG_DIR=$($ffmpegPath.FullName)" >> $env:GITHUB_ENV
-        echo "$($ffmpegPath.FullName)\bin" >> $env:GITHUB_PATH
+        # Set environment variables
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "C:\vcpkg\installed\x64-windows\bin" >> $env:GITHUB_PATH
         
-        # Create pkg-config files for FFmpeg libraries
-        $pkgConfigPath = "C:\pkg-config"
-        New-Item -ItemType Directory -Force -Path $pkgConfigPath
-        
-        # Create libavutil.pc
-        $content = @"
-        prefix=$($ffmpegPath.FullName)
-        exec_prefix=`${prefix}
-        libdir=`${prefix}/lib
-        includedir=`${prefix}/include
-        
-        Name: libavutil
-        Description: FFmpeg utility library
-        Version: 58.2.100
-        Libs: -L`${libdir} -lavutil
-        Cflags: -I`${includedir}
-        "@
-        $content | Out-File -FilePath "$pkgConfigPath\libavutil.pc" -Encoding ASCII
-        
-        # Create similar files for other libraries
-        $libs = @("avcodec", "avformat", "avfilter", "avdevice", "swresample", "swscale")
-        foreach ($lib in $libs) {
-          $content = @"
-        prefix=$($ffmpegPath.FullName)
-        exec_prefix=`${prefix}
-        libdir=`${prefix}/lib
-        includedir=`${prefix}/include
-        
-        Name: lib$lib
-        Description: FFmpeg $lib library
-        Version: 58.2.100
-        Libs: -L`${libdir} -l$lib
-        Cflags: -I`${includedir}
-        "@
-          $content | Out-File -FilePath "$pkgConfigPath\lib$lib.pc" -Encoding ASCII
-        }
-        
-        # Set PKG_CONFIG_PATH
-        echo "PKG_CONFIG_PATH=$pkgConfigPath" >> $env:GITHUB_ENV
-        
-        # Install pkg-config
-        choco install pkgconfiglite
+        # Set FFmpeg environment variables for the build
+        echo "FFMPEG_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
 
     - name: Check
       run: cargo check --verbose
