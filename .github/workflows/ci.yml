@@ -36,6 +36,17 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - name: Cache vcpkg packages (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/cache@v3
+      with:
+        path: |
+          C:\vcpkg\installed
+          C:\vcpkg\packages
+        key: ${{ runner.os }}-vcpkg-ffmpeg-v2
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-ffmpeg-
+
     - name: Install FFmpeg (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -49,24 +60,31 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Install FFmpeg using Chocolatey
-        choco install ffmpeg-full -y
+        # vcpkg is pre-installed on GitHub Actions Windows runners
+        # Install FFmpeg with development files
+        vcpkg install ffmpeg[avcodec,avdevice,avfilter,avformat,avutil,postproc,swresample,swscale]:x64-windows
         
-        # Refresh environment variables
-        refreshenv
+        # Set environment variables
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "C:\vcpkg\installed\x64-windows\bin" >> $env:GITHUB_PATH
+        echo "FFMPEG_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+        echo "PKG_CONFIG_PATH=C:\vcpkg\installed\x64-windows\lib\pkgconfig" >> $env:GITHUB_ENV
         
-        # Set FFmpeg directory environment variable
-        $ffmpegPath = (Get-Command ffmpeg).Path | Split-Path | Split-Path
-        echo "FFMPEG_DIR=$ffmpegPath" >> $env:GITHUB_ENV
+        # Install pkg-config for Windows
+        choco install pkgconfiglite -y
         
         # Verify FFmpeg installation
-        ffmpeg -version
+        C:\vcpkg\installed\x64-windows\bin\ffmpeg.exe -version
+        
+        # Verify development files exist
+        Get-ChildItem C:\vcpkg\installed\x64-windows\include\libav* -Directory
+        Get-ChildItem C:\vcpkg\installed\x64-windows\lib\*.lib | Select-Object -First 10
 
     - name: Check
-      run: cargo check --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
+      run: cargo check --verbose
 
     - name: Build
-      run: cargo build --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
+      run: cargo build --verbose
 
     - name: Test
-      run: cargo test --verbose ${{ matrix.os == 'windows-latest' && '--no-default-features --features onnx,tract,cli,webp-support' || '' }}
+      run: cargo test --verbose
