@@ -750,4 +750,189 @@ mod tests {
         let _config = RemovalConfig::default();
         // API compiles successfully if we reach this point
     }
+    
+    #[cfg(feature = "video-support")]
+    #[tokio::test]
+    async fn test_video_progress_callback() {
+        use std::sync::{Arc, Mutex};
+        
+        // Create a shared state to track progress calls
+        let progress_calls = Arc::new(Mutex::new(Vec::<(u64, u64)>::new()));
+        let progress_calls_clone = progress_calls.clone();
+        
+        // Create a RemovalConfig with a progress callback
+        let mut config = RemovalConfig::default();
+        config.video_progress_callback = Some(Box::new(move |current, total| {
+            progress_calls_clone.lock().unwrap().push((current, total));
+        }));
+        
+        // The callback should be set
+        assert!(config.video_progress_callback.is_some());
+        
+        // Test the callback directly
+        if let Some(ref callback) = config.video_progress_callback {
+            callback(0, 100);
+            callback(25, 100);
+            callback(50, 100);
+            callback(75, 100);
+            callback(100, 100);
+        }
+        
+        // Verify the progress was tracked correctly
+        let calls = progress_calls.lock().unwrap();
+        assert_eq!(calls.len(), 5);
+        assert_eq!(calls[0], (0, 100));
+        assert_eq!(calls[1], (25, 100));
+        assert_eq!(calls[2], (50, 100));
+        assert_eq!(calls[3], (75, 100));
+        assert_eq!(calls[4], (100, 100));
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[test]
+    fn test_video_progress_callback_with_config_builder() {
+        use std::sync::{Arc, Mutex};
+        
+        // Create a shared state to track progress
+        let progress_state = Arc::new(Mutex::new(Vec::<(u64, u64)>::new()));
+        let progress_state_clone = progress_state.clone();
+        
+        // Build config with video progress callback
+        let config = RemovalConfig::builder()
+            .video_progress_callback(Box::new(move |current, total| {
+                progress_state_clone.lock().unwrap().push((current, total));
+            }))
+            .build()
+            .unwrap();
+        
+        // Test that callback works
+        if let Some(ref callback) = config.video_progress_callback {
+            callback(10, 50);
+            callback(20, 50);
+            callback(30, 50);
+        }
+        
+        let calls = progress_state.lock().unwrap();
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[0], (10, 50));
+        assert_eq!(calls[1], (20, 50));
+        assert_eq!(calls[2], (30, 50));
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[test]
+    fn test_video_progress_callback_clone_behavior() {
+        // Test that RemovalConfig can be cloned even with video_progress_callback
+        let mut config1 = RemovalConfig::default();
+        config1.video_progress_callback = Some(Box::new(|_current, _total| {
+            // Empty callback
+        }));
+        
+        // Clone should work and callback should be None (as per our Clone implementation)
+        let config2 = config1.clone();
+        assert!(config1.video_progress_callback.is_some());
+        assert!(config2.video_progress_callback.is_none());
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[test]
+    fn test_video_progress_callback_with_unknown_total() {
+        use std::sync::{Arc, Mutex};
+        
+        // Test callback behavior when total frames is unknown (0)
+        let progress_calls = Arc::new(Mutex::new(Vec::<(u64, u64)>::new()));
+        let progress_calls_clone = progress_calls.clone();
+        
+        let mut config = RemovalConfig::default();
+        config.video_progress_callback = Some(Box::new(move |current, total| {
+            progress_calls_clone.lock().unwrap().push((current, total));
+        }));
+        
+        // Simulate progress with unknown total frames
+        if let Some(ref callback) = config.video_progress_callback {
+            callback(0, 0);
+            callback(10, 0);
+            callback(20, 0);
+            callback(30, 0);
+        }
+        
+        let calls = progress_calls.lock().unwrap();
+        assert_eq!(calls.len(), 4);
+        assert_eq!(calls[0], (0, 0));
+        assert_eq!(calls[1], (10, 0));
+        assert_eq!(calls[2], (20, 0));
+        assert_eq!(calls[3], (30, 0));
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[test]
+    fn test_removal_config_partial_eq_with_callback() {
+        // Test PartialEq implementation with video_progress_callback
+        let mut config1 = RemovalConfig::default();
+        let config2 = RemovalConfig::default();
+        
+        // Initially equal
+        assert_eq!(config1, config2);
+        
+        // Add callback to config1
+        config1.video_progress_callback = Some(Box::new(|_, _| {}));
+        
+        // Still equal because PartialEq ignores video_progress_callback
+        assert_eq!(config1, config2);
+        
+        // Change a different field
+        config1.output_format = OutputFormat::WebP;
+        assert_ne!(config1, config2);
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[test]
+    fn test_removal_config_debug_with_callback() {
+        // Test Debug implementation with video_progress_callback
+        let mut config = RemovalConfig::default();
+        config.video_progress_callback = Some(Box::new(|current, total| {
+            println!("Progress: {}/{}", current, total);
+        }));
+        
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("video_progress_callback: Some"));
+        
+        // Test without callback
+        let config_no_callback = RemovalConfig::default();
+        let debug_str_no_callback = format!("{:?}", config_no_callback);
+        assert!(debug_str_no_callback.contains("video_progress_callback: None"));
+    }
+    
+    #[cfg(feature = "video-support")]
+    #[tokio::test]
+    async fn test_video_progress_callback_thread_safety() {
+        use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
+        
+        // Test that callback can be used across threads
+        let current_frame = Arc::new(AtomicU64::new(0));
+        let total_frames = Arc::new(AtomicU64::new(0));
+        
+        let current_clone = current_frame.clone();
+        let total_clone = total_frames.clone();
+        
+        let mut config = RemovalConfig::default();
+        config.video_progress_callback = Some(Box::new(move |current, total| {
+            current_clone.store(current, Ordering::SeqCst);
+            total_clone.store(total, Ordering::SeqCst);
+        }));
+        
+        // Spawn a task to call the callback
+        let config_clone = Arc::new(config);
+        let handle = tokio::spawn(async move {
+            if let Some(ref callback) = config_clone.video_progress_callback {
+                callback(42, 100);
+            }
+        });
+        
+        handle.await.unwrap();
+        
+        // Verify the values were updated
+        assert_eq!(current_frame.load(Ordering::SeqCst), 42);
+        assert_eq!(total_frames.load(Ordering::SeqCst), 100);
+    }
 }

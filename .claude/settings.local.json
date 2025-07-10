@@ -182,7 +182,8 @@
       "Bash(git tag:*)",
       "Bash(tokei:*)",
       "Bash(./test_video_progress.sh:*)",
-      "Bash(./fix_tests.sh)"
+      "Bash(./fix_tests.sh)",
+      "Bash(ln:*)"
     ],
     "deny": []
   },

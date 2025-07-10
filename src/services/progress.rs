@@ -1617,4 +1617,167 @@ mod tests {
             reporter.report_batch_progress(batch_update.clone());
         }
     }
+
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_stacked_progress_reporter_creation() {
+        let reporter = StackedProgressReporter::new(true);
+        
+        // Test basic progress reporting
+        let update = ProgressUpdate::new(ProcessingStage::Inference, Instant::now());
+        reporter.report_progress(update);
+        
+        // Test completion reporting
+        let timings = ProcessingTimings::default();
+        reporter.report_completion(timings);
+        
+        // Test error reporting
+        reporter.report_error(ProcessingStage::FileSaving, "Failed to save file");
+    }
+    
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_stacked_progress_reporter_batch_progress() {
+        let reporter = StackedProgressReporter::new(false);
+        
+        // Test batch progress without frame info
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(ProcessingStage::BatchItemProcessing, Instant::now()),
+            current_item_progress: Some(ProgressUpdate::new(ProcessingStage::Preprocessing, Instant::now())),
+            stats: BatchProcessingStats {
+                items_completed: 3,
+                items_total: 10,
+                items_failed: 1,
+                current_item_name: "image4.jpg".to_string(),
+                processing_rate: 2.5,
+                eta_seconds: Some(30),
+                frame_info: None,
+            },
+        };
+        
+        reporter.report_batch_progress(batch_update);
+    }
+    
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_stacked_progress_reporter_video_frame_progress() {
+        let reporter = StackedProgressReporter::new(true);
+        
+        // Test batch progress with video frame info
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(ProcessingStage::FrameProcessing, Instant::now()),
+            current_item_progress: Some(ProgressUpdate::new(ProcessingStage::FrameProcessing, Instant::now())),
+            stats: BatchProcessingStats {
+                items_completed: 0,
+                items_total: 1,
+                items_failed: 0,
+                current_item_name: "video.mp4".to_string(),
+                processing_rate: 24.0, // frames per second
+                eta_seconds: Some(60),
+                frame_info: Some((150, 300)), // Processing frame 150 of 300
+            },
+        };
+        
+        reporter.report_batch_progress(batch_update);
+        
+        // Test with unknown frame count
+        let batch_update_unknown = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(ProcessingStage::FrameProcessing, Instant::now()),
+            current_item_progress: Some(ProgressUpdate::new(ProcessingStage::FrameProcessing, Instant::now())),
+            stats: BatchProcessingStats {
+                items_completed: 0,
+                items_total: 1,
+                items_failed: 0,
+                current_item_name: "streaming.mp4".to_string(),
+                processing_rate: 30.0,
+                eta_seconds: None,
+                frame_info: Some((50, 0)), // Frame count unknown
+            },
+        };
+        
+        reporter.report_batch_progress(batch_update_unknown);
+    }
+    
+    #[test]
+    fn test_batch_processing_stats_with_frame_info() {
+        // Test stats with frame info
+        let stats_with_frames = BatchProcessingStats {
+            items_completed: 0,
+            items_total: 1,
+            items_failed: 0,
+            current_item_name: "video.mov".to_string(),
+            processing_rate: 25.0,
+            eta_seconds: Some(120),
+            frame_info: Some((75, 250)),
+        };
+        
+        assert_eq!(stats_with_frames.frame_info, Some((75, 250)));
+        
+        // Test stats without frame info
+        let stats_without_frames = BatchProcessingStats {
+            items_completed: 5,
+            items_total: 10,
+            items_failed: 0,
+            current_item_name: "image.png".to_string(),
+            processing_rate: 1.5,
+            eta_seconds: Some(30),
+            frame_info: None,
+        };
+        
+        assert_eq!(stats_without_frames.frame_info, None);
+    }
+    
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_format_eta() {
+        // Test ETA formatting
+        assert_eq!(StackedProgressReporter::format_eta(Some(45)), "45s");
+        assert_eq!(StackedProgressReporter::format_eta(Some(60)), "1m 0s");
+        assert_eq!(StackedProgressReporter::format_eta(Some(125)), "2m 5s");
+        assert_eq!(StackedProgressReporter::format_eta(Some(3665)), "61m 5s");
+        assert_eq!(StackedProgressReporter::format_eta(None), "calculating...");
+    }
+    
+    #[test]
+    #[cfg(feature = "cli")]
+    fn test_create_cli_progress_reporter_returns_stacked() {
+        // Test that create_cli_progress_reporter returns StackedProgressReporter when progress is enabled
+        let reporter = create_cli_progress_reporter(true, false, 1);
+        
+        // The reporter should handle batch progress properly
+        let batch_update = BatchProgressUpdate {
+            total_progress: ProgressUpdate::new(ProcessingStage::BatchItemProcessing, Instant::now()),
+            current_item_progress: Some(ProgressUpdate::new(ProcessingStage::Inference, Instant::now())),
+            stats: BatchProcessingStats {
+                items_completed: 0,
+                items_total: 1,
+                items_failed: 0,
+                current_item_name: "test.jpg".to_string(),
+                processing_rate: 1.0,
+                eta_seconds: Some(5),
+                frame_info: None,
+            },
+        };
+        
+        reporter.report_batch_progress(batch_update);
+    }
+    
+    #[test]
+    fn test_video_processing_stages() {
+        // Test video-specific processing stages
+        assert_eq!(ProcessingStage::VideoAnalysis.description(), "Analyzing video metadata");
+        assert_eq!(ProcessingStage::VideoDecoding.description(), "Decoding video stream");
+        assert_eq!(ProcessingStage::FrameExtraction.description(), "Extracting video frames");
+        assert_eq!(ProcessingStage::FrameProcessing.description(), "Processing video frame");
+        assert_eq!(ProcessingStage::VideoEncoding.description(), "Encoding video output");
+        assert_eq!(ProcessingStage::VideoFinalization.description(), "Finalizing video file");
+        
+        // Test progress percentages for video stages
+        assert_eq!(ProcessingStage::VideoAnalysis.progress_percentage(), 5);
+        assert_eq!(ProcessingStage::VideoDecoding.progress_percentage(), 10);
+        assert_eq!(ProcessingStage::FrameExtraction.progress_percentage(), 20);
+        assert_eq!(ProcessingStage::FrameProcessing.progress_percentage(), 70);
+        assert_eq!(ProcessingStage::VideoEncoding.progress_percentage(), 90);
+        assert_eq!(ProcessingStage::VideoFinalization.progress_percentage(), 100);
+    }
 }
