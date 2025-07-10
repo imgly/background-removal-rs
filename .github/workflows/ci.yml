@@ -64,8 +64,8 @@ jobs:
         choco install pkgconfiglite -y
         
         # vcpkg is pre-installed on GitHub Actions Windows runners
-        # Install FFmpeg with development files
-        C:\vcpkg\vcpkg.exe install ffmpeg[avcodec,avdevice,avfilter,avformat,avutil,postproc,swresample,swscale]:x64-windows
+        # Install FFmpeg with development files (using correct vcpkg syntax)
+        C:\vcpkg\vcpkg.exe install ffmpeg:x64-windows
         
         # Set environment variables
         echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
