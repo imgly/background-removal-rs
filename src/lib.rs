@@ -895,12 +895,12 @@ mod tests {
         }));
         
         let debug_str = format!("{:?}", config);
-        assert!(debug_str.contains("video_progress_callback: Some"));
+        assert!(debug_str.contains("video_progress_callback: true"));
         
         // Test without callback
         let config_no_callback = RemovalConfig::default();
         let debug_str_no_callback = format!("{:?}", config_no_callback);
-        assert!(debug_str_no_callback.contains("video_progress_callback: None"));
+        assert!(debug_str_no_callback.contains("video_progress_callback: false"));
     }
     
     #[cfg(feature = "video-support")]

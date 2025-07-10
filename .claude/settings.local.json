@@ -183,7 +183,11 @@
       "Bash(tokei:*)",
       "Bash(./test_video_progress.sh:*)",
       "Bash(./fix_tests.sh)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run watch:*)"
     ],
     "deny": []
   },
