@@ -49,32 +49,61 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install ffmpeg-full
+        # Download prebuilt FFmpeg libraries
+        Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg.zip"
+        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\ffmpeg"
+        $ffmpegPath = Get-ChildItem -Path "C:\ffmpeg" -Directory | Select-Object -First 1
+        
+        # Set environment variables for FFmpeg
+        echo "FFMPEG_DIR=$($ffmpegPath.FullName)" >> $env:GITHUB_ENV
+        echo "$($ffmpegPath.FullName)\bin" >> $env:GITHUB_PATH
+        
+        # Create pkg-config files for FFmpeg libraries
+        $pkgConfigPath = "C:\pkg-config"
+        New-Item -ItemType Directory -Force -Path $pkgConfigPath
+        
+        # Create libavutil.pc
+        @"
+prefix=$($ffmpegPath.FullName)
+exec_prefix=`${prefix}
+libdir=`${prefix}/lib
+includedir=`${prefix}/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 58.2.100
+Libs: -L`${libdir} -lavutil
+Cflags: -I`${includedir}
+"@ | Out-File -FilePath "$pkgConfigPath\libavutil.pc" -Encoding ASCII
+        
+        # Create similar files for other libraries
+        $libs = @("avcodec", "avformat", "avfilter", "avdevice", "swresample", "swscale")
+        foreach ($lib in $libs) {
+          @"
+prefix=$($ffmpegPath.FullName)
+exec_prefix=`${prefix}
+libdir=`${prefix}/lib
+includedir=`${prefix}/include
+
+Name: lib$lib
+Description: FFmpeg $lib library
+Version: 58.2.100
+Libs: -L`${libdir} -l$lib
+Cflags: -I`${includedir}
+"@ | Out-File -FilePath "$pkgConfigPath\lib$lib.pc" -Encoding ASCII
+        }
+        
+        # Set PKG_CONFIG_PATH
+        echo "PKG_CONFIG_PATH=$pkgConfigPath" >> $env:GITHUB_ENV
+        
+        # Install pkg-config
         choco install pkgconfiglite
-        echo "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin" >> $env:GITHUB_PATH
-      env:
-        FFMPEG_DIR: C:\ProgramData\chocolatey\lib\ffmpeg-full\tools\ffmpeg
 
     - name: Check
       run: cargo check --verbose
-      if: matrix.os != 'windows-latest'
-
-    - name: Check (Windows without video)
-      if: matrix.os == 'windows-latest'
-      run: cargo check --verbose --no-default-features --features "onnx,tract,cli,webp-support"
 
     - name: Build
       run: cargo build --verbose
-      if: matrix.os != 'windows-latest'
-
-    - name: Build (Windows without video)
-      if: matrix.os == 'windows-latest'
-      run: cargo build --verbose --no-default-features --features "onnx,tract,cli,webp-support"
 
     - name: Test
       run: cargo test --verbose
-      if: matrix.os != 'windows-latest'
-
-    - name: Test (Windows without video)
-      if: matrix.os == 'windows-latest'
-      run: cargo test --verbose --no-default-features --features "onnx,tract,cli,webp-support"
