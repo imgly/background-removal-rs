@@ -49,17 +49,30 @@ jobs:
     - name: Install FFmpeg (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Install vcpkg
-        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-        C:\vcpkg\bootstrap-vcpkg.bat
+        # Install pkg-config first
+        choco install pkgconfiglite -y
         
-        # Install pre-built FFmpeg shared libraries
-        C:\vcpkg\vcpkg install ffmpeg:x64-windows --recurse
+        # Download pre-built FFmpeg binaries
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg.zip"
+        
+        # Extract FFmpeg
+        Expand-Archive -Path "ffmpeg.zip" -DestinationPath "C:\ffmpeg_temp"
+        
+        # Move to final location
+        $ffmpegDir = Get-ChildItem -Path "C:\ffmpeg_temp" -Directory | Select-Object -First 1
+        Move-Item -Path $ffmpegDir.FullName -Destination "C:\ffmpeg"
         
         # Set environment variables
-        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-        echo "C:\vcpkg\installed\x64-windows\bin" >> $env:GITHUB_PATH
-        echo "FFMPEG_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+        echo "C:\ffmpeg\bin" >> $env:GITHUB_PATH
+        echo "FFMPEG_DIR=C:\ffmpeg" >> $env:GITHUB_ENV
+        echo "PKG_CONFIG_PATH=C:\ffmpeg\lib\pkgconfig" >> $env:GITHUB_ENV
+        
+        # Create pkg-config directory if it doesn't exist
+        New-Item -ItemType Directory -Force -Path "C:\ffmpeg\lib\pkgconfig"
+        
+        # Verify FFmpeg installation
+        C:\ffmpeg\bin\ffmpeg.exe -version
 
     - name: Check
       run: cargo check --verbose
